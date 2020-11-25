@@ -40,11 +40,48 @@ class CurrentPop():
         # The real population must be returned with the mask
         self.batches=self.batches_raw[self.masks]
         self.products=self.products_raw[self.masks]
+        self.genes_per_chromo=np.sum(self.masks,axis=0)
+
+    def count_genes_per_chromossomes(self):
+        """Counts number of active genes per chromossome
+
+        Returns:
+            array: Count of active genes per chromossome
+        """
+        count=np.sum(self.masks,axis=0)
+        return count
 
     def agg_product_batch(self):
         """Aggregates product batches in case of neighbours products
         """
-        for 
+        # Loop per chromossome in population
+        # for list_batches,list_products,list_masks,list_genes_chromo in zip(self.batches,self.products,self.masks,self.genes_per_chromo):
+        for j in range(0,len(self.genes_per_chromo)):
+            # Loop per gene i in chromossome
+            while i<np.sum(self.masks[j],axis=0)-1:
+                if self.products[j][i]==self.products[j][i+1]:
+                    # Sum next
+                    print(self.batches[j])
+                    self.batches[j][i]=self.batches[j][i]+self.batches[j][i+1]
+                    print(self.batches[j])
+                    # Deletes [i+a] and insert a value in the last
+                    print(self.batches[j])
+                    self.batches[j]=np.insert(np.delete(self.batches[j],i),-1,0)
+                    print(self.batches[j])
+                    print(self.products[j])
+                    self.products[j]=np.insert(np.delete(self.products[j],i),-1,0)
+                    print(self.products[j])
+                    print(self.masks[j])
+                    self.masks[j]=np.insert(np.delete(self.masks[j],i),-1,False)
+                    print(self.masks[j])
+                    i+=1
+                else:
+                    i+=1
+
+
+
+
+
 
 
 
@@ -62,11 +99,17 @@ class Planning():
     def main(num_chromossomes,num_geracoes,n_tour,perc_crossover):
         # 1) Random parent population is created
         pop=CurrentPop(Planning.num_genes,num_chromossomes,Planning.num_products)
-        print(pop.batches.shape)
-        print(pop.products.shape)
-        print(pop.masks.shape)
-        # 2) Avaliar objetivos
-        pop_batch,pop_product=
+        # print(pop.batches.shape)
+        # print(pop.products.shape)
+        # print(pop.masks.shape)
+        
+        # 2) Aggregates neighbours products
+        print(sum(pop.masks))
+        CurrentPop.agg_product_batch()
+        print(sum(pop.masks))
+
+        # # 2) Avaliar objetivos
+        # pop_batch,pop_product=
     
     def run_cprofile():
         num_chromossomes=100
