@@ -31,23 +31,30 @@ class CurrentPop():
             num_products (int): Number of products available to compose the product propulation
             num_objectives (int): Number of objectives being evaluated
         """
+        # Initializes Batch with 1 batch
         self.batches_raw=np.zeros(shape=(num_chromossomes,num_genes))
-        # Initializes with 1 batch
         self.batches_raw[:,0]=int(1)
+
+        # Initializes products with random allocation of products (0 is a dummy represents empty)
         self.products_raw=np.zeros(shape=(num_chromossomes,num_genes))
-        # Initializes with random allocation of products
-        self.products_raw[:,0]=np.random.randint(low=0,high=num_products,size=num_chromossomes)
+        self.products_raw[:,0]=np.random.randint(low=1,high=num_products+1,size=num_chromossomes)
+
+        # Initializes a time vector
+        self.timeline_raw=np.zeros(shape=(num_chromossomes,num_genes))
+
+        # Initialize Mask of active items
         self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
         # Initializes with only one gene
         self.masks[:,0]=True
         # Initializes the objectives
         self.objectives=np.zeros(shape=(num_chromossomes,num_objectives))
+        # Initializes genes per chromossome (Number of active campaigns per solution)
         self.genes_per_chromo=np.sum(self.masks,axis=0)
 
         # The real population must be returned with the mask
         self.batches=self.batches_raw[self.masks]
         self.products=self.products_raw[self.masks]
-        self.genes_per_chromo=np.sum(self.masks,axis=0)
+        self.timeline=self.timeline_raw[self.masks]
 
     def count_genes_per_chromossomes(self):
         """Counts number of active genes per chromossome
