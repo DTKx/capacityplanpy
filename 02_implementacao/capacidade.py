@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import copy
+import timeit
 
 """Pseudo Code
 1)Initial Population Chromossome=[Product [int],Num_batches [int]] 
@@ -41,6 +42,8 @@ class CurrentPop():
         self.masks[:,0]=True
         # Initializes the objectives
         self.objectives=np.zeros(shape=(num_chromossomes,num_objectives))
+        self.genes_per_chromo=np.sum(self.masks,axis=0)
+
         # The real population must be returned with the mask
         self.batches=self.batches_raw[self.masks]
         self.products=self.products_raw[self.masks]
@@ -82,14 +85,8 @@ class CurrentPop():
                     i+=1
                 else:
                     i+=1
-
-            # Updates the objective
-
-
-
-
-
-
+        # Updates
+        self.genes_per_chromo=np.sum(self.masks,axis=0)
 
 
 class Planning():
@@ -129,6 +126,20 @@ class Planning():
     s3=[18,10,18,0]
     setup_key_to_subkey=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(target_0,target_1,target_2,target_3)]
 
+    def calc_throughput(pop_objectives,pop_products):
+        # Creates a vector for batch/kg por the products 
+        pop_yield=np.vectorize(Planning.yield_kg_batch.__getitem__)(pop_products) #Equivalentt to         # pop_yield=np.array(list(map(Planning.yield_kg_batch.__getitem__,pop_products)))
+        # unique,inv=np.unique(pop_products,return_inverse=True)
+        # pop_yield=np.array([Planning.yield_kg_batch[x] for x in unique])[inv].reshape(pop_products.shape)
+
+        # Loop per chromossome
+        # print("Objectives",pop_objectives)
+        for i in range(0,len(pop_batches)):
+            pop_objectives[i,0]=np.dot(pop_batches[i],pop_yield[i])
+        # print("Objectives",pop_objectives)
+        return pop_objectives
+
+
     def calc_objectives(pop_batches,pop_products,pop_objectives):
         """Overall, the goal is to generate a set of schedules: 
                 maximise the total production throughput (Column 0)
@@ -140,28 +151,22 @@ class Planning():
             [type]: [description]
         """
         # Calculating the throughput
-        pop_yield=np.vectorize(Planning.yield_kg_batch.__getitem__)(pop_products) #Equivalentt to         # pop_yield=np.array(list(map(Planning.yield_kg_batch.__getitem__,pop_products)))
-
-        # Loop per chromossome
-        # print("Objectives",pop_objectives)
-        for i in range(0,len(pop_batches)):
-            pop_objectives[i,0]=np.dot(pop_batches[i],pop_yield[i])
-        # print("Objectives",pop_objectives)
+        pop_objectives=Planning.calc_throughput(pop_objectives,pop_products)
         return pop_objectives
 
     def main(num_chromossomes,num_geracoes,n_tour,perc_crossover):
-        # 1) Random parent population is created
+        # 1) Random parent population is initialized with its attributes
         pop=CurrentPop(Planning.num_genes,num_chromossomes,Planning.num_products,Planning.num_objectives)
         # print(pop.batches.shape)
         # print(pop.products.shape)
         # print(pop.masks.shape)
         
-        # 2) Aggregates neighbours products
-        print(np.sum(pop.masks))
-        pop.agg_product_batch()
-        print(np.sum(pop.masks))
+        # # 2) Aggregates neighbours products no need in initialization
+        # print(np.sum(pop.masks))
+        # pop.agg_product_batch()
+        # print(np.sum(pop.masks))
 
-        # 3) Avaliar objetivos
+        # 2) Avaliar objetivos
         pop_objectives=Planning.calc_objectives(pop.batches,pop.products,pop.objectives)
         print("hey")
     
