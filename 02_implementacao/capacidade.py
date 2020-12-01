@@ -2,6 +2,8 @@ import numpy as np
 import random
 import copy
 import timeit
+import datetime
+from dateutil.relativedelta import *
 
 """Pseudo Code
 1)Initial Population Chromossome=[Product [int],Num_batches [int]] 
@@ -12,14 +14,10 @@ import timeit
 
 """
 
-# class Current():
-#     """Stores current population
-#     """
-
 class CurrentPop():
-    """Stores current population and its methods
+    """Stores current population and its atributes and methods
     """
-    def __init__(self,num_genes,num_chromossomes,num_products,num_objectives):
+    def __init__(self,num_genes,num_chromossomes,num_products,num_objectives,start_date,initial_stock):
         """Initiates the current population, with a batch population,product population and a mask.
         batch population contains the number of batches, initially with only one batch
         product population contains the product being produced related to the batch number of the batch population,r randolmly assigned across different number of products
@@ -30,31 +28,39 @@ class CurrentPop():
             num_chromossomes (int): Number of chromossomes in population
             num_products (int): Number of products available to compose the product propulation
             num_objectives (int): Number of objectives being evaluated
+            start_date (datetime): Start Date of planning
+            initial_stock (array): Initial Stock of products
         """
         # Initializes Batch with 1 batch
         self.batches_raw=np.zeros(shape=(num_chromossomes,num_genes))
         self.batches_raw[:,0]=int(1)
 
-        # Initializes products with random allocation of products (0 is a dummy represents empty)
+        # Initializes products with random allocation of products 
         self.products_raw=np.zeros(shape=(num_chromossomes,num_genes))
-        self.products_raw[:,0]=np.random.randint(low=1,high=num_products+1,size=num_chromossomes)
+        self.products_raw[:,0]=np.random.randint(low=0,high=num_products,size=num_chromossomes)
 
-        # Initializes a time vector
-        self.timeline_raw=np.zeros(shape=(num_chromossomes,num_genes))
+        # Initializes a time vector Start and end of campaign Starting with the first date
+        self.start_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[s]')
+        self.start_raw[:,0]=start_date
+        self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[s]')
 
-        # Initialize Mask of active items
+        # Initializes Stock
+        self.stock_raw=np.zeros(shape=(num_chromossomes,num_products))
+
+        # Initialize Mask of active items with only one gene
         self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
-        # Initializes with only one gene
         self.masks[:,0]=True
+
         # Initializes the objectives
-        self.objectives=np.zeros(shape=(num_chromossomes,num_objectives))
+        self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives))
+
         # Initializes genes per chromossome (Number of active campaigns per solution)
         self.genes_per_chromo=np.sum(self.masks,axis=0)
 
-        # The real population must be returned with the mask
-        self.batches=self.batches_raw[self.masks]
-        self.products=self.products_raw[self.masks]
-        self.timeline=self.timeline_raw[self.masks]
+        # # The real population must be returned with the mask
+        # self.batches=self.batches_raw[self.masks]
+        # self.products=self.products_raw[self.masks]
+        # # self.timeline=self.timeline_raw[self.masks]
 
     def count_genes_per_chromossomes(self):
         """Counts number of active genes per chromossome
@@ -89,6 +95,9 @@ class CurrentPop():
                     print(self.masks[j])
                     self.masks[j]=np.insert(np.delete(self.masks[j],i),-1,False)
                     print(self.masks[j])
+                    self.start_raw[j]=np.insert(np.delete(self.start_raw[j],i),-1,0)
+                    self.end_raw[j]=np.insert(np.delete(self.end_raw[j],i),-1,0)
+                    self.stock_raw[j]=np.insert(np.delete(self.stock_raw[j],i),-1,0)
                     i+=1
                 else:
                     i+=1
@@ -107,6 +116,10 @@ class Planning():
     num_products=int(3)
     # Number of Objectives
     num_objectives=2
+    # Number of Months
+    num_months=36
+    start_date=datetime.date(2016,12,1)#  YYYY-MM-DD.
+    # use_date = x+relativedelta(months=+1)
 
     # Process Data 
     products = [0,1,2,3]
@@ -146,7 +159,7 @@ class Planning():
         # print("Objectives",pop_objectives)
         return pop_objectives
 
-
+pop.batches_raw,pop.products_raw,pop.objectives_raw,pop.masks
     def calc_objectives(pop_batches,pop_products,pop_objectives):
         """Overall, the goal is to generate a set of schedules: 
                 maximise the total production throughput (Column 0)
@@ -163,10 +176,13 @@ class Planning():
 
     def main(num_chromossomes,num_geracoes,n_tour,perc_crossover):
         # 1) Random parent population is initialized with its attributes
-        pop=CurrentPop(Planning.num_genes,num_chromossomes,Planning.num_products,Planning.num_objectives)
+        pop=CurrentPop(Planning.num_genes,num_chromossomes,Planning.num_products,Planning.num_objectives,Planning.start_date,Planning.initial_stock)
         # print(pop.batches.shape)
         # print(pop.products.shape)
         # print(pop.masks.shape)
+
+        # 1.1) Fills Start and End Date
+        
         
         # # 2) Aggregates neighbours products no need in initialization
         # print(np.sum(pop.masks))
@@ -174,7 +190,7 @@ class Planning():
         # print(np.sum(pop.masks))
 
         # 2) Avaliar objetivos
-        pop_objectives=Planning.calc_objectives(pop.batches,pop.products,pop.objectives)
+        pop_objectives=Planning.calc_objectives(pop.batches_raw,pop.products_raw,pop.objectives_raw,pop.masks)
         print("hey")
     
     def run_cprofile():
