@@ -14,17 +14,29 @@ print(list_c)
 print(list_c[0][0])
 list_c[0][0]=np.append([list_c[0][0]],list_b)
 import collections
+import datetime
 
 batches_end_date=collections.defaultdict(list)
-s = [(1,0,0,20),(1,0,1,20),(1,0,2,20),(1,0,2,20)]
-for c,g,b,d in s:
-    batches_end_date[c][g][b].append(d)
-p=[i in range(0,4)]
 batches_end_date_i=collections.defaultdict(list)
-s = [(0,20),(1,20),(2,20),(3,20),(0,20)]
+s = [(0,datetime.date(2016,12,1)),(1,datetime.date(2016,12,1)),(2,datetime.date(2016,12,1)),(3,datetime.date(2016,12,1)),(0,datetime.date(2016,12,1))]
 for p,d in s:
     batches_end_date_i[p].append(d)
-batches_end_date_i[0].append(30)
+import pandas as pd
+
+d=[i for i in range(0,5)]
+batches_end_date_i[0]=np.append(batches_end_date_i[0],d)
+batches_end_date_i[1]=np.append(batches_end_date_i[1],d)
+
+# for batch in d:
+#     batches_end_date_i[0].append(batch)
+print(batches_end_date_i)
+
+a=pd.Series(pd.to_datetime(pd.DataFrame(batches_end_date_i[0]).set_index(0).index)).resample("M",convention="start")
+# a=pd.Series(pd.to_datetime(batches_end_date_i[0])).resample("M",convention="start")
+# a=pd.Series(pd.to_datetime(batches_end_date_i[0])).resample("M",convention="start")
+
+# a=pd.Series(batches_end_date_i[0]).resample("M")
+print(a)
 s[-1][1]
 list_dicts_batches_end=[]
 list_dicts_batches_end.append(batches_end_date_i)
