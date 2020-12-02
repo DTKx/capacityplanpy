@@ -32,35 +32,39 @@ class CurrentPop():
             initial_stock (array): Initial Stock of products
         """
         # Initializes Batch with 1 batch
-        self.batches_raw=np.zeros(shape=(num_chromossomes,num_genes))
+        self.batches_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype=int)
         self.batches_raw[:,0]=int(1)
 
         # Initializes products with random allocation of products 
-        self.products_raw=np.zeros(shape=(num_chromossomes,num_genes))
+        self.products_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype=int)
         self.products_raw[:,0]=np.random.randint(low=0,high=num_products,size=num_chromossomes)
 
         # Initializes a time vector Start and end of campaign Starting with the first date
-        self.start_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[s]')
-        self.start_raw[:,0]=start_date
-        self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[s]')
+        self.start_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
+        # self.start_raw[:,0]=start_date
+        self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
 
         # Initializes Stock
-        self.stock_raw=np.zeros(shape=(num_chromossomes,num_products))
+        self.stock_raw=np.zeros(shape=(num_chromossomes,num_products),dtype=int)
 
         # Initialize Mask of active items with only one gene
         self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
         self.masks[:,0]=True
 
         # Initializes the objectives
-        self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives))
+        self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
 
         # Initializes genes per chromossome (Number of active campaigns per solution)
-        self.genes_per_chromo=np.sum(self.masks,axis=0)
+        self.genes_per_chromo=np.sum(self.masks,axis=0,dtype=int)
+
+        # Initialize list of end dates per batch
+        self.dicts_batches_end_dsp=[]
 
         # # The real population must be returned with the mask
         # self.batches=self.batches_raw[self.masks]
         # self.products=self.products_raw[self.masks]
         # # self.timeline=self.timeline_raw[self.masks]
+
 
     def count_genes_per_chromossomes(self):
         """Counts number of active genes per chromossome
@@ -146,6 +150,119 @@ class Planning():
     s3=[18,10,18,0]
     setup_key_to_subkey=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(target_0,target_1,target_2,target_3)]
 
+    def calc_start_end(self,pop):
+        """Calculates start and end dates of batch manufacturing
+
+        Args:
+            pop (Class object): Class Object of the population to be analized
+        """
+        # Extracts the population informations
+        dsp_raw=np.vectorize(Planning.dsp_days.__getitem__)(pop.products_raw)
+        usp_plus_dsp_raw=np.vectorize(Planning.usp_days.__getitem__)(pop.products_raw)+copy.deepcopy(dsp_raw)
+
+        # Initialize by addying the first date
+        pop.start_raw[:,0]=Planning.start_date
+        # Add an end date0=start0+(USP+DSP)*1+DSP*num_batches
+        # pop.end_raw[:,0]=pop.start_raw[:,0]+(usp_plus_dsp_raw[:,0]+dsp_raw[:,0]*(pop.batches_raw[:,0]-1))*np.timedelta64(1,'D')
+
+        # Append end date of first batch
+        # a=[pop.start_raw[:,0]+np.timedelta64(usp_plus_dsp_raw[:,0],'D') for i in range(0,len(pop.start_raw))]
+        # pop.batches_end_date_dsp=list(pop.start_raw[:,0]+(usp_plus_dsp_raw[:,0])*np.timedelta64(1,'D'))
+        # a=list(pop.start_raw[:,0]+(usp_plus_dsp_raw[:,0])*np.timedelta64(1,'D'))
+        # a=np.append(a[0],np.datetime64('2017-01-22'))
+
+        # list_produced=[]
+        # # produced=np.array([np.sum(pop.start_raw)])
+        # # Loop per chromossome i
+        # for i in range(0,pop.start_raw):
+        #     # Loop per batch
+        #     cumsum=0
+        #     list_produced_toappend=[]
+        #     for j in range(0,pop.genes_per_chromo[i]):
+        #         pop.end_raw[i,j]=usp_plus_dsp_raw[i,j]+relativedelta(days=+dsp_raw[i,j]*(pop.batches_raw[i,j]-1))
+
+        #         list_produced_toappend.append()
+
+
+
+        # usp_days=dict(zip(products,[45,36,45,49]))
+        # dsp_days=dict(zip(products,[7,11,7,7]))
+        # pop_yield=np.vectorize(Planning.yield_kg_batch.__getitem__)(pop_products) #Equivalentt to         # pop_yield=np.array(list(map(Planning.yield_kg_batch.__getitem__,pop_products)))
+
+        # setup_key_to_subkey,usp_days,dsp_days,start_date
+
+        # Loop per chromossome i
+        for i in range(0,len(pop.start_raw)):
+            batches_end_date_i=collections.defaultdict(list)
+        # dicts_batches_end_dsp
+
+            # Add first batch end date
+            pop.batches_end_date_dsp[i]=pop.start_raw[i,0]+np.timedelta64(usp_plus_dsp_raw[i,0],'D')
+            # end_date=[(pop.batches_end_date_dsp[i]+np.timedelta64(dsp_raw[i,0]*k,'D')) for k in range(1,5)]
+            # Adds the dates of the batches if more than one batch
+            if pop.batches_raw[i,0]>1:
+                # Creates a list to append with the folowing dates per batch (previous date +DSP)
+                end_date=[(pop.batches_end_date_dsp[i]+np.timedelta64(dsp_raw[i,0]*k,'D')) for k in range(1,pop.batches_raw[i,0])]
+                # Appends the end dates of batches 
+                pop.batches_end_date_dsp[i]=np.append(pop.batches_end_date_dsp[i],end_date)
+                # Updates the end date of the campaign
+                pop.batches_end_date_dsp[i]=pop.batches_end_date_dsp[i][-1]
+
+
+            # # pop.batches_end_date_dsp=list(pop.start_raw[:,0]+(usp_plus_dsp_raw[:,0])*np.timedelta64(1,'D'))
+            # # a=[pop.start_raw[:,0]+np.timedelta64(usp_plus_dsp_raw[:,0],'D') for i in range(0,len(pop.start_raw))]
+
+            # # pop.end_raw[:,0]=pop.start_raw[:,0]+(usp_plus_dsp_raw[:,0]+dsp_raw[:,0]*(pop.batches_raw[:,0]-1))*np.timedelta64(1,'D')
+
+
+            # # Add a Start Date=Previous End Date+Change Over Time
+            # pop.start_raw[i,j]=pop.end_raw[i,j-1]+relativedelta(days=+setup_key_to_subkey[pop.products[i,j]][pop.products[i,j-1]])
+
+            # # Add an end date=1*USP+(num_batches-1)*DSP
+            # pop.end_raw[i,j]=usp_plus_dsp_raw[i,j]+relativedelta(days=+dsp_raw[i,j]*(pop.batches_raw[i,j]-1))
+
+            # # Initialize by addying the first date
+            # pop.start_raw[:,0]=Planning.start_date
+            # # Add an end date0=start0+(USP+DSP)*1+DSP*num_batches
+            # pop.end_raw[:,0]=pop.start_raw[:,0]+(usp_plus_dsp_raw[:,0]+dsp_raw[:,0]*(pop.batches_raw[:,0]-1))*np.timedelta64(1,'D')
+
+            # pop.batches_end_date_dsp=[]
+
+            # Loop per gene j starting from second gene
+            for j in range(1,pop.genes_per_chromo[i]):
+                # Add a Start Date=Previous End Date+Change Over Time
+                pop.start_raw[i,j]=pop.end_raw[i,j-1]+np.timedelta64(setup_key_to_subkey[pop.products[i,j]][pop.products[i,j-1]],'D')
+
+
+
+
+                # Add first batch end date
+                pop.batches_end_date_dsp[i]=pop.start_raw[i,0]+np.timedelta64(usp_plus_dsp_raw[i,0],'D')
+                # end_date=[(pop.batches_end_date_dsp[i]+np.timedelta64(dsp_raw[i,0]*k,'D')) for k in range(1,5)]
+                # Adds the dates of the batches if more than one batch
+                if pop.batches_raw[i,0]>1:
+                    # Creates a list to append with the folowing dates per batch (previous date +DSP)
+                    end_date=[(pop.batches_end_date_dsp[i]+np.timedelta64(dsp_raw[i,0]*k,'D')) for k in range(1,pop.batches_raw[i,0])]
+                    # Appends the end dates of batches 
+                    pop.batches_end_date_dsp[i]=np.append(pop.batches_end_date_dsp[i],end_date)
+                    # Updates the end date of the campaign
+                    pop.batches_end_date_dsp[i]=pop.batches_end_date_dsp[i][-1]
+
+
+
+
+
+
+
+                # Add an end date=1*USP+(num_batches-1)*DSP
+                pop.end_raw[i,j]=usp_plus_dsp_raw[i,j]+relativedelta(days=+dsp_raw[i,j]*(pop.batches_raw[i,j]-1))
+
+                # Creates a list to append with the folowing dates per batch (previous date +DSP)
+                end_date=
+
+        return start_raw,end_raw
+
+
     def calc_throughput(pop_objectives,pop_products):
         # Creates a vector for batch/kg por the products 
         pop_yield=np.vectorize(Planning.yield_kg_batch.__getitem__)(pop_products) #Equivalentt to         # pop_yield=np.array(list(map(Planning.yield_kg_batch.__getitem__,pop_products)))
@@ -159,7 +276,6 @@ class Planning():
         # print("Objectives",pop_objectives)
         return pop_objectives
 
-pop.batches_raw,pop.products_raw,pop.objectives_raw,pop.masks
     def calc_objectives(pop_batches,pop_products,pop_objectives):
         """Overall, the goal is to generate a set of schedules: 
                 maximise the total production throughput (Column 0)
@@ -181,7 +297,17 @@ pop.batches_raw,pop.products_raw,pop.objectives_raw,pop.masks
         # print(pop.products.shape)
         # print(pop.masks.shape)
 
-        # 1.1) Fills Start and End Date
+        # 1.1) Creates start and end date from schedule
+        # setup_key_to_subkey=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(target_0,target_1,target_2,target_3)]
+        # usp_days=dict(zip(products,[45,36,45,49]))
+        # dsp_days=dict(zip(products,[7,11,7,7]))
+        # start_date=datetime.date(2016,12,1)#  YYYY-MM-DD.
+        print(pop.start_raw)
+        temp_pop=copy.deepcopy(pop)
+        print(temp_pop.start_raw)
+        type(pop)
+        pop.start_raw,pop.end_raw=Planning().calc_start_end(copy.deepcopy(pop))
+        print(pop.start_raw)
         
         
         # # 2) Aggregates neighbours products no need in initialization
