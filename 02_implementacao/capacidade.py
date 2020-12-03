@@ -65,7 +65,9 @@ class CurrentPop():
         # self.batches=self.batches_raw[self.masks]
         # self.products=self.products_raw[self.masks]
         # # self.timeline=self.timeline_raw[self.masks]
-
+    def update_genes_per_chromo(self):
+        # Updates genes per chromossome (Number of active campaigns per solution)
+        self.genes_per_chromo=np.sum(self.masks,axis=1,dtype=int)
 
     def count_genes_per_chromossomes(self):
         """Counts number of active genes per chromossome
@@ -218,6 +220,8 @@ class Planning():
                         batches_end_date_i[pop.products_raw[i][j]].append(date)
             # Appends dictionary of individual to the list of dictionaries
             pop.dicts_batches_end_dsp.append(batches_end_date_i)
+        # Updates Genes per Chromo
+        pop.update_genes_per_chromo()
 
     def calc_throughput(self,pop_objectives,pop_products):
         # Creates a vector for batch/kg por the products 
@@ -251,9 +255,11 @@ class Planning():
         pop=CurrentPop(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
 
         # 1.1) Creates start and end date from schedule assures only batches with End date<Last day of manufacturing
-        self.calc_start_end(pop)
-        
-        # # 2) Aggregates neighbours products no need in initialization
+        # 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
+        self.calc_start_end(pop)       
+
+        # 3)Calculate inventory levels
+
         # print(np.sum(pop.masks))
         # pop.agg_product_batch()
         # print(np.sum(pop.masks))
