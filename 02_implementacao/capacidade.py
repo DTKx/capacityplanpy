@@ -123,7 +123,10 @@ class Planning():
     num_objectives=2
     # Number of Months
     num_months=36
+    # Start date of manufacturing
     start_date=datetime.date(2016,12,1)#  YYYY-MM-DD.
+    # Last day of manufacturing
+    end_date=datetime.date(2019,12,1)#  YYYY-MM-DD.
     # use_date = x+relativedelta(months=+1)
 
     # Process Data 
@@ -173,6 +176,15 @@ class Planning():
                 if j==0:
                     # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
                     end_dates=[pop.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop.batches_raw[i][j])]
+                    # Verifies if End day<Last Day ok else delete
+                    num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
+                    if num_batch_exceed_end_dates>0:
+                        # Removes exceeding batches
+                        pop.batches_raw[i][j]=pop.batches_raw[i][j]-num_batch_exceed_end_dates
+                        del end_dates[-num_batch_exceed_end_dates:]
+                        if pop.batches_raw[i][j]==0:
+                            pop.masks[i][j]=False
+                            continue
                     # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
                     pop.end_raw[i][j]=end_dates[-1]
                     # Addying the quality control time
@@ -186,6 +198,17 @@ class Planning():
 
                     # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
                     end_dates=[pop.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop.batches_raw[i][j])]
+
+                    # Verifies if End day<Last Day ok else delete
+                    num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
+                    if num_batch_exceed_end_dates>0:
+                        # Removes exceeding batches
+                        pop.batches_raw[i][j]=pop.batches_raw[i][j]-num_batch_exceed_end_dates
+                        del end_dates[-num_batch_exceed_end_dates:]
+                        if pop.batches_raw[i][j]==0:
+                            pop.masks[i][j]=False
+                            continue
+
                     # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
                     pop.end_raw[i][j]=end_dates[-1]
                     # Addying the quality control time
@@ -195,8 +218,6 @@ class Planning():
                         batches_end_date_i[pop.products_raw[i][j]].append(date)
             # Appends dictionary of individual to the list of dictionaries
             pop.dicts_batches_end_dsp.append(batches_end_date_i)
-        # return start_raw,end_raw
-
 
     def calc_throughput(self,pop_objectives,pop_products):
         # Creates a vector for batch/kg por the products 
@@ -228,18 +249,14 @@ class Planning():
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover):
         # 1) Random parent population is initialized with its attributes
         pop=CurrentPop(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
-        # print(pop.batches.shape)
-        # print(pop.products.shape)
-        # print(pop.masks.shape)
 
-        # 1.1) Creates start and end date from schedule
+        # 1.1) Creates start and end date from schedule assures only batches with End date<Last day of manufacturing
         self.calc_start_end(pop)
         
         # # 2) Aggregates neighbours products no need in initialization
         # print(np.sum(pop.masks))
         # pop.agg_product_batch()
         # print(np.sum(pop.masks))
-
         # 2) Avaliar objetivos
         pop_objectives=self.calc_objectives(pop.batches_raw,pop.products_raw,pop.objectives_raw,pop.masks)
         print("hey")
