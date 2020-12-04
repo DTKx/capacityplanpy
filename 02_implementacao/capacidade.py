@@ -4,9 +4,13 @@ import copy
 import timeit
 import datetime
 from dateutil.relativedelta import *
-import collections
+# import collections
 import pandas as pd
 from dateutil import relativedelta
+from numba import jit
+from pygmo import *
+from collections import defaultdict
+
 
 """Pseudo Code
 1)Initial Population Chromossome=[Product [int],Num_batches [int]] 
@@ -53,7 +57,9 @@ class CurrentPop():
 
         # Initializes Stock
         # self.stock_raw=np.zeros(shape=(num_chromossomes,num_products),dtype=int)
-        self.stock_raw=collections.defaultdict(partial)
+        self.stock_raw=defaultdict()
+
+        # self.stock_raw=defaultdict(partial)
 
         # Initializes the objectives
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -137,7 +143,11 @@ class Planning():
     end_date=datetime.date(2019,12,1)#  YYYY-MM-DD.
     # List of months
     list_months=pd.date_range(start=start_date, end =end_date, freq='MS')[1:]
+    # First day of stock calculation
     date_stock=list_months[0]
+
+    # Number of Monte Carlo executions Article ==1000
+    num_monte=500
 
     # Process Data 
     products = [0,1,2,3]
@@ -180,7 +190,7 @@ class Planning():
 
         # Loop per chromossome i
         for i in range(0,len(pop.start_raw)):
-            batches_end_date_i=collections.defaultdict(list)
+            batches_end_date_i=defaultdict(list)
             # pop.batches_end_date_dsp=[]
             # Loop per gene j starting from second gene
             for j in range(0,pop.genes_per_chromo[i]):
@@ -229,35 +239,70 @@ class Planning():
                         batches_end_date_i[pop.products_raw[i][j]].append(date)           
             # Appends dictionary of individual to the list of dictionaries
             pop.dicts_batches_end_dsp.append(batches_end_date_i)
-        # # Loops per solution
-        # for i in range(0,len(pop.dicts_batches_end_dsp)):
-        #         a_i=pd.DataFrame.from_dict(pop.dicts_batches_end_dsp[i])
-        #         b_i=pd.DataFrame(pop.dicts_batches_end_dsp[i],index=self.list_months)
-        #         c_i=pd.Series(pd.to_datetime(pop.dicts_batches_end_dsp[i]),index=self.list_months).resample("M", convention='start').sum()
-
-        #         c_i=pd.Series(pd.to_datetime(pop.dicts_batches_end_dsp[i]),index=self.list_months).resample("M", convention='start')
-
-        #         c_i=pd.Series(pop.dicts_batches_end_dsp[i][2],index=self.list_months)
-
-        #         print("h")
-        
-        # # Loops per solution
-        # for i in range(0,len(pop.dicts_batches_end_dsp)):
-        #     # Loops per product
-        #     for key in pop.dicts_batches_end_dsp[i].keys():
-        #         print(pop.dicts_batches_end_dsp[i][key])
-        #         # Aggregated count per month 
-        #         pop.dicts_batches_end_dsp[i][key]=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
-        #         print(pop.dicts_batches_end_dsp[i][key])
-
-        # a=pd.Series(1,index=pd.to_datetime(batches_end_date_i[1])).resample("M", convention='start').sum()
-        # print('hey')
-        # type(pop.dicts_batches_end_dsp[0])
-        # len(pop.dicts_batches_end_dsp[0].keys())
-        # pop.dicts_batches_end_dsp[0][0]
-
         # Updates Genes per Chromo
         pop.update_genes_per_chromo()
+
+    @staticmethod
+    @jit(nopython=True,nogil=True)
+    def calc_triangular_dist(tr_min,tr_mode,tr_max,num_monte):
+        return np.median(np.random.triangular(tr_min,tr_mode,tr_max,size=num_monte))
+
+    @staticmethod
+    # @jit(nopython=True,nogil=True)
+    def calc_demand_montecarlo(num_monte,line,col):
+        """Performs a Montecarlo Simulation to define the Demand of products, uses a demand_distribution for containing either 0 as expected or a triangular distribution (minimum, mode (most likely),maximum) values in kg
+
+        Args:
+            num_monte ([type]): Number of Monte Carlo Executions
+        """
+        demand_distribution=np.array([[0.0 ,0.0 ,0.0 ,0.0],
+        [0.0,0.0,0.0 ,(4.5, 5.5, 8.25) ],
+        [(2.1, 3.1, 4.65) ,0.0,0.0 ,(4.5, 5.5, 8.25)],
+        [0.0,0.0 ,0.0 ,0.0],
+        [0.0,0.0 ,0.0 ,(4.5, 5.5, 8.25) ],
+        [(2.1, 3.1, 4.65) ,0.0 ,0.0,(4.5, 5.5, 8.25) ],
+        [0.0,0.0 ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25) ],
+        [(2.1, 3.1, 4.65) ,0.0 ,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25) ],
+        [(2.1, 3.1, 4.65) ,0.0 ,0.0 ,(4.5, 5.5, 8.25)],
+        [(2.1, 3.1, 4.65),0.0 ,0.0 ,0.0],
+        [0.0,0.0 ,0.0,(10, 11, 16.5) ],
+        [(5.2, 6.2, 9.3) ,0.0 ,(8.8, 9.8, 14.7) ,(4.5, 5.5, 8.25)],
+        [(5.2, 6.2, 9.3) ,0.0 ,(3.9, 4.9, 7.35),0.0],
+        [(2.1, 3.1, 4.65) ,0.0 ,0.0,(4.5, 5.5, 8.25) ],
+        [(5.2, 6.2, 9.3),0.0 ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25) ],
+        [0.0,0.0 ,0.0,(10, 11, 16.5) ],
+        [(2.1, 3.1, 4.65) ,0.0 ,0.0,(4.5, 5.5, 8.25) ],
+        [(8.3, 9.3, 13.95),0.0 ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25)],
+        [0.0,0.0 ,(8.8, 9.8, 14.7),0.0],
+        [(5.2, 6.2, 9.3) ,0.0 ,0.0 ,(4.5, 5.5, 8.25) ],
+        [(5.2, 6.2, 9.3),0.0 ,0.0 ,(4.5, 5.5, 8.25) ],
+        [0.0,0.0,0.0,(4.5, 5.5, 8.25) ],
+        [(5.2, 6.2, 9.3) ,(5.2, 6.2, 9.3) ,(3.9, 4.9, 7.35) ,(10, 11, 16.5) ],
+        [(8.3, 9.3, 13.95),0.0,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25)],
+        [0.0,0.0 ,0.0,0.0],
+        [(8.3, 9.3, 13.95) ,0.0 ,(8.8, 9.8, 14.7) ,(10, 11, 16.5) ],
+        [(5.2, 6.2, 9.3) ,0.0 ,0.0,0.0],
+        [(2.1, 3.1, 4.65) ,0.0,0.0,(10, 11, 16.5) ],
+        [(5.2, 6.2, 9.3) ,(5.2, 6.2, 9.3) ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25) ],
+        [(2.1, 3.1, 4.65),0.0,(8.8, 9.8, 14.7) ,(4.5, 5.5, 8.25)],
+        [0.0,0.0 ,(8.8, 9.8, 14.7),0.0],
+        [(8.3, 9.3, 13.95) ,0.0 ,0.0,(10, 11, 16.5) ],
+        [(5.2, 6.2, 9.3) ,0.0 ,(3.9, 4.9, 7.35) ,(10, 11, 16.5)],
+        [(8.3, 9.3, 13.95) ,0.0 ,(8.8, 9.8, 14.7) ,0.0],
+        [(5.2, 6.2, 9.3),0.0,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25) ],
+        [0.0,(5.2, 6.2, 9.3) ,0.0,(4.5, 5.5, 8.25)]])
+
+        # line,col=demand_distribution.shape
+        demand_i=np.zeros(shape=(line,col))
+        # Loop in line
+        for i in range(0,line):
+            for j in range(0,col):
+                if demand_distribution[i,j]==0:
+                    continue
+                else:
+                    demand_i[i,j]=Planning.calc_triangular_dist(demand_distribution[i,j][0],demand_distribution[i,j][1],demand_distribution[i,j][2],num_monte)
+        return demand_i
+
     def calc_inventory(self,pop):
         """Calculates Inventory levels (e), Backlog (back), batches Sold(s), Available (a), Demand(d))
 
@@ -280,6 +325,8 @@ class Planning():
                     m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
                     # Updates the month with the number of batches produced
                     produced_i[m,key]=aggregated[k]
+            # Calling Monte Carlo to define demand
+            demand_i=self.calc_demand_montecarlo(self.num_monte,self.num_months,self.num_products)
 
             # Loop per Months
             for j in range(0,self.num_months):
@@ -290,9 +337,9 @@ class Planning():
                     # Available=Previous Stock+Produced this month
                     available_i[j,:]=self.initial_stock+produced_i[j,:]
 
-            # self.stock_raw=collections.defaultdict(partial)
+            # self.stock_raw=defaultdict(partial)
                     print("hey")
-            # batches_end_date_i=collections.defaultdict(list)
+            # batches_end_date_i=defaultdict(list)
 
 
 
