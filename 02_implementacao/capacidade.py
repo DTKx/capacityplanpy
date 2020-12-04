@@ -58,7 +58,6 @@ class CurrentPop():
         # Initializes Stock
         # self.stock_raw=np.zeros(shape=(num_chromossomes,num_products),dtype=int)
         self.stock_raw=defaultdict()
-
         # self.stock_raw=defaultdict(partial)
 
         # Initializes the objectives
@@ -70,13 +69,14 @@ class CurrentPop():
         # Initialize list of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
         self.dicts_batches_end_dsp=[]
 
-        # Initialize list of dictionaries available batches with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
-        self.dicts_batches_end_dsp=[]
+        # # Initialize list of dictionaries available batches with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
+        # self.dicts_batches_end_dsp=[]
 
         # # The real population must be returned with the mask
         # self.batches=self.batches_raw[self.masks]
         # self.products=self.products_raw[self.masks]
         # # self.timeline=self.timeline_raw[self.masks]
+
     def update_genes_per_chromo(self):
         # Updates genes per chromossome (Number of active campaigns per solution)
         self.genes_per_chromo=np.sum(self.masks,axis=1,dtype=int)
@@ -155,6 +155,7 @@ class Planning():
     dsp_days=dict(zip(products,[7,11,7,7]))
     qc_days=dict(zip(products,[90,90,90,90]))
     yield_kg_batch=dict(zip(products,[3.1,6.2,4.9,5.5]))
+    yield_kg_batch_ar=np.array([3.1,6.2,4.9,5.5])
     # initial_stock=dict(zip(products,[18.6,0,19.6,33]))
     initial_stock=np.array([18.6,0,19.6,33])
     min_batch=dict(zip(products,[2,2,2,3]))
@@ -166,7 +167,8 @@ class Planning():
     target_1=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2]
     target_2=[0,4.9,9.8,9.8,9.8,9.8,19.6,19.6,14.7,19.6,19.6,19.6,14.7,19.6,19.6,14.7,14.7,19.6,19.6,9.8,19.6,19.6,19.6,19.6,24.5,34.3,24.5,29.4,39.2,39.2,29.4,19.6,19.6,14.7,4.9,0]
     target_3=[22,27.5,27.5,27.5,27.5,33,33,27.5,27.5,27.5,38.5,33,33,33,33,33,27.5,33,33,33,38.5,33,38.5,33,33,33,33,44,33,33,33,33,22,11,11,5.5]
-    target_stock=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(target_0,target_1,target_2,target_3)]
+    # target_stock=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(target_0,target_1,target_2,target_3)]
+    target_stock=np.column_stack([target_0,target_1,target_2,target_3])
 
     # Setup Time
     s0=[0,10,16,20]
@@ -315,8 +317,9 @@ class Planning():
         for i in range(0,len(pop.products_raw)):
             available_i=np.zeros(shape=(self.num_months,self.num_products))
             stock_i=np.zeros(shape=(self.num_months,self.num_products))
+            backlog_i=np.zeros(shape=(self.num_months,self.num_products))
 
-            # Produced Month 0 is the first month of inventory
+            # Produced Month 0 is the first month of inventory batches
             produced_i=np.zeros(shape=(self.num_months,self.num_products),dtype=int)
             for key in pop.dicts_batches_end_dsp[i].keys():
                 # Aggregated count per month 
@@ -325,6 +328,9 @@ class Planning():
                     m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
                     # Updates the month with the number of batches produced
                     produced_i[m,key]=aggregated[k]
+            # Conversion batches to kg
+            produced_i=produced_i*self.yield_kg_batch_ar
+
             # Calling Monte Carlo to define demand
             demand_i=self.calc_demand_montecarlo(self.num_monte,self.num_months,self.num_products)
 
@@ -332,15 +338,43 @@ class Planning():
             for j in range(0,self.num_months):
                 if j==0:
                     # Available=Previous Stock+Produced this month
-                    available_i[0,:]=self.initial_stock+produced_i[0,:]
+                    available_i[j,:]=self.initial_stock+produced_i[j,:]
+                    # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+                    stock_i[j,:]=available_i[j,:]-demand_i[j,:]
+                    # Corrects negative values
+                    ix_neg=np.where(stock_i[j,:]<0)
+                    if len(ix_neg)>0:
+                        # Adds negative values to backlog
+                        backlog_i[j,:][ix_neg]=(stock_i[j,:][ix_neg])*(-1)
+                        # print(f"backlog {backlog_i[j,:][ix_neg]}")
+                        # Corrects if Stock is negative
+                        stock_i[j,:][ix_neg]=0
+                        # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
                 else:
                     # Available=Previous Stock+Produced this month
-                    available_i[j,:]=self.initial_stock+produced_i[j,:]
+                    available_i[j,:]=stock_i[j-1,:]+produced_i[j,:]
 
-            # self.stock_raw=defaultdict(partial)
-                    print("hey")
-            # batches_end_date_i=defaultdict(list)
-
+                    # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+                    stock_i[j,:]=available_i[j,:]-demand_i[j,:]
+                    # Corrects negative values
+                    ix_neg=np.where(stock_i[j,:]<0)
+                    if len(ix_neg)>0:
+                        # Adds negative values to backlog
+                        backlog_i[j,:][ix_neg]=(stock_i[j,:][ix_neg])*(-1)
+                        # print(f"backlog {backlog_i[j,:][ix_neg]}")
+                        # Corrects if Stock is negative
+                        stock_i[j,:][ix_neg]=0
+                        # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
+            deficit_strat_i=self.target_stock-stock_i
+            # Corrects negative values
+            ix_neg=np.where(deficit_strat_i<0)
+            if len(ix_neg)>0:
+                deficit_strat_i[ix_neg]=0
+            # Stores arrays to dictionary 
+            pop.stock_raw[i]=stock_i,backlog_i,deficit_strat_i
+        # pop.stock_raw[i][0]
+        # pop.stock_raw[i][1]
+        # pop.stock_raw[i][2]
 
 
     def calc_throughput(self,pop_objectives,pop_products):
