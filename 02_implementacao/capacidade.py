@@ -5,6 +5,8 @@ import timeit
 import datetime
 from dateutil.relativedelta import *
 import collections
+import pandas as pd
+from dateutil import relativedelta
 
 """Pseudo Code
 1)Initial Population Chromossome=[Product [int],Num_batches [int]] 
@@ -45,12 +47,13 @@ class CurrentPop():
         # self.start_raw[:,0]=start_date
         self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
 
-        # Initializes Stock
-        self.stock_raw=np.zeros(shape=(num_chromossomes,num_products),dtype=int)
-
         # Initialize Mask of active items with only one gene
         self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
         self.masks[:,0]=True
+
+        # Initializes Stock
+        # self.stock_raw=np.zeros(shape=(num_chromossomes,num_products),dtype=int)
+        self.stock_raw=collections.defaultdict(partial)
 
         # Initializes the objectives
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -59,6 +62,9 @@ class CurrentPop():
         self.genes_per_chromo=np.sum(self.masks,axis=1,dtype=int)
 
         # Initialize list of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
+        self.dicts_batches_end_dsp=[]
+
+        # Initialize list of dictionaries available batches with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
         self.dicts_batches_end_dsp=[]
 
         # # The real population must be returned with the mask
@@ -120,7 +126,7 @@ class Planning():
     # # Number of chromossomes
     # num_chromossomes=int(100)
     # Number of products
-    num_products=int(3)
+    num_products=int(4)
     # Number of Objectives
     num_objectives=2
     # Number of Months
@@ -129,7 +135,9 @@ class Planning():
     start_date=datetime.date(2016,12,1)#  YYYY-MM-DD.
     # Last day of manufacturing
     end_date=datetime.date(2019,12,1)#  YYYY-MM-DD.
-    # use_date = x+relativedelta(months=+1)
+    # List of months
+    list_months=pd.date_range(start=start_date, end =end_date, freq='MS')[1:]
+    date_stock=list_months[0]
 
     # Process Data 
     products = [0,1,2,3]
@@ -137,7 +145,8 @@ class Planning():
     dsp_days=dict(zip(products,[7,11,7,7]))
     qc_days=dict(zip(products,[90,90,90,90]))
     yield_kg_batch=dict(zip(products,[3.1,6.2,4.9,5.5]))
-    initial_stock=dict(zip(products,[18.6,0,19.6,33]))
+    # initial_stock=dict(zip(products,[18.6,0,19.6,33]))
+    initial_stock=np.array([18.6,0,19.6,33])
     min_batch=dict(zip(products,[2,2,2,3]))
     max_batch=dict(zip(products,[50,50,50,30]))
     batch_multiples=dict(zip(products,[1,1,1,3]))
@@ -217,11 +226,75 @@ class Planning():
                     end_dates=end_dates+np.timedelta64(self.qc_days[pop.products_raw[i][j]],'D')
                     # Appends to the dictionary
                     for date in end_dates:
-                        batches_end_date_i[pop.products_raw[i][j]].append(date)
+                        batches_end_date_i[pop.products_raw[i][j]].append(date)           
             # Appends dictionary of individual to the list of dictionaries
             pop.dicts_batches_end_dsp.append(batches_end_date_i)
+        # # Loops per solution
+        # for i in range(0,len(pop.dicts_batches_end_dsp)):
+        #         a_i=pd.DataFrame.from_dict(pop.dicts_batches_end_dsp[i])
+        #         b_i=pd.DataFrame(pop.dicts_batches_end_dsp[i],index=self.list_months)
+        #         c_i=pd.Series(pd.to_datetime(pop.dicts_batches_end_dsp[i]),index=self.list_months).resample("M", convention='start').sum()
+
+        #         c_i=pd.Series(pd.to_datetime(pop.dicts_batches_end_dsp[i]),index=self.list_months).resample("M", convention='start')
+
+        #         c_i=pd.Series(pop.dicts_batches_end_dsp[i][2],index=self.list_months)
+
+        #         print("h")
+        
+        # # Loops per solution
+        # for i in range(0,len(pop.dicts_batches_end_dsp)):
+        #     # Loops per product
+        #     for key in pop.dicts_batches_end_dsp[i].keys():
+        #         print(pop.dicts_batches_end_dsp[i][key])
+        #         # Aggregated count per month 
+        #         pop.dicts_batches_end_dsp[i][key]=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
+        #         print(pop.dicts_batches_end_dsp[i][key])
+
+        # a=pd.Series(1,index=pd.to_datetime(batches_end_date_i[1])).resample("M", convention='start').sum()
+        # print('hey')
+        # type(pop.dicts_batches_end_dsp[0])
+        # len(pop.dicts_batches_end_dsp[0].keys())
+        # pop.dicts_batches_end_dsp[0][0]
+
         # Updates Genes per Chromo
         pop.update_genes_per_chromo()
+    def calc_inventory(self,pop):
+        """Calculates Inventory levels (e), Backlog (back), batches Sold(s), Available (a), Demand(d))
+
+        Args:
+            pop (class object): Population object to calculate Inventory levels
+        """
+        # print(pop.dicts_batches_end_dsp)
+        # print("h")
+        # Loop per Chromossome
+        for i in range(0,len(pop.products_raw)):
+            available_i=np.zeros(shape=(self.num_months,self.num_products))
+            stock_i=np.zeros(shape=(self.num_months,self.num_products))
+
+            # Produced Month 0 is the first month of inventory
+            produced_i=np.zeros(shape=(self.num_months,self.num_products),dtype=int)
+            for key in pop.dicts_batches_end_dsp[i].keys():
+                # Aggregated count per month 
+                aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
+                for k in range(0,len(aggregated)):
+                    m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
+                    # Updates the month with the number of batches produced
+                    produced_i[m,key]=aggregated[k]
+
+            # Loop per Months
+            for j in range(0,self.num_months):
+                if j==0:
+                    # Available=Previous Stock+Produced this month
+                    available_i[0,:]=self.initial_stock+produced_i[0,:]
+                else:
+                    # Available=Previous Stock+Produced this month
+                    available_i[j,:]=self.initial_stock+produced_i[j,:]
+
+            # self.stock_raw=collections.defaultdict(partial)
+                    print("hey")
+            # batches_end_date_i=collections.defaultdict(list)
+
+
 
     def calc_throughput(self,pop_objectives,pop_products):
         # Creates a vector for batch/kg por the products 
@@ -259,6 +332,7 @@ class Planning():
         self.calc_start_end(pop)       
 
         # 3)Calculate inventory levels
+        self.calc_inventory(pop)
 
         # print(np.sum(pop.masks))
         # pop.agg_product_batch()
