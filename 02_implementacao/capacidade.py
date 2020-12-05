@@ -11,6 +11,10 @@ from pygmo import *
 from collections import defaultdict
 
 # Local Modules
+# import sys
+# # insert at 1, 0 is the script path (or '' in REPL)
+# sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
+# import genetico_permutacao as genetico
 from genetic import AlgNsga2
 
 
@@ -192,6 +196,9 @@ class Planning():
 
     # Number of fronts created
     num_fronts=3
+
+    # Big Dummy for crowding distance computation
+    big_dummy=10**5
 
     def calc_start_end(self,pop):
         """Calculates start and end dates of batch manufacturing, as well as generates (dicts_batches_end_dsp) a list of dictionaries (List index = Chromossome, key=Number of products and date values os release from QC) per chromossome with release dates of each batch per product. 
@@ -408,6 +415,10 @@ class Planning():
             pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
             # Inversion of the Throughput by a fixed value to generate a minimization problem
             pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
+        # Check if inversion value is well selected
+        if any(pop.objectives_raw[:,0]<0):
+            raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
+
 
     def calc_objectives(self,pop_batches,pop_products,pop_objectives):
         """Overall, the goal is to generate a set of schedules: 
@@ -435,14 +446,24 @@ class Planning():
         self.calc_inventory_objectives(pop)
 
         # 4)Front Classification
+        a0=np.sum(pop.objectives_raw)
         pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+        a1=np.sum(pop.objectives_raw)
+        if (a1-a0)!=0:
+            raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
-        # print(np.sum(pop.masks))
-        # pop.agg_product_batch()
-        # print(np.sum(pop.masks))
-        # 2) Avaliar objetivos
-        pop_objectives=self.calc_objectives(pop.batches_raw,pop.products_raw,pop.objectives_raw,pop.masks)
-        print("hey")
+        # 5) Crowding Distance
+        # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
+        a0,b0=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+        crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
+        a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+        if ((a1-a0)!=0)|((b1-b0)!=0):
+            raise Exception('Mutation is affecting values, consider making a deepcopy.')
+
+
+
+
+        print("Cheeers!")
     
     def run_cprofile():
         num_chromossomes=100
