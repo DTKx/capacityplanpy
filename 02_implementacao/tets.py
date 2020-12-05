@@ -44,8 +44,12 @@ from numba import cuda
 
 # print(a.shape)
 
-a=np.array([15,10,10])
-b=np.argsort(a)
+a=np.ones(shape=(10,1))*9
+b=np.ones(shape=(10,1))*5
+mask=np.random.randint(2,size=(10,1))
+mask_invert=mask^1
+f1=a*mask+b*mask_invert
+f2=b*mask+a*mask_invert
 print(b)
 c=np.where(a==np.min(a))
 print(c)

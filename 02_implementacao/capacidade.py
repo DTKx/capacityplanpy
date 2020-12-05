@@ -480,6 +480,27 @@ class Planning():
             j+=1
         return idx_winners
 
+        # Sorts the indexes received by ascending number of active genes in the population, preparing for crossover
+
+        # Args:
+        #     pop (object): Population object for relative sorting
+        #     ix_to_crossover ([type]): [description]
+
+
+    def sort_ix_by_num_genes(self,pop,ix_to_crossover):
+        """Sorts the indexes received by ascending number of active genes in the population, preparing for crossover
+
+        Args:
+            pop (object): Population object for relative sorting
+            ix_to_crossover (array): Indexes to sort
+
+        Returns:
+            [array]: Array with sorted indexes
+        """
+
+        return ix_to_crossover_sorted
+
+
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover):
         # 1) Random parent population is initialized with its attributes
         pop=CurrentPop(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
@@ -512,8 +533,11 @@ class Planning():
         n_parents = int(num_chromossomes * perc_crossover)
         if n_parents % 2 == 1:
             n_parents = n_parents + 1
-        ix_selected_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
+        ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
 
+        # 7)Crossover
+        # 7.1 Sorts Selected by number of genes
+        ix_to_crossover_sorted=self.sort_ix_by_num_genes(pop,ix_to_crossover)
 
 
 
