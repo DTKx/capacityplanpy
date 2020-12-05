@@ -55,12 +55,11 @@ class CurrentPop():
         self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
         self.masks[:,0]=True
 
-        # Initializes Stock
-        # self.stock_raw=np.zeros(shape=(num_chromossomes,num_products),dtype=int)
-        self.stock_raw=defaultdict()
-        # self.stock_raw=defaultdict(partial)
+        # Initializes Stock backlog_i
+        self.stock_raw=np.zeros(shape=(num_chromossomes,1),dtype=int)
+        # self.stock_raw=defaultdict()
 
-        # Initializes the objectives
+        # Initializes the objectives throughput_i,deficit_strat_i
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
 
         # Initializes genes per chromossome (Number of active campaigns per solution)
@@ -305,14 +304,31 @@ class Planning():
                     demand_i[i,j]=Planning.calc_triangular_dist(demand_distribution[i,j][0],demand_distribution[i,j][1],demand_distribution[i,j][2],num_monte)
         return demand_i
 
-    def calc_inventory(self,pop):
-        """Calculates Inventory levels (e), Backlog (back), batches Sold(s), Available (a), Demand(d))
+    @staticmethod
+    # @jit(nopython=True,nogil=True)
+    def calc_objective_deficit_strat(target_stock_i,stock_i):
+        deficit_strat_i=target_stock_i-stock_i
+        # Corrects negative values
+        # np.float64
+        ix_neg=np.where(deficit_strat_i<np.float64(0.0))
+        # print(type(len(ix_neg)))
+        if len(ix_neg)>int(0):
+            deficit_strat_i[ix_neg]=np.float64(0.0)
+        # Stores sum of all deficit to the objectives
+        return np.sum(deficit_strat_i)
+
+    def calc_inventory_objectives(self,pop):
+        """Calculates Inventory levels returning the backlog and calculates the objectives the total deficit and total throughput addying to the pop attribute
 
         Args:
             pop (class object): Population object to calculate Inventory levels
         """
         # print(pop.dicts_batches_end_dsp)
         # print("h")
+
+        # Creates a vector for batch/kg por the products 
+        pop_yield=np.vectorize(self.yield_kg_batch.__getitem__)(pop.products_raw) #Equivalentt to         # pop_yield=np.array(list(map(self.yield_kg_batch.__getitem__,pop_products)))
+
         # Loop per Chromossome
         for i in range(0,len(pop.products_raw)):
             available_i=np.zeros(shape=(self.num_months,self.num_products))
@@ -365,30 +381,15 @@ class Planning():
                         # Corrects if Stock is negative
                         stock_i[j,:][ix_neg]=0
                         # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
-            deficit_strat_i=self.target_stock-stock_i
-            # Corrects negative values
-            ix_neg=np.where(deficit_strat_i<0)
-            if len(ix_neg)>0:
-                deficit_strat_i[ix_neg]=0
-            # Stores arrays to dictionary 
-            pop.stock_raw[i]=stock_i,backlog_i,deficit_strat_i
-        # pop.stock_raw[i][0]
-        # pop.stock_raw[i][1]
-        # pop.stock_raw[i][2]
+            # Stores sum of all backlogs to the stock
+            pop.stock_raw[i,0]=np.sum(backlog_i)
 
+            # Calculates the objective Strategic Deficit 
+            pop.objectives_raw[i,1]=self.calc_objective_deficit_strat(self.target_stock,stock_i)
 
-    def calc_throughput(self,pop_objectives,pop_products):
-        # Creates a vector for batch/kg por the products 
-        pop_yield=np.vectorize(self.yield_kg_batch.__getitem__)(pop_products) #Equivalentt to         # pop_yield=np.array(list(map(self.yield_kg_batch.__getitem__,pop_products)))
-        # unique,inv=np.unique(pop_products,return_inverse=True)
-        # pop_yield=np.array([self.yield_kg_batch[x] for x in unique])[inv].reshape(pop_products.shape)
+            # Calculates the objective Throughput
+            pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
 
-        # Loop per chromossome
-        # print("Objectives",pop_objectives)
-        for i in range(0,len(pop_batches)):
-            pop_objectives[i,0]=np.dot(pop_batches[i],pop_yield[i])
-        # print("Objectives",pop_objectives)
-        return pop_objectives
 
     def calc_objectives(self,pop_batches,pop_products,pop_objectives):
         """Overall, the goal is to generate a set of schedules: 
@@ -412,8 +413,8 @@ class Planning():
         # 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
         self.calc_start_end(pop)       
 
-        # 3)Calculate inventory levels
-        self.calc_inventory(pop)
+        # 3)Calculate inventory levels and objectives
+        self.calc_inventory_objectives(pop)
 
         # print(np.sum(pop.masks))
         # pop.agg_product_batch()
