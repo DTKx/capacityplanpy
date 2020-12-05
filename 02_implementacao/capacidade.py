@@ -460,6 +460,8 @@ class Planning():
         if ((a1-a0)!=0)|((b1-b0)!=0):
             raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
+        # 6)Selection for Crossover Tournament
+
 
 
 
