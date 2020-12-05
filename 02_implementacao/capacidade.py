@@ -4,12 +4,14 @@ import copy
 import timeit
 import datetime
 from dateutil.relativedelta import *
-# import collections
 import pandas as pd
 from dateutil import relativedelta
 from numba import jit
 from pygmo import *
 from collections import defaultdict
+
+# Local Modules
+from genetic import AlgNsga2
 
 
 """Pseudo Code
@@ -68,6 +70,8 @@ class CurrentPop():
         # Initialize list of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
         self.dicts_batches_end_dsp=[]
 
+        # Creates an array of fronts
+        self.fronts=np.empty(shape=(num_chromossomes,1),dtype=int)
         # # Initialize list of dictionaries available batches with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
         # self.dicts_batches_end_dsp=[]
 
@@ -126,10 +130,15 @@ class CurrentPop():
 class Planning():
     # Class Variables
 
+    # General Genetic Algorithms parameters
+
     # Number of genes
     num_genes=int(37)
     # # Number of chromossomes
     # num_chromossomes=int(100)
+
+    # Problem variables
+
     # Number of products
     num_products=int(4)
     # Number of Objectives
@@ -147,9 +156,6 @@ class Planning():
 
     # Number of Monte Carlo executions Article ==1000
     num_monte=500
-
-    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    inversion_val_throughput=650
 
     # Process Data 
     products = [0,1,2,3]
@@ -178,6 +184,14 @@ class Planning():
     s2=[16,10,0,20]
     s3=[18,10,18,0]
     setup_key_to_subkey=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(s0,s1,s2,s3)]
+
+    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+    inversion_val_throughput=650
+
+    # NSGA Variables
+
+    # Number of fronts created
+    num_fronts=3
 
     def calc_start_end(self,pop):
         """Calculates start and end dates of batch manufacturing, as well as generates (dicts_batches_end_dsp) a list of dictionaries (List index = Chromossome, key=Number of products and date values os release from QC) per chromossome with release dates of each batch per product. 
@@ -419,8 +433,9 @@ class Planning():
 
         # 3)Calculate inventory levels and objectives
         self.calc_inventory_objectives(pop)
-        # 4)Front Classification
 
+        # 4)Front Classification
+        pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
 
         # print(np.sum(pop.masks))
         # pop.agg_product_batch()

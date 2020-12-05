@@ -673,47 +673,6 @@ class OffspringReinsertion():
 class AlgNsga2():
     """ Methods for Algorithm NSGA 2 (1. Deb, K. et al.: A Fast and Elitist Multiobjective Genetic Algorithm: NSGA-II. (2002).)
     """
-    @jit(nopython=True,nogil=True)
-    def _ponto_dominado_minimizacao(resultado_fn):
-        """Defines dominated points, from n objectives (columns)
-
-        Args:
-            resultado_fn (array): Each column represents an objective.
-
-        Returns:
-            array: Returns dominated points.
-        """
-        # Loop por função
-        row=resultado_fn.shape[0]
-        dominado_fn=np.ones(shape=(row,))
-        # Loop por ponto a verificar se é dominado
-        for i in np.arange(0,row):
-            # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
-            j=0
-            dominado_sum=int(0)
-            # dominado=np.any(np.all(resultado_fn[j]>resultado_fn[i],axis=1)).astype(int)
-            while (j<row) & (dominado_sum==int(0)):
-                if i==j:
-                    j+=int(1)
-                    continue
-                # Problema de minimização, verifico se o ponto é dominado (1) ou não dominado (0)
-                ar_distintos=np.where(resultado_fn[j]!=resultado_fn[i])
-
-                # Se são exatamente iguais são não dominados, porque se não posso perder todos os valores duplicados vou ter que filtrar depois
-                if len(ar_distintos)==0:
-                    dominado=0               
-                # Se não há valores iguais utilizase o all()
-                else:
-                    dominado=int(np.all(resultado_fn[j][ar_distintos]<resultado_fn[i][ar_distintos]))
-                # else:
-                #     raise ValueError("Novo caso")
-                dominado_sum+=dominado
-                j+=int(1)
-            if dominado_sum==0:
-                dominado_fn[i]=0
-            else:
-                dominado_fn[i]=1
-        return dominado_fn
 
     def _fronts(objectives_fn,num_fronts):
         """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população.
@@ -724,6 +683,48 @@ class AlgNsga2():
         Returns:
             int: Array shape (n,1) com a classificação das fronteiras de pareto para cada individuo
         """
+        @jit(nopython=True,nogil=True)
+        def _ponto_dominado_minimizacao(resultado_fn):
+            """Defines dominated points, from n objectives (columns)
+
+            Args:
+                resultado_fn (array): Each column represents an objective.
+
+            Returns:
+                array: Returns dominated points.
+            """
+            # Loop por função
+            row=resultado_fn.shape[0]
+            dominado_fn=np.ones(shape=(row,))
+            # Loop por ponto a verificar se é dominado
+            for i in np.arange(0,row):
+                # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
+                j=0
+                dominado_sum=int(0)
+                # dominado=np.any(np.all(resultado_fn[j]>resultado_fn[i],axis=1)).astype(int)
+                while (j<row) & (dominado_sum==int(0)):
+                    if i==j:
+                        j+=int(1)
+                        continue
+                    # Problema de minimização, verifico se o ponto é dominado (1) ou não dominado (0)
+                    ar_distintos=np.where(resultado_fn[j]!=resultado_fn[i])
+
+                    # Se são exatamente iguais são não dominados, porque se não posso perder todos os valores duplicados vou ter que filtrar depois
+                    if len(ar_distintos)==0:
+                        dominado=0               
+                    # Se não há valores iguais utilizase o all()
+                    else:
+                        dominado=int(np.all(resultado_fn[j][ar_distintos]<resultado_fn[i][ar_distintos]))
+                    # else:
+                    #     raise ValueError("Novo caso")
+                    dominado_sum+=dominado
+                    j+=int(1)
+                if dominado_sum==0:
+                    dominado_fn[i]=0
+                else:
+                    dominado_fn[i]=1
+            return dominado_fn
+
         row,col=objectives_fn.shape
         # Definição de fronteiras
         # mask_nao_classificados=np.ones(dtype=bool,shape=(row,))
@@ -739,7 +740,7 @@ class AlgNsga2():
             # if len(ix_falta_classificar)==0:
             #     break 
             # 0=Não dominados 1=Dominados Loop por pontos
-            dominado[ix_falta_classificar]=AlgNsga2._ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
+            dominado[ix_falta_classificar]=_ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
             ix_nao_dominados=np.where(dominado==0)[0]
             if len(ix_nao_dominados)==0:
                 # print("Não encontrei não dominados")
