@@ -44,6 +44,9 @@ class CurrentPop():
             start_date (datetime): Start Date of planning
             initial_stock (array): Initial Stock of products
         """
+        self.num_chromossomes=num_chromossomes
+        self.num_genes=num_genes
+
         # Initializes Batch with 1 batch
         self.batches_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype=int)
         self.batches_raw[:,0]=int(1)
@@ -62,8 +65,8 @@ class CurrentPop():
         self.masks[:,0]=True
 
         # Initializes Stock backlog_i
-        self.stock_raw=np.zeros(shape=(num_chromossomes,1),dtype=int)
-        # self.stock_raw=defaultdict()
+        self.backlogs=np.zeros(shape=(num_chromossomes,1),dtype=int)
+        # self.backlogs=defaultdict()
 
         # Initializes the objectives throughput_i,deficit_strat_i
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -74,15 +77,10 @@ class CurrentPop():
         # Initialize list of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
         self.dicts_batches_end_dsp=[]
 
-        # Creates an array of fronts
+        # NSGA2
+        # Creates an array of fronts and crowding distance
         self.fronts=np.empty(shape=(num_chromossomes,1),dtype=int)
-        # # Initialize list of dictionaries available batches with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
-        # self.dicts_batches_end_dsp=[]
-
-        # # The real population must be returned with the mask
-        # self.batches=self.batches_raw[self.masks]
-        # self.products=self.products_raw[self.masks]
-        # # self.timeline=self.timeline_raw[self.masks]
+        self.crowding_dist=np.empty(shape=(num_chromossomes,1),dtype=int)
 
     def update_genes_per_chromo(self):
         # Updates genes per chromossome (Number of active campaigns per solution)
@@ -123,7 +121,7 @@ class CurrentPop():
                     print(self.masks[j])
                     self.start_raw[j]=np.insert(np.delete(self.start_raw[j],i),-1,0)
                     self.end_raw[j]=np.insert(np.delete(self.end_raw[j],i),-1,0)
-                    self.stock_raw[j]=np.insert(np.delete(self.stock_raw[j],i),-1,0)
+                    self.backlogs[j]=np.insert(np.delete(self.backlogs[j],i),-1,0)
                     i+=1
                 else:
                     i+=1
@@ -406,7 +404,7 @@ class Planning():
                         stock_i[j,:][ix_neg]=0
                         # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
             # Stores sum of all backlogs to the stock
-            pop.stock_raw[i,0]=np.sum(backlog_i)
+            pop.backlogs[i,0]=np.sum(backlog_i)
 
             # Calculates the objective Strategic Deficit 
             pop.objectives_raw[i,1]=self.calc_objective_deficit_strat(self.target_stock,stock_i)
@@ -434,6 +432,54 @@ class Planning():
         pop_objectives=self.calc_throughput(pop_objectives,pop_products)
         return pop_objectives
 
+    @staticmethod
+    def tournament_restrictions_binary(pop,n_parents,n_tour):
+        """Tournament with replacement for selection to crossover, considering those criteria:
+        1)Lowest backlog value, if draw then: 
+        2)Best pareto front, if draw then:
+        3)Highest Crowding Distance
+
+        Args:
+            pop (object): Population object that contains the individuals to select
+            n_parents (int): Number of chromossomes to select
+            n_tour (int): Number of individuals to compete during each tournament
+
+        Returns:
+            array: Array with indexes of selected individuals
+        """
+        # Arrays representing the indexes
+        idx_population=np.arange(0,pop.num_chromossomes)    
+        # Indexes of winners
+        idx_winners=np.empty(shape=(n_parents,1))
+
+        # Selection all participants
+        idx_for_tournament = np.random.choice(idx_population,size=n_tour*n_parents,replace=True)
+        j=0
+        for i in range(0,n_tour*n_parents-1,2):
+            i_1,i_2=idx_for_tournament[i],idx_for_tournament[i+1]
+            # Criteria
+            # 1) Lowest backlog
+            if pop.backlogs[i_1]!=pop.backlogs[i_2]:
+                # To change for different number of tours c=np.where(a==np.min(a))
+            if pop.backlogs[i_1]-pop.backlogs[i_2]>0:
+                    idx_winners[j]=i_1
+                else:
+                    idx_winners[j]=i_2
+            # 2)Best Pareto Front
+            elif pop.fronts[i_1]!=pop.fronts[i_2]:
+                if pop.fronts[i_1]-pop.fronts[i_2]>0:
+                    idx_winners[j]=idx_for_tournament[i]
+                else:
+                    idx_winners[j]=idx_for_tournament[i+1]
+            # 3)Highest Crowding Distance
+            else:
+                if pop.crowding_dist[i_1]-pop.crowding_dist[i_2]>0:
+                    idx_winners[j]=idx_for_tournament[i_1]
+                else:
+                    idx_winners[j]=idx_for_tournament[i_2]
+            j+=1
+        return idx_winners
+
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover):
         # 1) Random parent population is initialized with its attributes
         pop=CurrentPop(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
@@ -455,12 +501,20 @@ class Planning():
         # 5) Crowding Distance
         # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
         a0,b0=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-        crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
+        pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
         a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
         if ((a1-a0)!=0)|((b1-b0)!=0):
             raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
         # 6)Selection for Crossover Tournament
+
+        # Number of chromossomes for crossover, guarantees an even number
+        n_parents = int(num_chromossomes * perc_crossover)
+        if n_parents % 2 == 1:
+            n_parents = n_parents + 1
+        ix_selected_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
+
+
 
 
 
