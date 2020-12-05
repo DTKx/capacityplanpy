@@ -148,6 +148,9 @@ class Planning():
     # Number of Monte Carlo executions Article ==1000
     num_monte=500
 
+    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+    inversion_val_throughput=650
+
     # Process Data 
     products = [0,1,2,3]
     usp_days=dict(zip(products,[45,36,45,49]))
@@ -389,7 +392,8 @@ class Planning():
 
             # Calculates the objective Throughput
             pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
-
+            # Inversion of the Throughput by a fixed value to generate a minimization problem
+            pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
 
     def calc_objectives(self,pop_batches,pop_products,pop_objectives):
         """Overall, the goal is to generate a set of schedules: 
@@ -415,6 +419,8 @@ class Planning():
 
         # 3)Calculate inventory levels and objectives
         self.calc_inventory_objectives(pop)
+        # 4)Front Classification
+
 
         # print(np.sum(pop.masks))
         # pop.agg_product_batch()
