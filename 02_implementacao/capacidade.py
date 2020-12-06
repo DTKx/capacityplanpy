@@ -530,9 +530,12 @@ class Planning():
             # print(new_batches[i,0:genes_per_chromo[i]])
             new_batches[i,0:genes_per_chromo[i]]=Mutations._add_subtract_mutation(new_batches[i,0:genes_per_chromo[i]],pmut[1],pmut[2])
             # print(new_batches[i,0:genes_per_chromo[i]])
-            print("h")
-
-
+            # 3. To add a new random gene to the end of the chromosome (un- conditionally).
+            new_product[i,0:genes_per_chromo[i]+1]=random.randint(0,self.num_products)
+            new_batches[i,0:genes_per_chromo[i]+1]=1
+            new_mask[i,0:genes_per_chromo[i]+1]=True
+            # 4. To swap two genes within the same chromosome once with a rate of pSwap .
+            new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]]=Mutations._swap_mutation(new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]],pmut[3])
         return new_product,new_batches,new_mask
 
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):

@@ -614,6 +614,32 @@ class Mutations():
             chromossome[ix_mut]=0
         return chromossome
 
+    @staticmethod
+    @jit(nopython=True,nogil=True)
+    def _swap_mutation(chromossome_atrib0,chromossome_atrib1,pswap):
+        """Swaps in mutation two genes position, the cromossome received have two attribute, that means that if swapping occurs (given a pswap probability) both attributes are swapped.
+
+        Args:
+            chromossome_atrib0 (array): Atribute 1
+            chromossome_atrib1 (array): Atribute 2
+            pswap (float): Probability of mutation to subtract per gene ranging from 0 to 1
+
+        Returns:
+            [arrays]: Returns both attributes if changed
+        """
+        genes=len(chromossome_atrib1)
+        if genes>1:
+            mutate=random.randint(0,100)
+            if mutate<=pswap*100:
+                ix_change=np.random.choice(np.arange(0,genes),size=2,replace=False)
+                # print(chromossome_atrib0)
+                chromossome_atrib0[ix_change[0]],chromossome_atrib0[ix_change[1]]=chromossome_atrib0[ix_change[1]],chromossome_atrib0[ix_change[0]]
+                # print(chromossome_atrib0)
+                # print(chromossome_atrib1)
+                chromossome_atrib1[ix_change[0]],chromossome_atrib1[ix_change[1]]=chromossome_atrib1[ix_change[1]],chromossome_atrib1[ix_change[0]]
+                # print(chromossome_atrib1)
+        return chromossome_atrib0,chromossome_atrib1
+
 
     def _mutacao_2_genes(pop_tarefa,pop_processador, probabilidade_mutacao):
             # Sorteio de  um array com o tamanho da população com um valor para ditar se ocorre ou nao mutacao (Se valor=0 ou 1 ocorre mutacao)
