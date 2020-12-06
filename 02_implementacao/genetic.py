@@ -958,13 +958,15 @@ class AlgNsga2():
             idx_ganhadores.append(idx_ganhador)
         return idx_ganhadores
 
-    def _index_reinsercao_ordenada_nsga(crowd_dist,fronts,n_ind):
-        """Retorna os index de posição dos valores selecionados para reinserção na nova populaçãoUtilizando a reinserção ordenada, para o NSGA inicialmente as melhores fronts são selecionadas e no caso de empate utiliza se a crowding distance como critério de desempate
+    def _index_linear_reinsertion_nsga(crowd_dist,fronts,n_ind):
+        """Returns the indexes of the chromossomes for the reinsertion in the new population, evaluating:
+        1)Best front, in case of draw evaluates the next item.
+        2)Highest Crowding distance
 
         Args:
-            crowd_dist ([type]): Crowding Distance criterio de desempate em fronts
-            fronts ([type]): Alocação da solução na fronteira de pareto, ascendente menores fronts melhores
-            n_ind ([type]): Número de individuos que serão selecionados para as próximas gerações.
+            crowd_dist ([type]): Crowding Distance criteria
+            fronts ([type]): Ascendent pareto fronts
+            n_ind ([type]): Number of chromossome to select
 
         Returns:
             [array]: Array com os index selecionados para prosseguir na próxima geração
@@ -992,7 +994,7 @@ class AlgNsga2():
                 k+=len_val_front_i
 
         if (len(indice_nova_pop)<n_ind)|(len(indice_nova_pop[indice_nova_pop<0])>0):
-            raise ValueError
+            raise Exception("ValueError")
 
         return indice_nova_pop
 

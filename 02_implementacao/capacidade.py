@@ -658,6 +658,8 @@ class Planning():
         if ((a1-a0)!=0)|((b1-b0)!=0):
             raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
+        # 16) Linear Reinsertion
+        ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga(pop.crowding_dist,pop.fronts,num_chromossomes)
 
         print("Cheeers! Arrasooou!")
     
