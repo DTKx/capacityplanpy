@@ -546,7 +546,6 @@ class Planning():
             pop_new (class object): Offspring population object
         """
         pop.num_chromossomes=pop.num_chromossomes+pop_new.num_chromossomes
-        pop.num_genes=pop.num_genes+pop_new.num_genes
 
         # Batches
         pop.batches_raw=np.vstack((pop.batches_raw,pop_new.batches_raw))
@@ -578,6 +577,45 @@ class Planning():
         # Creates an array of fronts and crowding distance
         pop.fronts=np.empty(shape=(pop.num_chromossomes,1),dtype=int)
         pop.crowding_dist=np.empty(shape=(pop.num_chromossomes,1),dtype=int)
+
+    def select_pop_by_index(self,pop,ix_reinsert):
+        """Selects chromossomes to maintain in pop class object, updating the class atributes given the index.
+
+        Args:
+            pop (class object): Population Class Object to reduce based on selected index ix_reinsert
+            ix_reinsert (array): Indexes selected to maintain in the population class object.
+        """
+        pop.num_chromossomes=len(ix_reinsert)
+
+        # Batches
+        pop.batches_raw=pop.batches_raw[ix_reinsert]
+
+        # Products
+        pop.products_raw=pop.products_raw[ix_reinsert]
+
+        # Masks
+        pop.masks=pop.masks[ix_reinsert]
+
+        # Time vector Start (Start of USP) and end (end of DSP) of manufacturing campaign Starting with the first date
+        pop.start_raw=pop.start_raw[ix_reinsert]
+        pop.end_raw=pop.end_raw[ix_reinsert]
+
+        # Stock backlog_i
+        pop.backlogs=pop.backlogs[ix_reinsert]
+
+        # Objectives throughput_i,deficit_strat_i
+        pop.objectives_raw=pop.objectives_raw[ix_reinsert]
+
+        # Genes per chromossome (Number of active campaigns per solution)
+        pop.genes_per_chromo=np.sum(pop.masks,axis=1,dtype=int)
+
+        # List of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
+        pop.dicts_batches_end_dsp=list(map(pop.dicts_batches_end_dsp.__getitem__,list(ix_reinsert)))
+
+        # NSGA2
+        # Creates an array of fronts and crowding distance
+        pop.fronts=pop.fronts[ix_reinsert]
+        pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
 
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
@@ -659,7 +697,11 @@ class Planning():
             raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
         # 16) Linear Reinsertion
+
+        # 16.1) Selects indexes to maintain
         ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga(pop.crowding_dist,pop.fronts,num_chromossomes)
+        # 16.2) Remove non reinserted chromossomes from pop
+        self.select_pop_by_index(pop,ix_reinsert)
 
         print("Cheeers! Arrasooou!")
     

@@ -81,10 +81,13 @@ from numba import cuda
 # batches=np.vstack((batches,batches_new))
 # print(batches)
 # print(batches.shape)
-a=[1 for i in range(0,5)]
-print(len(a))
-b=[5 for i in range(0,5)]
-for i in range(0,len(b)):
-    a.append(b[i])
-print(len(a))
-print(a)
+a=[i for i in range(0,10)]
+# print(len(a))
+# b=[5 for i in range(0,5)]
+# for i in range(0,len(b)):
+#     a.append(b[i])
+# print(len(a))
+# print(a)
+b=np.array([0,5,7])
+# print(a[list(b)])
+print(list(map(a.__getitem__,list(b))))
