@@ -585,7 +585,9 @@ class Mutations():
         """
         mask=np.random.randint(0,100,size=chromossome.shape)
         ix_mut=np.where(mask<=pmutp*100)
-        chromossome[ix_mut]=np.random.randint(0,100,size=len(ix_mut))
+        mutations=len(ix_mut)
+        if mutations>0:
+            chromossome[ix_mut]=np.random.randint(0,range_max,size=mutations)
         return chromossome
     @staticmethod
     @jit(nopython=True,nogil=True)

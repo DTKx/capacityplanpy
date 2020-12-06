@@ -19,17 +19,8 @@ from genetic import AlgNsga2,Crossovers,Mutations
 # AlgNsga2._crossover_uniform,AlgNsga2._fronts,_crowding_distance
 
 
-"""Pseudo Code
-1)Initial Population Chromossome=[Product [int],Num_batches [int]] 
-    Random products with a batch of 1
-    Idea) 
-        My planning horizon is 36 months and my product manufacturing time is at least 35 days, so my worst case scenario regarding chromossome length is when I have changes in product almost every month. So i can use a fixed length chromossome of 37 (36+1 (Extension gene in case of mutation)) along with a boolean mask, therefore I can leverage from either Numba, or tensor libraries more easily.
-        I can use 2 arrays one for the number of batches and one for the product label
-
-"""
-
-class CurrentPop():
-    """Stores current population and its atributes and methods
+class Population():
+    """Stores population attributes and methods
     """
     def __init__(self,num_genes,num_chromossomes,num_products,num_objectives,start_date,initial_stock):
         """Initiates the current population, with a batch population,product population and a mask.
@@ -56,18 +47,17 @@ class CurrentPop():
         self.products_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype=int)
         self.products_raw[:,0]=np.random.randint(low=0,high=num_products,size=num_chromossomes)
 
+        # Initialize Mask of active items with only one gene
+        self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
+        self.masks[:,0]=True
+
         # Initializes a time vector Start (Start of USP) and end (end of DSP) of manufacturing campaign Starting with the first date
         self.start_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
         # self.start_raw[:,0]=start_date
         self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
 
-        # Initialize Mask of active items with only one gene
-        self.masks=np.zeros(shape=(num_chromossomes,num_genes),dtype=bool)
-        self.masks[:,0]=True
-
         # Initializes Stock backlog_i
         self.backlogs=np.zeros(shape=(num_chromossomes,1),dtype=int)
-        # self.backlogs=defaultdict()
 
         # Initializes the objectives throughput_i,deficit_strat_i
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -84,17 +74,27 @@ class CurrentPop():
         self.crowding_dist=np.empty(shape=(num_chromossomes,1),dtype=int)
 
     def update_genes_per_chromo(self):
-        # Updates genes per chromossome (Number of active campaigns per solution)
+        """ Updates genes per chromossome (Number of active campaigns per solution)
+        """
         self.genes_per_chromo=np.sum(self.masks,axis=1,dtype=int)
 
-    def count_genes_per_chromossomes(self):
-        """Counts number of active genes per chromossome
+    def create_new_population(self,new_products,new_batches,new_mask):
+        """Updates the values of the new offspring population in the class object.
 
-        Returns:
-            array: Count of active genes per chromossome
+        Args:
+            new_products (Array of ints): Population of product labels
+            new_batches (Array of ints): Population of number of batches
+            new_mask (Array of booleans): Population of active genes
         """
-        count=np.sum(self.masks,axis=0)
-        return count
+        # Updates new Batches values
+        self.batches_raw=copy.deepcopy(new_batches)
+
+        # Updates new Products
+        self.products_raw=copy.deepcopy(new_products)
+
+        # Updates Mask of active items with only one gene
+        self.masks=copy.deepcopy(new_mask)
+
 
 
 class Planning():
@@ -468,6 +468,8 @@ class Planning():
         Returns:
             [type]: [description]
         """
+        if (new_product>=self.num_products).any():
+            raise Exception("Error in labels of products, labels superior than maximum defined.")
         # Active genes per chromossome
         genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
         # Loop per chromossome
@@ -484,7 +486,7 @@ class Planning():
             # print(new_product[i])
             # print(new_batches[i])
             # print(new_mask[i])
-            new_product[i,genes_per_chromo[i]]=random.randint(0,self.num_products)
+            new_product[i,genes_per_chromo[i]]=random.randint(0,self.num_products-1)
             new_batches[i,genes_per_chromo[i]]=1
             new_mask[i,genes_per_chromo[i]]=True
             # print(new_product[i])
@@ -494,6 +496,9 @@ class Planning():
             # print(new_product[i])
             new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]]=Mutations._swap_mutation(new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]],pmut[3])
             # print(new_product[i])
+        if (new_product>=self.num_products).any():
+            raise Exception("Error in labels of products, labels superior than maximum defined.")
+
         return new_product,new_batches,new_mask
 
     def agg_product_batch(self,products,batches,masks):
@@ -533,11 +538,59 @@ class Planning():
                             i+=1
         return products,batches,masks
 
+    def merge_pop_with_offspring(self,pop,pop_new):
+        """Appends the offspring population to the Current population.
+
+        Args:
+            pop (class object): Current Population object
+            pop_new (class object): Offspring population object
+        """
+        pop.num_chromossomes=pop.num_chromossomes+pop_new.num_chromossomes
+        pop.num_genes=pop.num_genes+pop_new.num_genes
+
+        # Batches
+        pop.batches_raw=np.vstack((pop.batches_raw,pop_new.batches_raw))
+
+        # Products
+        pop.products_raw=np.vstack((pop.products_raw,pop_new.products_raw))
+
+        # Masks
+        pop.masks=np.vstack((pop.masks,pop_new.masks))
+
+        # Time vector Start (Start of USP) and end (end of DSP) of manufacturing campaign Starting with the first date
+        pop.start_raw=np.vstack((pop.start_raw,pop_new.start_raw))
+        pop.end_raw=np.vstack((pop.end_raw,pop_new.end_raw))
+
+        # Stock backlog_i
+        pop.backlogs=np.vstack((pop.backlogs,pop_new.backlogs))
+
+        # Objectives throughput_i,deficit_strat_i
+        pop.objectives_raw=np.vstack((pop.objectives_raw,pop_new.objectives_raw))
+
+        # Genes per chromossome (Number of active campaigns per solution)
+        pop.genes_per_chromo=np.sum(pop.masks,axis=1,dtype=int)
+
+        # List of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
+        for i in range(0,len(pop_new.dicts_batches_end_dsp)):
+            pop.dicts_batches_end_dsp.append(pop_new.dicts_batches_end_dsp[i])
+
+        # NSGA2
+        # Creates an array of fronts and crowding distance
+        pop.fronts=np.empty(shape=(pop.num_chromossomes,1),dtype=int)
+        pop.crowding_dist=np.empty(shape=(pop.num_chromossomes,1),dtype=int)
+
+
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         # 1) Random parent population is initialized with its attributes
-        pop=CurrentPop(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
+        pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
+        # 1.1) Initializes class object for Offspring Population
+        # Number of chromossomes for crossover, guarantees an even number
+        n_parents = int(num_chromossomes * perc_crossover)
+        if n_parents % 2 == 1:
+            n_parents = n_parents + 1
+        pop_offspring=Population(self.num_genes,n_parents,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
+        # 1.2) Creates start and end date from schedule assures only batches with End date<Last day of manufacturing
 
-        # 1.1) Creates start and end date from schedule assures only batches with End date<Last day of manufacturing
         # 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
         self.calc_start_end(pop)       
 
@@ -561,10 +614,6 @@ class Planning():
 
         # 6)Selection for Crossover Tournament
 
-        # Number of chromossomes for crossover, guarantees an even number
-        n_parents = int(num_chromossomes * perc_crossover)
-        if n_parents % 2 == 1:
-            n_parents = n_parents + 1
         ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
 
         # 7)Crossover
@@ -580,9 +629,37 @@ class Planning():
         # 9)Aggregate batches with same product neighbours
         new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask)
 
-        # 9)Aggregate new population and old
+        # 10) Merge populations Current and Offspring
+        # pop.append_offspring(new_products,new_batches,new_mask)
+        pop_offspring.create_new_population(new_products,new_batches,new_mask)
 
-        print("Cheeers!")
+        # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
+        self.calc_start_end(pop_offspring)       
+
+        # 12) 3)Calculate inventory levels and objectives
+        self.calc_inventory_objectives(pop_offspring)
+
+        # 13) Merge Current Pop with Offspring
+        pop_offspring_copy=copy.deepcopy(pop_offspring)
+        self.merge_pop_with_offspring(pop,pop_offspring_copy)
+
+        # 14) 4)Front Classification
+        a0=np.sum(pop.objectives_raw)
+        pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+        a1=np.sum(pop.objectives_raw)
+        if (a1-a0)!=0:
+            raise Exception('Mutation is affecting values, consider making a deepcopy.')
+
+        # 15) 5) Crowding Distance
+        # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
+        a0,b0=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+        pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
+        a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+        if ((a1-a0)!=0)|((b1-b0)!=0):
+            raise Exception('Mutation is affecting values, consider making a deepcopy.')
+
+
+        print("Cheeers! Arrasooou!")
     
     def run_cprofile():
         num_chromossomes=100

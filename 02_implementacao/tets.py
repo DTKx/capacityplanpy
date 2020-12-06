@@ -61,17 +61,30 @@ from numba import cuda
 #     print(f)
 
 
-chromossome=np.random.randint(0,4,size=15)
-range_max=4
-pmutp=0.3
-mask=np.random.randint(0,100,size=chromossome.shape)
-ix_mut=np.where(mask<=pmutp*100)
-print(chromossome)
-chromossome[ix_mut]=chromossome[ix_mut]+1
-print(chromossome)
-mask=np.random.randint(0,100,size=chromossome.shape)
-ix_mut=np.where(mask<=pmutp*100)
-print(chromossome)
-chromossome[ix_mut]=chromossome[ix_mut]-1
-print(chromossome)
+# chromossome=np.random.randint(0,4,size=15)
+# range_max=4
+# pmutp=0.3
+# mask=np.random.randint(0,100,size=chromossome.shape)
+# ix_mut=np.where(mask<=pmutp*100)
+# print(chromossome)
+# chromossome[ix_mut]=chromossome[ix_mut]+1
+# print(chromossome)
+# mask=np.random.randint(0,100,size=chromossome.shape)
+# ix_mut=np.where(mask<=pmutp*100)
+# print(chromossome)
+# chromossome[ix_mut]=chromossome[ix_mut]-1
+# print(chromossome)
 
+# num_genes=20
+# batches=np.ones(shape=(20,num_genes),dtype=int)
+# batches_new=np.zeros(shape=(60,num_genes),dtype=int)
+# batches=np.vstack((batches,batches_new))
+# print(batches)
+# print(batches.shape)
+a=[1 for i in range(0,5)]
+print(len(a))
+b=[5 for i in range(0,5)]
+for i in range(0,len(b)):
+    a.append(b[i])
+print(len(a))
+print(a)
