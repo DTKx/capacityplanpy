@@ -604,14 +604,11 @@ class Mutations():
         mask=np.random.randint(0,100,size=chromossome.shape)
         ix_mut=np.where(mask<=pposb*100)
         chromossome[ix_mut]=chromossome[ix_mut]+1
-        # Subtract
-        mask=np.random.randint(0,100,size=chromossome.shape)
-        ix_mut=np.where(mask<=pnegb*100)
-        chromossome[ix_mut]=chromossome[ix_mut]-1
-        # Corrects in case of negative
-        ix_neg=np.where(mask<=pnegb*100)
-        if len(ix_neg)>0:
-            chromossome[ix_mut]=0
+        # Subtract only if higher than 1
+        if np.sum(chromossome)>1:
+            mask=np.random.randint(0,100,size=chromossome.shape)
+            ix_mut=np.where(mask<=pnegb*100)
+            chromossome[ix_mut]=chromossome[ix_mut]-1
         return chromossome
 
     @staticmethod

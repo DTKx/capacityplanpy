@@ -96,39 +96,6 @@ class CurrentPop():
         count=np.sum(self.masks,axis=0)
         return count
 
-    def agg_product_batch(self):
-        """Aggregates product batches in case of neighbours products
-        """
-        # Loop per chromossome in population
-        # for list_batches,list_products,list_masks,list_genes_chromo in zip(self.batches,self.products,self.masks,self.genes_per_chromo):
-        for j in range(0,len(self.genes_per_chromo)):
-            # Loop per gene i in chromossome
-            i=0
-            while i<np.sum(self.masks[j],axis=0)-1:
-                if self.products[j][i]==self.products[j][i+1]:
-                    # Sum next
-                    print(self.batches[j])
-                    self.batches[j][i]=self.batches[j][i]+self.batches[j][i+1]
-                    print(self.batches[j])
-                    # Deletes [i+a] and insert a value in the last
-                    print(self.batches[j])
-                    self.batches[j]=np.insert(np.delete(self.batches[j],i),-1,0)
-                    print(self.batches[j])
-                    print(self.products[j])
-                    self.products[j]=np.insert(np.delete(self.products[j],i),-1,0)
-                    print(self.products[j])
-                    print(self.masks[j])
-                    self.masks[j]=np.insert(np.delete(self.masks[j],i),-1,False)
-                    print(self.masks[j])
-                    self.start_raw[j]=np.insert(np.delete(self.start_raw[j],i),-1,0)
-                    self.end_raw[j]=np.insert(np.delete(self.end_raw[j],i),-1,0)
-                    self.backlogs[j]=np.insert(np.delete(self.backlogs[j],i),-1,0)
-                    i+=1
-                else:
-                    i+=1
-        # Updates
-        self.genes_per_chromo=np.sum(self.masks,axis=0)
-
 
 class Planning():
     # Class Variables
@@ -485,26 +452,6 @@ class Planning():
             j+=1
         return idx_winners
 
-        # Sorts the indexes received by ascending number of active genes in the population, preparing for crossover
-
-        # Args:
-        #     pop (object): Population object for relative sorting
-        #     ix_to_crossover ([type]): [description]
-
-
-    def sort_ix_by_num_genes(self,pop,ix_to_crossover):
-        """Sorts the indexes received by ascending number of active genes in the population, preparing for crossover
-
-        Args:
-            pop (object): Population object for relative sorting
-            ix_to_crossover (array): Indexes to sort
-
-        Returns:
-            [array]: Array with sorted indexes
-        """
-        ix_invert=np.argsort(pop.genes_per_chromo[ix_to_crossover])
-        return ix_to_crossover[ix_invert]
-
     def mutation_processes(self,new_product,new_batches,new_mask,pmut):
         """Mutation Processes:
             1. To mutate a product label with a rate of pMutP. 
@@ -523,20 +470,68 @@ class Planning():
         """
         # Active genes per chromossome
         genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
+        # Loop per chromossome
         for i in range(0,len(new_product)):
             # 1. To mutate a product label with a rate of pMutP. 
+            # print(new_product[i])
             new_product[i,0:genes_per_chromo[i]]=Mutations._label_mutation(new_product[i,0:genes_per_chromo[i]],self.num_products,pmut[0])
+            # print(new_product[i])
             # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
-            # print(new_batches[i,0:genes_per_chromo[i]])
+            # print(new_batches[i])
             new_batches[i,0:genes_per_chromo[i]]=Mutations._add_subtract_mutation(new_batches[i,0:genes_per_chromo[i]],pmut[1],pmut[2])
-            # print(new_batches[i,0:genes_per_chromo[i]])
+            # print(new_batches[i])
             # 3. To add a new random gene to the end of the chromosome (un- conditionally).
-            new_product[i,0:genes_per_chromo[i]+1]=random.randint(0,self.num_products)
-            new_batches[i,0:genes_per_chromo[i]+1]=1
-            new_mask[i,0:genes_per_chromo[i]+1]=True
+            # print(new_product[i])
+            # print(new_batches[i])
+            # print(new_mask[i])
+            new_product[i,genes_per_chromo[i]]=random.randint(0,self.num_products)
+            new_batches[i,genes_per_chromo[i]]=1
+            new_mask[i,genes_per_chromo[i]]=True
+            # print(new_product[i])
+            # print(new_batches[i])
+            # print(new_mask[i])
             # 4. To swap two genes within the same chromosome once with a rate of pSwap .
+            # print(new_product[i])
             new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]]=Mutations._swap_mutation(new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]],pmut[3])
+            # print(new_product[i])
         return new_product,new_batches,new_mask
+
+    def agg_product_batch(self,products,batches,masks):
+        """Aggregates product batches in case of neighbours products.
+
+        Args:
+            products (array): Array of products
+            batches (array): Array of batches
+            masks (array): Array of masks
+        """
+        # Active genes per chromossome
+        genes_per_chromo=np.sum(masks,axis=1,dtype=int)
+        if any(genes_per_chromo)>1:
+            # Loop per chromossome in population
+            for j in range(0,len(genes_per_chromo)):
+                if genes_per_chromo[j]>1:
+                    # Loop per gene i in chromossome
+                    # for i in range(0,genes_per_chromo[j]-1)
+                    i=0
+                    while i<genes_per_chromo[j]-1:
+                        if products[j][i]==products[j][i+1]:
+                            # Sum next
+                            print(batches[j])
+                            batches[j][i]=batches[j][i]+batches[j][i+1]
+                            print(batches[j])
+                            # Deletes [i+a] and insert a value in the last
+                            print(batches[j])
+                            batches[j]=np.insert(np.delete(batches[j],i+1),-1,0)
+                            print(batches[j])
+                            print(products[j])
+                            products[j]=np.insert(np.delete(products[j],i+1),-1,0)
+                            print(products[j])
+                            print(masks[j])
+                            masks[j]=np.insert(np.delete(masks[j],i),-1,False)
+                            print(masks[j])
+                        else:
+                            i+=1
+        return products,batches,masks
 
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         # 1) Random parent population is initialized with its attributes
@@ -576,16 +571,16 @@ class Planning():
         # 7.1 Sorts Selected by number of genes
         ix_to_crossover=ix_to_crossover[np.argsort(pop.genes_per_chromo[ix_to_crossover])]
         # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
-        new_product,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
+        new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
         # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
 
         # 8)Mutation
-        new_product,new_batches,new_mask=self.mutation_processes(new_product,new_batches,new_mask,pmut)
+        new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
 
+        # 9)Aggregate batches with same product neighbours
+        new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask)
 
-
-
-
+        # 9)Aggregate new population and old
 
         print("Cheeers!")
     
