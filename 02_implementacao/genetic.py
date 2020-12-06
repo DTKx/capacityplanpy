@@ -587,6 +587,32 @@ class Mutations():
         ix_mut=np.where(mask<=pmutp*100)
         chromossome[ix_mut]=np.random.randint(0,100,size=len(ix_mut))
         return chromossome
+    @staticmethod
+    @jit(nopython=True,nogil=True)
+    def _add_subtract_mutation(chromossome,pposb,pnegb):
+        """2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
+           3. To add a new random gene to the end of the chromosome (un- conditionally).
+        Args:
+            chromossome (array of int): Chromossome with labels within range_max
+            pposb (float): Probability of mutation to add per gene ranging from 0 to 1
+            pnegb (float): Probability of mutation to subtract per gene ranging from 0 to 1
+
+        Returns:
+            [array of int]: Mutated chromossome
+        """
+        # Add
+        mask=np.random.randint(0,100,size=chromossome.shape)
+        ix_mut=np.where(mask<=pposb*100)
+        chromossome[ix_mut]=chromossome[ix_mut]+1
+        # Subtract
+        mask=np.random.randint(0,100,size=chromossome.shape)
+        ix_mut=np.where(mask<=pnegb*100)
+        chromossome[ix_mut]=chromossome[ix_mut]-1
+        # Corrects in case of negative
+        ix_neg=np.where(mask<=pnegb*100)
+        if len(ix_neg)>0:
+            chromossome[ix_mut]=0
+        return chromossome
 
 
     def _mutacao_2_genes(pop_tarefa,pop_processador, probabilidade_mutacao):

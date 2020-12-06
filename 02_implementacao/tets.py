@@ -67,6 +67,11 @@ pmutp=0.3
 mask=np.random.randint(0,100,size=chromossome.shape)
 ix_mut=np.where(mask<=pmutp*100)
 print(chromossome)
-chromossome[ix_mut]=np.random.randint(0,100,size=len(ix_mut))
+chromossome[ix_mut]=chromossome[ix_mut]+1
+print(chromossome)
+mask=np.random.randint(0,100,size=chromossome.shape)
+ix_mut=np.where(mask<=pmutp*100)
+print(chromossome)
+chromossome[ix_mut]=chromossome[ix_mut]-1
 print(chromossome)
 

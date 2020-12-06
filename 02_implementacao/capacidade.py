@@ -527,6 +527,10 @@ class Planning():
             # 1. To mutate a product label with a rate of pMutP. 
             new_product[i,0:genes_per_chromo[i]]=Mutations._label_mutation(new_product[i,0:genes_per_chromo[i]],self.num_products,pmut[0])
             # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
+            # print(new_batches[i,0:genes_per_chromo[i]])
+            new_batches[i,0:genes_per_chromo[i]]=Mutations._add_subtract_mutation(new_batches[i,0:genes_per_chromo[i]],pmut[1],pmut[2])
+            # print(new_batches[i,0:genes_per_chromo[i]])
+            print("h")
 
 
         return new_product,new_batches,new_mask
