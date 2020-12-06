@@ -508,12 +508,6 @@ class Crossovers():
 
             # Trocando os valores das tarefas e da populacao
             pop_tarefa[i:i+2],pop_processador[i:i+2]=_trocar_valores_ciclo(pop_tarefa[i:i+2],pop_processador[i:i+2],valores_ciclo)
-
-            # soma_linha=sum([x for x in range(0,pop_tarefa[i:i+2].shape[1])])
-            # verifico_val_duplicados=np.where(np.sum(pop_tarefa[i:i+2],axis=1)!=soma_linha)
-            # if verifico_val_duplicados[0].size!=0:
-            #     print("Individuos perderam a caracteristica de permutação")
-
             i = i + 2        
 
         return pop_tarefa,pop_processador
@@ -546,6 +540,34 @@ class Crossovers():
         for ponto in lista_index_ponto_crossover:
             pais=_crossover_ponto(pais,ponto)
         return pais
+
+    def _crossover_uniform(pop_product,pop_batches,pop_mask,genes_per_chromo,perc_crossover):
+        new_product,new_batches,new_mask=copy.deepcopy(pop_product),copy.deepcopy(pop_batches),copy.deepcopy(pop_mask)
+        if any(genes_per_chromo>=3):
+            for i in range(0,len(pop_produto),2):
+                if genes_per_chromo[i]>=3:
+                    # Masks
+                    mask=np.random.randint(100,size=(1,genes_per_chromo[i]))
+                    mask[vals<=perc_crossover*100]=1
+                    mask[vals>perc_crossover*100]=0
+                    mask_invert=mask^1
+
+                    new_product[i,0:genes_per_chromo[1]]=pop_product[i,0:genes_per_chromo[1]]*mask+pop_product[i,0:genes_per_chromo[1]]*mask_invert
+                    new_product[i+1,0:genes_per_chromo[1]]=pop_product[i,0:genes_per_chromo[1]]*mask_invert+pop_product[i,0:genes_per_chromo[1]]*mask
+
+                    new_batches[i,0:genes_per_chromo[1]]=new_batches[i,0:genes_per_chromo[1]]*mask+new_batches[i,0:genes_per_chromo[1]]*mask_invert
+                    new_batches[i+1,0:genes_per_chromo[1]]=new_batches[i,0:genes_per_chromo[1]]*mask_invert+new_batches[i,0:genes_per_chromo[1]]*mask
+
+                    # Check length of both parents, if true uses the probability to decide whether 
+                    if pop_mask[i]<pop_mask[i+1]:
+                        last_gene=random.randint(0,100)
+                        if last_gene<=perc_crossover*100:
+                            new_product[i,genes_per_chromo[i+1]]=pop_product[i+1,genes_per_chromo[i]]
+                            new_batches[i,genes_per_chromo[i+1]]=pop_batches[i+1,genes_per_chromo[i]]
+                            new_mask[i,genes_per_chromo[i+1]]=True
+        return new_product,new_batches,new_mask
+
+
 
 class Mutations():
     """Methods applied for mutation of individuals.
@@ -701,7 +723,6 @@ class AlgNsga2():
                 # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
                 j=0
                 dominado_sum=int(0)
-                # dominado=np.any(np.all(resultado_fn[j]>resultado_fn[i],axis=1)).astype(int)
                 while (j<row) & (dominado_sum==int(0)):
                     if i==j:
                         j+=int(1)
@@ -712,11 +733,8 @@ class AlgNsga2():
                     # Se são exatamente iguais são não dominados, porque se não posso perder todos os valores duplicados vou ter que filtrar depois
                     if len(ar_distintos)==0:
                         dominado=0               
-                    # Se não há valores iguais utilizase o all()
                     else:
                         dominado=int(np.all(resultado_fn[j][ar_distintos]<resultado_fn[i][ar_distintos]))
-                    # else:
-                    #     raise ValueError("Novo caso")
                     dominado_sum+=dominado
                     j+=int(1)
                 if dominado_sum==0:
@@ -727,30 +745,20 @@ class AlgNsga2():
 
         row,col=objectives_fn.shape
         # Definição de fronteiras
-        # mask_nao_classificados=np.ones(dtype=bool,shape=(row,))
         ix_falta_classificar=np.arange(0,row)
         fronts=np.empty(dtype=int,shape=(row,))
         # Loop por fronts exceto a ultima pois os valores remanescentes serão adicionados na ultima fronteira
         j=0
         existe_n_dominados=True
         while (j<num_fronts-1) & (existe_n_dominados):
-        # for j in range(0,num_fronts-1):
             dominado=np.ones(shape=(row,))
-            # # Verifica se ainda tenho pontos nao classificados
-            # if len(ix_falta_classificar)==0:
-            #     break 
-            # 0=Não dominados 1=Dominados Loop por pontos
             dominado[ix_falta_classificar]=_ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
             ix_nao_dominados=np.where(dominado==0)[0]
             if len(ix_nao_dominados)==0:
-                # print("Não encontrei não dominados")
                 existe_n_dominados=False
                 continue
             fronts[ix_nao_dominados]=j
-            # print(sum([1 for x in ix_falta_classificar]))
             ix_falta_classificar=np.delete(ix_falta_classificar,np.where(np.isin(ix_falta_classificar,ix_nao_dominados))[0])
-            # ix_falta_classificar_for_numba_working=np.delete(ix_falta_classificar,np.where(np.array([x in set(ix_nao_dominados) for x in ix_falta_classificar]))[0])
-            # print(sum([1 for x in ix_falta_classificar]))
             j+=1
         # Adiciona todos os outros pontos na última fronteira
         fronts[ix_falta_classificar]=j
@@ -786,15 +794,7 @@ class AlgNsga2():
                 fit_obj_max_delta=np.max(objectives_fn[ix_ind_front_i,j-1])-np.min(objectives_fn[ix_ind_front_i,j-1])
                 if fit_obj_max_delta==0:
                     fit_obj_max_delta=1
-                # print(f"obj{j}")
                 ix_rank_asc=np.argsort(objectives_fn[ix_ind_front_i,j-1])
-
-                # # Teste 1 (Funciona) Assigning Crowding distance for extremes first and last
-                # crowd_dist[:,j][ix_ind_front_i[ix_rank_asc[[0,-1]]]]=big_dummy
-
-                # Teste 2 Assigning CD para todos os valores que estão nos extremos
-                # val_max_cd=np.max(crowd_dist[:,j][ix_ind_front_i])
-                # val_min_cd=np.min(crowd_dist[:,j][ix_ind_front_i])
                 ix_max_cd=np.where(crowd_dist[:,j][ix_ind_front_i]==np.max(crowd_dist[:,j][ix_ind_front_i]))
                 ix_min_cd=np.where(crowd_dist[:,j][ix_ind_front_i]==np.min(crowd_dist[:,j][ix_ind_front_i]))
                 if len(ix_max_cd)>1:
@@ -810,14 +810,9 @@ class AlgNsga2():
                     crowd_obj_anterior=crowd_dist[:,j-1][ix_abs]
                     fit_next=objectives_fn[:,j-1][ix_ind_front_i[ix_rank_asc[k+1]]]
                     fit_anterior=objectives_fn[:,j-1][ix_ind_front_i[ix_rank_asc[k-1]]]
-                    # print(f"{crowd_obj_anterior}+({fit_next}-{fit_anterior})/{fit_obj_max_delta}")
                     crowd_dist[:,j][ix_abs]=crowd_obj_anterior+(fit_next-fit_anterior)/fit_obj_max_delta
                     if np.isnan(crowd_dist[:,j][ix_abs]):
                         raise ValueError("Nan")
-                    # elif (j==3) & (crowd_dist[:,j][ix_abs]==10000.0):
-                    #     raise ValueError("Evaluate")
-                    # print(crowd_dist[:,j][ix_abs])
-        # print("Crowd")
         return crowd_dist[:,-1]
 
     def _torneio_simples_nsga2(pop_tarefa,pop_processador,crowd_dist,fronts, n_ind_selecionar,n_tour):
@@ -909,12 +904,10 @@ class AlgNsga2():
         """  
         ix=np.arange(0,len(fronts))
         front_crowd=np.column_stack((fronts,crowd_dist,ix))
-        # front_crowd=np.block(fronts,crowd_dist,ix)
         # Verifica qual a fronteira em que o ultimo individuo selecionado está
         ix_asc_fronts=np.argsort(front_crowd[:,0],axis=0)
         front_for_crowd=int(front_crowd[:,0][ix_asc_fronts][n_ind])
         indice_nova_pop=np.ones(shape=(n_ind,),dtype=int)*-1
-        # indice_nova_pop=np.empty(shape=(n_ind,))
         # Ix already added
         k=0
         for i in range(0,front_for_crowd+1):
@@ -925,8 +918,6 @@ class AlgNsga2():
                 ix_asc_crowd=np.argsort(val_front_i[:,1],axis=0)
                 sorted_ix_crowd_front = val_front_i[:,2][ix_asc_crowd]
                 indice_nova_pop[k:k+len_val_front_i]=(sorted_ix_crowd_front[len_val_front_i-(n_ind-k):]).astype(int)
-                # indice_nova_pop=np.append(indice_nova_pop,(sorted_ix_crowd_front[:n_ind-k]).astype(int))
-                # indice_nova_pop.append(list((sorted_ix_crowd_front[:n_ind]).astype(int)))
             else:
                 val_front_i=copy.deepcopy(front_crowd)[np.where(front_crowd[:,0]==i)[0]]
                 len_val_front_i=len(val_front_i)
@@ -937,3 +928,108 @@ class AlgNsga2():
             raise ValueError
 
         return indice_nova_pop
+
+
+class AlgSpea():
+    """Métodos para o algoritmo Spea. 
+    Ex para importação: 
+    import genetico as gn
+    Ex uso 
+    a=gn.AlgSpea._gerar_populacao(100)
+    """   
+    def _cluster_knn(ext_objectives,num_clusters):
+        mask=range(0,len(ext_objectives))
+        kmeans=KMeans(n_clusters=num_clusters, random_state=0).fit(ext_objectives)
+        ix_duplicates,val=Helpers._find_idx_duplicates(np.array(kmeans.labels_))
+        dif=ext_objectives[ix_duplicates]-kmeans.cluster_centers_[val]
+        max_dist,max_ix=0,0
+        for i in range(0,len(ix_duplicates)):
+            dist = np.linalg.norm(dif[i])
+            if dist>max_dist:
+                max_ix,max_dist=i,dist                    
+        mask=np.delete(mask,ix_duplicates)
+        mask=np.append(mask,max_ix)
+        return ext_objectives[mask],mask
+
+    # @jit(nopython=True,nogil=True)
+    def _ponto_dominado_minimizacao(resultado_fn):
+        # Loop por função
+        row=resultado_fn.shape[0]
+        dominado_fn=np.zeros(shape=(row,))
+        # Loop por ponto a verificar se é dominado
+        for i in np.arange(0,row):
+            # Concept of domination for minimization a dominates b if fia>fib and fja>=fjb
+            mask_better_or_equal=(resultado_fn[i]<=resultado_fn).all(axis=1)
+            mask_contains_any_dominant_value=(resultado_fn[i]<resultado_fn).any(axis=1)
+            mask_distinct=(resultado_fn[i]!=resultado_fn).any(axis=1)
+            mask_values_dominated_by_i=mask_better_or_equal&mask_contains_any_dominant_value&mask_distinct
+            dominado_fn+=mask_values_dominated_by_i
+        dominado_fn[dominado_fn>0]=1
+        return dominado_fn
+
+    def _fronteiras(resultado_fn,num_fronteiras):
+        """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população.
+
+        Args:
+            resultado_fn (float): Array de floats shape(m,n) com a solução dos valores de individuos avaliados em n funções Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
+            num_fronteiras (int): Número de fronteiras
+        Returns:
+            int: Array shape (n,1) com a classificação das fronteiras de pareto para cada individuo
+        """
+        row,col=resultado_fn.shape
+        # Definição de fronteiras
+        ix_falta_classificar=np.arange(0,row)
+        fronteiras=np.empty(dtype=int,shape=(row,))
+        # Loop por fronteiras exceto a ultima pois os valores remanescentes serão adicionados na ultima fronteira
+        j=0
+        existe_n_dominados=True
+        while (j<num_fronteiras-1) & (existe_n_dominados):
+        # for j in range(0,num_fronteiras-1):
+            dominado=np.ones(shape=(row,))
+            dominado[ix_falta_classificar]=AlgSpea._ponto_dominado_minimizacao(resultado_fn[ix_falta_classificar])
+            ix_nao_dominados=np.where(dominado==0)[0]
+            if len(ix_nao_dominados)==0:
+                existe_n_dominados=False
+                continue
+            fronteiras[ix_nao_dominados]=j
+            ix_falta_classificar=np.delete(ix_falta_classificar,np.where(np.isin(ix_falta_classificar,ix_nao_dominados))[0])
+            j+=1
+        # Adiciona todos os outros pontos na última fronteira
+        fronteiras[ix_falta_classificar]=j
+
+
+        return fronteiras
+
+    def _calc_fitness(resultado_fn,ext_resultado_fn):
+        """Calculates fitness according to Zitzler1999, note that the goal is to minimize the fitness, the smaller the fitness higher the better the individual
+
+        Args:
+            resultado_fn (float): Array de floats shape(m,n) com a solução dos valores de individuos avaliados em n funções Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
+            ext_resultado_fn (float): Array floats com os objetivos da população externa calculados
+
+        Returns:
+            [array]: Fitness of current population
+        """
+        num_ind,num_obj=resultado_fn.shape
+        # ext_population[:,0:num_obj+1]
+        num_ind_ext=len(ext_resultado_fn)
+
+        fitness=np.zeros(shape=(num_ind,),dtype=float)
+        ext_fitness=np.zeros(shape=(num_ind_ext,),dtype=float)
+
+        # Loop per individual i of the external population
+        for i in range(0,num_ind_ext):
+            # Concept of domination for minimization a dominates b if fia>fib and fja>=fjb
+            mask_better_or_equal=(ext_resultado_fn[i]<=resultado_fn).all(axis=1)
+            mask_contains_any_dominant_value=(ext_resultado_fn[i]<resultado_fn).any(axis=1)
+            mask_distinct=(ext_resultado_fn[i]!=resultado_fn).any(axis=1)
+            mask_values_dominated_by_i=mask_better_or_equal&mask_contains_any_dominant_value&mask_distinct
+
+            n_dominates=float(len(mask_values_dominated_by_i[mask_values_dominated_by_i==True]))/(num_ind+1.0)
+            # Updates dominated sum for external Population 
+            fitness=fitness+mask_values_dominated_by_i*n_dominates
+            # Updates n_dominated0
+            ext_fitness[i]=n_dominates
+
+        fitness+=1
+        return fitness,ext_fitness

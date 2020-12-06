@@ -44,12 +44,19 @@ from numba import cuda
 
 # print(a.shape)
 
-a=np.ones(shape=(10,1))*9
-b=np.ones(shape=(10,1))*5
-mask=np.random.randint(2,size=(10,1))
-mask_invert=mask^1
-f1=a*mask+b*mask_invert
-f2=b*mask+a*mask_invert
-print(b)
-c=np.where(a==np.min(a))
-print(c)
+a=np.ones(shape=(10,4))*9
+b=np.ones(shape=(10,4))*5
+f=np.ones(shape=(10,15))*7
+mask_valid=np.zeros(shape=(10,15),dtype=bool)
+# f[f<=2]=1
+# print(f)
+mask_valid[:,0:4]=np.ones(shape=(10,4),dtype=bool)
+print(f)
+for i in range(0,9,2):
+    mask=np.random.randint(2,size=(1,4))
+    mask_invert=mask^1
+    f[i][mask_valid[i]]=a[i]*mask+b[i]*mask_invert
+    f[mask_valid[i]]=a[i]*mask+b[i]*mask_invert
+    f[mask_valid[i+1]]=b[i]*mask+a[i]*mask_invert
+    print(f)
+

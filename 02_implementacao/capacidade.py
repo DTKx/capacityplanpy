@@ -15,7 +15,8 @@ from collections import defaultdict
 # # insert at 1, 0 is the script path (or '' in REPL)
 # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
 # import genetico_permutacao as genetico
-from genetic import AlgNsga2
+from genetic import AlgNsga2,Crossovers
+# AlgNsga2._crossover_uniform,AlgNsga2._fronts,_crowding_distance
 
 
 """Pseudo Code
@@ -450,7 +451,7 @@ class Planning():
         # Arrays representing the indexes
         idx_population=np.arange(0,pop.num_chromossomes)    
         # Indexes of winners
-        idx_winners=np.empty(shape=(n_parents,1))
+        idx_winners=np.empty(shape=(n_parents,1),dtype=int)
 
         # Selection all participants
         idx_for_tournament = np.random.choice(idx_population,size=n_tour*n_parents,replace=True)
@@ -461,7 +462,7 @@ class Planning():
             # 1) Lowest backlog
             if pop.backlogs[i_1]!=pop.backlogs[i_2]:
                 # To change for different number of tours c=np.where(a==np.min(a))
-            if pop.backlogs[i_1]-pop.backlogs[i_2]>0:
+                if pop.backlogs[i_1]-pop.backlogs[i_2]>0:
                     idx_winners[j]=i_1
                 else:
                     idx_winners[j]=i_2
@@ -497,8 +498,8 @@ class Planning():
         Returns:
             [array]: Array with sorted indexes
         """
-
-        return ix_to_crossover_sorted
+        ix_invert=np.argsort(pop.genes_per_chromo[ix_to_crossover])
+        return ix_to_crossover[ix_invert]
 
 
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover):
@@ -537,7 +538,11 @@ class Planning():
 
         # 7)Crossover
         # 7.1 Sorts Selected by number of genes
-        ix_to_crossover_sorted=self.sort_ix_by_num_genes(pop,ix_to_crossover)
+        ix_to_crossover=ix_to_crossover[np.argsort(pop.genes_per_chromo[ix_to_crossover])]
+        # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
+        new_produto,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
+        # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
+
 
 
 
