@@ -44,19 +44,29 @@ from numba import cuda
 
 # print(a.shape)
 
-a=np.ones(shape=(10,4))*9
-b=np.ones(shape=(10,4))*5
-f=np.ones(shape=(10,15))*7
-mask_valid=np.zeros(shape=(10,15),dtype=bool)
-# f[f<=2]=1
+# a=np.ones(shape=(10,4))*9
+# b=np.ones(shape=(10,4))*5
+# f=np.ones(shape=(10,15))*7
+# mask_valid=np.zeros(shape=(10,15),dtype=bool)
+# # f[f<=2]=1
+# # print(f)
+# mask_valid[:,0:4]=np.ones(shape=(10,4),dtype=bool)
 # print(f)
-mask_valid[:,0:4]=np.ones(shape=(10,4),dtype=bool)
-print(f)
-for i in range(0,9,2):
-    mask=np.random.randint(2,size=(1,4))
-    mask_invert=mask^1
-    f[i][mask_valid[i]]=a[i]*mask+b[i]*mask_invert
-    f[mask_valid[i]]=a[i]*mask+b[i]*mask_invert
-    f[mask_valid[i+1]]=b[i]*mask+a[i]*mask_invert
-    print(f)
+# for i in range(0,9,2):
+#     mask=np.random.randint(2,size=(1,4))
+#     mask_invert=mask^1
+#     f[i][mask_valid[i]]=a[i]*mask+b[i]*mask_invert
+#     f[mask_valid[i]]=a[i]*mask+b[i]*mask_invert
+#     f[mask_valid[i+1]]=b[i]*mask+a[i]*mask_invert
+#     print(f)
+
+
+chromossome=np.random.randint(0,4,size=15)
+range_max=4
+pmutp=0.3
+mask=np.random.randint(0,100,size=chromossome.shape)
+ix_mut=np.where(mask<=pmutp*100)
+print(chromossome)
+chromossome[ix_mut]=np.random.randint(0,100,size=len(ix_mut))
+print(chromossome)
 

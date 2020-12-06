@@ -15,7 +15,7 @@ from collections import defaultdict
 # # insert at 1, 0 is the script path (or '' in REPL)
 # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
 # import genetico_permutacao as genetico
-from genetic import AlgNsga2,Crossovers
+from genetic import AlgNsga2,Crossovers,Mutations
 # AlgNsga2._crossover_uniform,AlgNsga2._fronts,_crowding_distance
 
 
@@ -137,8 +137,12 @@ class Planning():
 
     # Number of genes
     num_genes=int(37)
-    # # Number of chromossomes
-    # num_chromossomes=int(100)
+
+    # Mutation
+    pmutp=0.5
+    pposb=0.5
+    pnegb=0.5
+    pswap=0.5
 
     # Problem variables
 
@@ -451,7 +455,7 @@ class Planning():
         # Arrays representing the indexes
         idx_population=np.arange(0,pop.num_chromossomes)    
         # Indexes of winners
-        idx_winners=np.empty(shape=(n_parents,1),dtype=int)
+        idx_winners=np.empty(shape=(n_parents,),dtype=int)
 
         # Selection all participants
         idx_for_tournament = np.random.choice(idx_population,size=n_tour*n_parents,replace=True)
@@ -501,8 +505,33 @@ class Planning():
         ix_invert=np.argsort(pop.genes_per_chromo[ix_to_crossover])
         return ix_to_crossover[ix_invert]
 
+    def mutation_processes(self,new_product,new_batches,new_mask,pmut):
+        """Mutation Processes:
+            1. To mutate a product label with a rate of pMutP. 
+            2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
+            3. To add a new random gene to the end of the chromosome (un- conditionally).
+            4. To swap two genes within the same chromosome once with a rate of pSwap .
 
-    def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover):
+        Args:
+            new_product (array of int): Number of Products
+            new_batches (array of int): Number of Batches
+            new_mask (array of bools): Mask of active genes
+            pmut (tuple): Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
+
+        Returns:
+            [type]: [description]
+        """
+        # Active genes per chromossome
+        genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
+        for i in range(0,len(new_product)):
+            # 1. To mutate a product label with a rate of pMutP. 
+            new_product[i,0:genes_per_chromo[i]]=Mutations._label_mutation(new_product[i,0:genes_per_chromo[i]],self.num_products,pmut[0])
+            # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
+
+
+        return new_product,new_batches,new_mask
+
+    def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         # 1) Random parent population is initialized with its attributes
         pop=CurrentPop(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
 
@@ -540,8 +569,11 @@ class Planning():
         # 7.1 Sorts Selected by number of genes
         ix_to_crossover=ix_to_crossover[np.argsort(pop.genes_per_chromo[ix_to_crossover])]
         # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
-        new_produto,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
+        new_product,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
         # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
+
+        # 8)Mutation
+        new_product,new_batches,new_mask=self.mutation_processes(new_product,new_batches,new_mask,pmut)
 
 
 
@@ -554,8 +586,11 @@ class Planning():
         num_chromossomes=100
         num_geracoes=200
         n_tour=2
-        perc_crossover=0.6
-        Planning().main(num_chromossomes,num_geracoes,n_tour,perc_crossover)
+        pcross=0.6
+        # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
+        pmut=(0.04,0.61,0.77,0.47)
+
+        Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
 
 
 

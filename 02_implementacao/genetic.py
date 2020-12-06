@@ -567,11 +567,27 @@ class Crossovers():
                             new_mask[i,genes_per_chromo[i+1]]=True
         return new_product,new_batches,new_mask
 
-
-
 class Mutations():
     """Methods applied for mutation of individuals.
     """
+    @staticmethod
+    @jit(nopython=True,nogil=True)
+    def _label_mutation(chromossome,range_max,pmutp):
+        """Label Mutation considering a probability of label mutation of pmutp, considering a range of label from 0 to range_max.
+
+        Args:
+            chromossome (array of int): Chromossome with labels within range_max
+            range_max (array of int): Range maximum of variation for the mutation
+            pmutp (float): Probability of mutation per gene ranging from 0 to 1
+
+        Returns:
+            [array of int]: Mutated chromossome
+        """
+        mask=np.random.randint(0,100,size=chromossome.shape)
+        ix_mut=np.where(mask<=pmutp*100)
+        chromossome[ix_mut]=np.random.randint(0,100,size=len(ix_mut))
+        return chromossome
+
 
     def _mutacao_2_genes(pop_tarefa,pop_processador, probabilidade_mutacao):
             # Sorteio de  um array com o tamanho da população com um valor para ditar se ocorre ou nao mutacao (Se valor=0 ou 1 ocorre mutacao)
