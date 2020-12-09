@@ -47,7 +47,12 @@ from numba import cuda
 # a=np.ones(shape=(10,4))*9
 # b=np.ones(shape=(10,4))*5
 # f=np.ones(shape=(10,15))*7
-# mask_valid=np.zeros(shape=(10,15),dtype=bool)
+mask_valid=np.zeros(shape=(10,15),dtype=bool)
+mask_valid[0]=True
+print(mask_valid[0,2:])
+print(mask_valid[0,2:].shape)
+
+
 # # f[f<=2]=1
 # # print(f)
 # mask_valid[:,0:4]=np.ones(shape=(10,4),dtype=bool)
@@ -81,13 +86,13 @@ from numba import cuda
 # batches=np.vstack((batches,batches_new))
 # print(batches)
 # print(batches.shape)
-a=[i for i in range(0,10)]
-# print(len(a))
-# b=[5 for i in range(0,5)]
-# for i in range(0,len(b)):
-#     a.append(b[i])
-# print(len(a))
-# print(a)
-b=np.array([0,5,7])
-# print(a[list(b)])
-print(list(map(a.__getitem__,list(b))))
+# a=[i for i in range(0,10)]
+# # print(len(a))
+# # b=[5 for i in range(0,5)]
+# # for i in range(0,len(b)):
+# #     a.append(b[i])
+# # print(len(a))
+# # print(a)
+# b=np.array([0,5,7])
+# # print(a[list(b)])
+# print(list(map(a.__getitem__,list(b))))

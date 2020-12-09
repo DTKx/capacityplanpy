@@ -541,30 +541,68 @@ class Crossovers():
             pais=_crossover_ponto(pais,ponto)
         return pais
 
-    def _crossover_uniform(pop_product,pop_batches,pop_mask,genes_per_chromo,perc_crossover):
+    def _crossover_uniform(pop_product,pop_batches,pop_mask,perc_crossover):
+        """Performs the uniform crossover with 2 populations, in case one length of one parent is larger, then the last cromossome may be added with the perc_crossover probability to the shorter offspring.
+
+        Args:
+            pop_product (array of ints): Product Population
+            pop_batches (Array of ints): Batches Population
+            pop_mask (Array of booleans): Masks with active cromossomes
+            perc_crossover (float): Probability of crossover, ranging from 0 to 1.
+
+        Raises:
+            Exception: [description]
+            Exception: [description]
+            Exception: [description]
+            Exception: [description]
+
+        Returns:
+            Arrays: Returns the offspring of the product, batches and mask.
+        """
         new_product,new_batches,new_mask=copy.deepcopy(pop_product),copy.deepcopy(pop_batches),copy.deepcopy(pop_mask)
+        genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
         if any(genes_per_chromo>=3):
-            for i in range(0,len(pop_produto),2):
+            for i in range(0,len(new_product),2):
+                # print("In ",new_batches[i],new_batches[i+1])
+                if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+                if np.sum(new_mask[i+1,genes_per_chromo[i+1]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
                 if genes_per_chromo[i]>=3:
                     # Masks
                     mask=np.random.randint(100,size=(1,genes_per_chromo[i]))
-                    mask[vals<=perc_crossover*100]=1
-                    mask[vals>perc_crossover*100]=0
+                    mask[mask<=perc_crossover*100]=1
+                    mask[mask>perc_crossover*100]=0
                     mask_invert=mask^1
+                    # Offspring1=
+                    new_product[i,0:genes_per_chromo[i]]=pop_product[i,0:genes_per_chromo[i]]*mask+pop_product[i+1,0:genes_per_chromo[i]]*mask_invert
+                    new_product[i+1,0:genes_per_chromo[i]]=pop_product[i+1,0:genes_per_chromo[i]]*mask_invert+pop_product[i,0:genes_per_chromo[i]]*mask
 
-                    new_product[i,0:genes_per_chromo[1]]=pop_product[i,0:genes_per_chromo[1]]*mask+pop_product[i,0:genes_per_chromo[1]]*mask_invert
-                    new_product[i+1,0:genes_per_chromo[1]]=pop_product[i,0:genes_per_chromo[1]]*mask_invert+pop_product[i,0:genes_per_chromo[1]]*mask
+                    # print("Parents",new_batches[i],new_batches[i+1])
+                    new_batches[i,0:genes_per_chromo[i]]=new_batches[i,0:genes_per_chromo[i]]*mask+new_batches[i+1,0:genes_per_chromo[i]]*mask_invert
+                    new_batches[i+1,0:genes_per_chromo[i]]=new_batches[i+1,0:genes_per_chromo[i]]*mask_invert+new_batches[i,0:genes_per_chromo[i]]*mask
+                    # print("Offspring",new_batches[i],new_batches[i+1])
 
-                    new_batches[i,0:genes_per_chromo[1]]=new_batches[i,0:genes_per_chromo[1]]*mask+new_batches[i,0:genes_per_chromo[1]]*mask_invert
-                    new_batches[i+1,0:genes_per_chromo[1]]=new_batches[i,0:genes_per_chromo[1]]*mask_invert+new_batches[i,0:genes_per_chromo[1]]*mask
-
-                    # Check length of both parents, if true uses the probability to decide whether 
-                    if pop_mask[i]<pop_mask[i+1]:
+                    # Check length difference of both parents, if true uses the probability to decide whether to add
+                    if genes_per_chromo[i]<genes_per_chromo[i+1]:
+                        # random integer N such that a <= N <= b high inclusive
                         last_gene=random.randint(0,100)
                         if last_gene<=perc_crossover*100:
-                            new_product[i,genes_per_chromo[i+1]]=pop_product[i+1,genes_per_chromo[i]]
-                            new_batches[i,genes_per_chromo[i+1]]=pop_batches[i+1,genes_per_chromo[i]]
-                            new_mask[i,genes_per_chromo[i+1]]=True
+                            # print("Parents to add",new_batches[i][new_mask[i]],new_batches[i+1][new_mask[i+1]])
+                            # genes_per_chromo[i] and [i-1] because of the difference Index (Starts with 0) and the genes per chromo
+                            new_product[i,genes_per_chromo[i]]=new_product[i+1,genes_per_chromo[i-1]]
+                            new_batches[i,genes_per_chromo[i]]=new_batches[i+1,genes_per_chromo[i-1]]
+                            new_mask[i,genes_per_chromo[i]]=True
+                            genes_per_chromo[i]=genes_per_chromo[i]+1
+                            if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                                raise Exception("Invalid bool after number of active genes.")
+                            # print("Offspring added",new_batches[i][new_mask[i]],new_batches[i+1][new_mask[i+1]])
+                if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+
+                if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
+                    raise Exception("Invalid number of batches (0).")
+
         return new_product,new_batches,new_mask
 
 class Mutations():
@@ -603,14 +641,18 @@ class Mutations():
             [array of int]: Mutated chromossome
         """
         # Add
-        mask=np.random.randint(0,100,size=chromossome.shape)
-        ix_mut=np.where(mask<=pposb*100)
-        chromossome[ix_mut]=chromossome[ix_mut]+1
-        # Subtract only if higher than 1
-        if np.sum(chromossome)>1:
-            mask=np.random.randint(0,100,size=chromossome.shape)
-            ix_mut=np.where(mask<=pnegb*100)
-            chromossome[ix_mut]=chromossome[ix_mut]-1
+        mask_add=np.random.randint(0,100,size=chromossome.shape)
+        ix_mut_add=np.where(mask_add<=pposb*100)[0]
+        if len(ix_mut_add)>0:
+            chromossome[ix_mut_add]=chromossome[ix_mut_add]+1
+
+        mask_sub=np.random.randint(0,100,size=chromossome.shape)
+        ix_mut_sub=np.where(mask_sub<=pnegb*100)[0]
+        if len(ix_mut_sub)>0:
+            # Subtract only if higher than 2
+            for ix in ix_mut_sub:
+                if chromossome[ix]>1:
+                    chromossome[ix]=chromossome[ix]-1
         return chromossome
 
     @staticmethod

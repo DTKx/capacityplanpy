@@ -9,6 +9,7 @@ from dateutil import relativedelta
 from numba import jit
 from pygmo import *
 from collections import defaultdict
+from scipy import stats
 
 # Local Modules
 # import sys
@@ -94,6 +95,12 @@ class Population():
 
         # Updates Mask of active items with only one gene
         self.masks=copy.deepcopy(new_mask)
+        self.update_genes_per_chromo()
+
+    def return_best(self):
+        ix_best_f0=np.argmax(self.objectives_raw[0])
+        ix_best_f1=np.argmin(self.objectives_raw[1])
+        return stats.describe(self.objectives_raw),(self.products_raw[ix_best_f0][self.masks[ix_best_f0]],self.batches_raw[ix_best_f0][self.masks[ix_best_f0]]),(self.products_raw[ix_best_f1][self.masks[ix_best_f1]],self.batches_raw[ix_best_f1][self.masks[ix_best_f1]])
 
 
 
@@ -170,72 +177,108 @@ class Planning():
     # Big Dummy for crowding distance computation
     big_dummy=10**5
 
-    def calc_start_end(self,pop):
+    def calc_start_end(self,pop_obj):
         """Calculates start and end dates of batch manufacturing, as well as generates (dicts_batches_end_dsp) a list of dictionaries (List index = Chromossome, key=Number of products and date values os release from QC) per chromossome with release dates of each batch per product. 
 
         Args:
-            pop (Class object): Class Object of the population to be analized
+            pop_obj (Class object): Class Object of the population to be analized
         """
         # Extracts the population informations
-        dsp_raw=np.vectorize(self.dsp_days.__getitem__)(pop.products_raw)
-        usp_plus_dsp_raw=np.vectorize(self.usp_days.__getitem__)(pop.products_raw)+copy.deepcopy(dsp_raw)
+        dsp_raw=np.vectorize(self.dsp_days.__getitem__)(pop_obj.products_raw)
+        usp_plus_dsp_raw=np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)+copy.deepcopy(dsp_raw)
 
         # Initialize by addying the first date
-        pop.start_raw[:,0]=self.start_date
+        pop_obj.start_raw[:,0]=self.start_date
 
         # Loop per chromossome i
-        for i in range(0,len(pop.start_raw)):
+        for i in range(0,len(pop_obj.start_raw)):
+            if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+                raise Exception("Invalid bool after number of active genes.")
+            if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
+                raise Exception("Invalid number of batches (0).")
+
             batches_end_date_i=defaultdict(list)
-            # pop.batches_end_date_dsp=[]
+            # pop_obj.batches_end_date_dsp=[]
             # Loop per gene j starting from second gene
-            for j in range(0,pop.genes_per_chromo[i]):
+            # for j in range(0,pop_obj.genes_per_chromo[i]):
+            j=0
+            while j<pop_obj.genes_per_chromo[i]:
                 if j==0:
                     # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
-                    end_dates=[pop.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop.batches_raw[i][j])]
+                    end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
                     # Verifies if End day<Last Day ok else delete
                     num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
                     if num_batch_exceed_end_dates>0:
                         # Removes exceeding batches
-                        pop.batches_raw[i][j]=pop.batches_raw[i][j]-num_batch_exceed_end_dates
+                        pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
                         del end_dates[-num_batch_exceed_end_dates:]
-                        if pop.batches_raw[i][j]==0:
-                            pop.masks[i][j]=False
+                        if pop_obj.batches_raw[i][j]==0:
+                            # Removes the batch in position j and adds a batch 0 to the last one
+                            temp_b=pop_obj.batches_raw[i].copy()
+                            temp_b[j:-1]=temp_b[j+1:]
+                            temp_b[-1]=0
+                            pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
+                            pop_obj.batches_raw[i]=temp_b.copy()
                             continue
                     # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
-                    pop.end_raw[i][j]=end_dates[-1]
+                    pop_obj.end_raw[i][j]=end_dates[-1]
                     # Addying the quality control time
-                    end_dates=end_dates+np.timedelta64(self.qc_days[pop.products_raw[i][j]],'D')
+                    end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D')
                     # Appends to the dictionary 
                     for date in end_dates:
-                        batches_end_date_i[pop.products_raw[i][j]].append(date)
+                        batches_end_date_i[pop_obj.products_raw[i][j]].append(date)
+                    j+=1
                 else:
                     # Add a Start Date=Previous End Date+Change Over Time
-                    pop.start_raw[i,j]=pop.end_raw[i,j-1]+np.timedelta64(self.setup_key_to_subkey[pop.products_raw[i,j]][pop.products_raw[i,j-1]],'D')
+                    pop_obj.start_raw[i,j]=pop_obj.end_raw[i,j-1]+np.timedelta64(self.setup_key_to_subkey[pop_obj.products_raw[i,j]][pop_obj.products_raw[i,j-1]],'D')
 
+                    if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
+                        raise Exception("Invalid number of batches (0).")
                     # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
-                    end_dates=[pop.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop.batches_raw[i][j])]
+                    end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
 
                     # Verifies if End day<Last Day ok else delete
                     num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
                     if num_batch_exceed_end_dates>0:
+                        # Number of batches
+                        # print("Number of Batches before removal: ",pop_obj.batches_raw[i][j])
                         # Removes exceeding batches
-                        pop.batches_raw[i][j]=pop.batches_raw[i][j]-num_batch_exceed_end_dates
+                        pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
                         del end_dates[-num_batch_exceed_end_dates:]
-                        if pop.batches_raw[i][j]==0:
-                            pop.masks[i][j]=False
+                        if pop_obj.batches_raw[i][j]==0:
+                            # raise Exception("Invalid bool after number of batches.")
+                            # Removes the batch in position j and adds a batch 0 to the last one
+                            temp_b=pop_obj.batches_raw[i].copy()
+                            temp_b[j:-1]=temp_b[j+1:]
+                            temp_b[-1]=0
+                            print("Number of Batches before removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
+                            pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
+                            pop_obj.batches_raw[i]=temp_b.copy()
+                            print("Number of Batches after removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
+                            pop_obj.genes_per_chromo[i]=pop_obj.genes_per_chromo[i]-1
                             continue
-
+                            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+                            #     raise Exception("Invalid bool after number of active genes.")
                     # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
-                    pop.end_raw[i][j]=end_dates[-1]
+                    pop_obj.end_raw[i][j]=end_dates[-1]
                     # Addying the quality control time
-                    end_dates=end_dates+np.timedelta64(self.qc_days[pop.products_raw[i][j]],'D')
+                    end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D')
                     # Appends to the dictionary
                     for date in end_dates:
-                        batches_end_date_i[pop.products_raw[i][j]].append(date)           
+                        batches_end_date_i[pop_obj.products_raw[i][j]].append(date)           
+                    j+=1
+                if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
             # Appends dictionary of individual to the list of dictionaries
-            pop.dicts_batches_end_dsp.append(batches_end_date_i)
+            pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
         # Updates Genes per Chromo
-        pop.update_genes_per_chromo()
+        pop_obj.update_genes_per_chromo()
+
+        for i in range(0,len(pop_obj.products_raw)):
+            if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+                raise Exception("Invalid bool after number of active genes.")
+
+
 
     @staticmethod
     @jit(nopython=True,nogil=True)
@@ -325,6 +368,9 @@ class Planning():
 
         # Loop per Chromossome
         for i in range(0,len(pop.products_raw)):
+            if any(pop.batches_raw[i][pop.masks[i]]==0):
+                raise Exception("Invalid number of batches (0).")
+
             available_i=np.zeros(shape=(self.num_months,self.num_products))
             stock_i=np.zeros(shape=(self.num_months,self.num_products))
             backlog_i=np.zeros(shape=(self.num_months,self.num_products))
@@ -385,6 +431,9 @@ class Planning():
             pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
             # Inversion of the Throughput by a fixed value to generate a minimization problem
             pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
+
+            if any(pop.batches_raw[i][pop.masks[i]]==0):
+                raise Exception("Invalid number of batches (0).")
         # Check if inversion value is well selected
         if any(pop.objectives_raw[:,0]<0):
             raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
@@ -468,34 +517,52 @@ class Planning():
         Returns:
             [type]: [description]
         """
+       
         if (new_product>=self.num_products).any():
             raise Exception("Error in labels of products, labels superior than maximum defined.")
         # Active genes per chromossome
         genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
         # Loop per chromossome
         for i in range(0,len(new_product)):
+            if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                raise Exception("Invalid bool after number of active genes.")
+            # print(new_batches[i])
+            if any(new_batches[i][new_mask[i]]==0):
+                raise Exception("Invalid number of batches (0).")
             # 1. To mutate a product label with a rate of pMutP. 
-            # print(new_product[i])
+            # print("In label",new_product[i])
             new_product[i,0:genes_per_chromo[i]]=Mutations._label_mutation(new_product[i,0:genes_per_chromo[i]],self.num_products,pmut[0])
+            if any(new_batches[i][new_mask[i]]==0):
+                raise Exception("Invalid number of batches (0).")
             # print(new_product[i])
             # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
-            # print(new_batches[i])
+            # print("In add_subtract",new_batches[i])
             new_batches[i,0:genes_per_chromo[i]]=Mutations._add_subtract_mutation(new_batches[i,0:genes_per_chromo[i]],pmut[1],pmut[2])
             # print(new_batches[i])
+            if any(new_batches[i][new_mask[i]]==0):
+                raise Exception("Invalid number of batches (0).")
             # 3. To add a new random gene to the end of the chromosome (un- conditionally).
             # print(new_product[i])
-            # print(new_batches[i])
+            # print("In new gene",new_batches[i])
             # print(new_mask[i])
             new_product[i,genes_per_chromo[i]]=random.randint(0,self.num_products-1)
             new_batches[i,genes_per_chromo[i]]=1
             new_mask[i,genes_per_chromo[i]]=True
+            genes_per_chromo[i]=genes_per_chromo[i]+1
+            if any(new_batches[i][new_mask[i]]==0):
+                raise Exception("Invalid number of batches (0).")
             # print(new_product[i])
             # print(new_batches[i])
             # print(new_mask[i])
             # 4. To swap two genes within the same chromosome once with a rate of pSwap .
-            # print(new_product[i])
+            # print("In Swap",new_product[i])
             new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]]=Mutations._swap_mutation(new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]],pmut[3])
             # print(new_product[i])
+            if any(new_batches[i][new_mask[i]]==0):
+                raise Exception("Invalid number of batches (0).")
+            if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                raise Exception("Invalid bool after number of active genes.")
+
         if (new_product>=self.num_products).any():
             raise Exception("Error in labels of products, labels superior than maximum defined.")
 
@@ -514,6 +581,8 @@ class Planning():
         if any(genes_per_chromo)>1:
             # Loop per chromossome in population
             for j in range(0,len(genes_per_chromo)):
+                if np.sum(masks[j,genes_per_chromo[j]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
                 if genes_per_chromo[j]>1:
                     # Loop per gene i in chromossome
                     # for i in range(0,genes_per_chromo[j]-1)
@@ -532,10 +601,13 @@ class Planning():
                             products[j]=np.insert(np.delete(products[j],i+1),-1,0)
                             print(products[j])
                             print(masks[j])
+                            print("Added False agg_product_batch")
                             masks[j]=np.insert(np.delete(masks[j],i),-1,False)
                             print(masks[j])
                         else:
                             i+=1
+                if np.sum(masks[j,genes_per_chromo[j]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
         return products,batches,masks
 
     def merge_pop_with_offspring(self,pop,pop_new):
@@ -545,10 +617,9 @@ class Planning():
             pop (class object): Current Population object
             pop_new (class object): Offspring population object
         """
-        pop.num_chromossomes=pop.num_chromossomes+pop_new.num_chromossomes
-
         # Batches
         pop.batches_raw=np.vstack((pop.batches_raw,pop_new.batches_raw))
+        pop.num_chromossomes=len(pop.batches_raw)
 
         # Products
         pop.products_raw=np.vstack((pop.products_raw,pop_new.products_raw))
@@ -619,6 +690,7 @@ class Planning():
 
 
     def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
+        print("START")
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
         # 1.1) Initializes class object for Offspring Population
@@ -636,7 +708,7 @@ class Planning():
         self.calc_inventory_objectives(pop)
 
         # 4)Front Classification
-        a0=np.sum(pop.objectives_raw)
+        a0=np.sum(copy.deepcopy(pop.objectives_raw))
         pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
         a1=np.sum(pop.objectives_raw)
         if (a1-a0)!=0:
@@ -644,76 +716,165 @@ class Planning():
 
         # 5) Crowding Distance
         # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
-        a0,b0=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+        a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
         pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
         a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
         if ((a1-a0)!=0)|((b1-b0)!=0):
             raise Exception('Mutation is affecting values, consider making a deepcopy.')
+        for i in range(0,len(pop.products_raw)):
+            if any(pop.batches_raw[i][pop.masks[i]]==0):
+                raise Exception("Invalid number of batches (0).")
+            if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                raise Exception("Invalid bool after number of active genes.")
 
-        # 6)Selection for Crossover Tournament
 
-        ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
+        for i_gen in range(0,num_geracoes):
+            print("Generation ",i_gen)
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 7)Crossover
-        # 7.1 Sorts Selected by number of genes
-        ix_to_crossover=ix_to_crossover[np.argsort(pop.genes_per_chromo[ix_to_crossover])]
-        # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
-        new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
-        # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
+            # 6)Selection for Crossover Tournament
 
-        # 8)Mutation
-        new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
+            ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
+            # selected_num_genes=copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover]
+            # sorted_ix=np.argsort(selected_num_genes)
+            # ix_to_crossover=ix_to_crossover[sorted_ix]
+            # 7)Crossover
+            # 7.1 Sorts Selected by number of genes
+            ix_to_crossover=ix_to_crossover[np.argsort(copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover])]
+            # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
+            # new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 9)Aggregate batches with same product neighbours
-        new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask)
+            new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),perc_crossover)
 
-        # 10) Merge populations Current and Offspring
-        # pop.append_offspring(new_products,new_batches,new_mask)
-        pop_offspring.create_new_population(new_products,new_batches,new_mask)
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
-        self.calc_start_end(pop_offspring)       
+            # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
+            # 8)Mutation
+            new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
 
-        # 12) 3)Calculate inventory levels and objectives
-        self.calc_inventory_objectives(pop_offspring)
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 13) Merge Current Pop with Offspring
-        pop_offspring_copy=copy.deepcopy(pop_offspring)
-        self.merge_pop_with_offspring(pop,pop_offspring_copy)
+            # 9)Aggregate batches with same product neighbours
+            new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask)
 
-        # 14) 4)Front Classification
-        a0=np.sum(pop.objectives_raw)
-        pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-        a1=np.sum(pop.objectives_raw)
-        if (a1-a0)!=0:
-            raise Exception('Mutation is affecting values, consider making a deepcopy.')
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+            # 10) Merge populations Current and Offspring
+            # pop.append_offspring(new_products,new_batches,new_mask)
+            pop_offspring.create_new_population(new_products,new_batches,new_mask)
+            for i in range(0,len(pop_offspring.products_raw)):
+                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 15) 5) Crowding Distance
-        # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
-        a0,b0=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-        pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
-        a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-        if ((a1-a0)!=0)|((b1-b0)!=0):
-            raise Exception('Mutation is affecting values, consider making a deepcopy.')
+            # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
+            self.calc_start_end(pop_offspring)       
+            for i in range(0,len(pop_offspring.products_raw)):
+                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 16) Linear Reinsertion
+            # 12) 3)Calculate inventory levels and objectives
+            self.calc_inventory_objectives(pop_offspring)
+            for i in range(0,len(pop_offspring.products_raw)):
+                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
 
-        # 16.1) Selects indexes to maintain
-        ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga(pop.crowding_dist,pop.fronts,num_chromossomes)
-        # 16.2) Remove non reinserted chromossomes from pop
-        self.select_pop_by_index(pop,ix_reinsert)
+            # 13) Merge Current Pop with Offspring
+            pop_offspring_copy=copy.deepcopy(pop_offspring)
+            self.merge_pop_with_offspring(pop,pop_offspring_copy)
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+  
+            # 14) 4)Front Classification
+            a0=np.sum(copy.deepcopy(pop.objectives_raw))
+            pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+            a1=np.sum(pop.objectives_raw)
+            if (a1-a0)!=0:
+                raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
-        print("Cheeers! Arrasooou!")
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+
+            # 15) 5) Crowding Distance
+            # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
+            a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
+            pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
+            a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+            if ((a1-a0)!=0)|((b1-b0)!=0):
+                raise Exception('Mutation is affecting values, consider making a deepcopy.')
+
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+
+            # 16) Linear Reinsertion
+
+            # 16.1) Selects indexes to maintain
+            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga(pop.crowding_dist,pop.fronts,num_chromossomes)
+            # 16.2) Remove non reinserted chromossomes from pop
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+
+            self.select_pop_by_index(pop,ix_reinsert)
+            for i in range(0,len(pop.products_raw)):
+                if any(pop.batches_raw[i][pop.masks[i]]==0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+                    raise Exception("Invalid bool after number of active genes.")
+
+
+        # Reinverts again the throughput, that was modified for minimization by addying a constant
+        pop.objectives_raw=pop.objectives_raw-self.inversion_val_throughput
+        return pop.return_best()
+
+        
     
     def run_cprofile():
         num_chromossomes=100
-        num_geracoes=200
+        num_geracoes=1000
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
 
-        Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        print(results)
 
 
 
