@@ -806,7 +806,9 @@ class Planning():
 
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-        pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+        # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+        pop.fronts=AlgNsga2._fronts_numba(pop.objectives_raw,self.num_fronts)
+   
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
         #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
@@ -978,7 +980,7 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=50
+        n_exec=4
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
@@ -1013,7 +1015,10 @@ class Planning():
             results[(v_i[0],v_i[1],v_i[2],v_i[3],v_i[4])]=results_append
             tf=time.perf_counter()
             delta_t=tf-t0
-            print("Tempo ",delta_t)
+            try:
+                print("Total time ",delta_t,"Time/execution ",delta_t/ng)
+            except Exception:
+                pass
             times.append(delta_t)
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
@@ -1044,29 +1049,29 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=2
+        num_geracoes=100
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
 
-        results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        # results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
         # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
-        # pr = cProfile.Profile()
-        # pr.enable()
-        # pr.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
-        # pr.disable()
-        # s = io.StringIO()
-        # sortby = SortKey.CUMULATIVE
-        # ps = pstats.Stats(pr, stream=s).sort_stats("cumtime")
-        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        # file_name = "cprofile.txt"
-        # path = root_path + file_name
-        # ps.print_stats()
-        # with open(path, 'w+') as f:
-        #     f.write(s.getvalue())
+        pr = cProfile.Profile()
+        pr.enable()
+        pr.runctx("results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats("cumtime")
+        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        file_name = "cprofile.txt"
+        path = root_path + file_name
+        ps.print_stats()
+        with open(path, 'w+') as f:
+            f.write(s.getvalue())
 
 if __name__=="__main__":
-    # Planning.run_cprofile()
-    Planning.run_parallel()
+    Planning.run_cprofile()
+    # Planning.run_parallel()
