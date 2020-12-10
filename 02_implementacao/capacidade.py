@@ -429,9 +429,11 @@ class Planning():
         # Corrects negative values
         # np.float64
         ix_neg=np.where(deficit_strat_i<np.float64(0.0))
-        # print(type(len(ix_neg)))
+        # ix_neg=np.where(deficit_strat_i<np.float64(0.0))[0]
         if len(ix_neg)>int(0):
+            print(deficit_strat_i)
             deficit_strat_i[ix_neg]=np.float64(0.0)
+            print(deficit_strat_i)
         # Sum of all product deficit per month
         return np.sum(deficit_strat_i,axis=1)
 
@@ -441,8 +443,31 @@ class Planning():
         Args:
             pop (class object): Population object to calculate Inventory levels
         """
-        # print(pop.dicts_batches_end_dsp)
-        # print("h")
+        # @staticmethod
+        @jit(nopython=True,nogil=True)
+        def calc_stock(available_i_j,stock_i_j_2,produced_i_j,demand_i_j,backlog_i_j):
+            # Available=Previous Stock+Produced this month
+            # available_i[j,:]=stock_i[j-1,:]+produced_i[j,:]
+            available_i_j=stock_i_j_2[0]+produced_i_j
+
+            # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+            # stock_i[j,:]=available_i[j,:]-demand_i[j,:]
+            stock_i_j_2[1]=available_i_j-demand_i_j
+            # Corrects negative values
+            # ix_neg=np.where(stock_i[j,:]<0)
+            ix_neg=np.where(stock_i_j_2[1]<0)[0]
+            if len(ix_neg)>0:
+                # Adds negative values to backlog
+                # backlog_i[j,:][ix_neg]=(stock_i[j,:][ix_neg])*(-1)
+                backlog_i_j[ix_neg]=(stock_i_j_2[1][ix_neg])*(int(-1))
+                # print(f"backlog {backlog_i[j,:][ix_neg]}")
+                # Corrects if Stock is negative
+                # stock_i[j,:][ix_neg]=0
+                stock_i_j_2[1][ix_neg]=int(0)
+                # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
+            # return stock_i_j_2,backlog_i_j
+            print(stock_i_j_2)
+
 
         # Creates a vector for batch/kg por the products 
         pop_yield=np.vectorize(self.yield_kg_batch.__getitem__)(pop.products_raw) #Equivalentt to         # pop_yield=np.array(list(map(self.yield_kg_batch.__getitem__,pop_products)))
@@ -472,37 +497,28 @@ class Planning():
             demand_i=self.calc_demand_montecarlo(self.num_monte,self.num_months,self.num_products)
 
             # Loop per Months
-            for j in range(0,self.num_months):
-                if j==0:
-                    # Available=Previous Stock+Produced this month
-                    available_i[j,:]=self.initial_stock+produced_i[j,:]
-                    # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
-                    stock_i[j,:]=available_i[j,:]-demand_i[j,:]
-                    # Corrects negative values
-                    ix_neg=np.where(stock_i[j,:]<0)
-                    if len(ix_neg)>0:
-                        # Adds negative values to backlog
-                        backlog_i[j,:][ix_neg]=(stock_i[j,:][ix_neg])*(-1)
-                        # print(f"backlog {backlog_i[j,:][ix_neg]}")
-                        # Corrects if Stock is negative
-                        stock_i[j,:][ix_neg]=0
-                        # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
-                else:
-                    # Available=Previous Stock+Produced this month
-                    available_i[j,:]=stock_i[j-1,:]+produced_i[j,:]
-
-                    # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
-                    stock_i[j,:]=available_i[j,:]-demand_i[j,:]
-                    # Corrects negative values
-                    ix_neg=np.where(stock_i[j,:]<0)
-                    if len(ix_neg)>0:
-                        # Adds negative values to backlog
-                        backlog_i[j,:][ix_neg]=(stock_i[j,:][ix_neg])*(-1)
-                        # print(f"backlog {backlog_i[j,:][ix_neg]}")
-                        # Corrects if Stock is negative
-                        stock_i[j,:][ix_neg]=0
-                        # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
-
+            # For Initial Month
+            # Available=Previous Stock+Produced this month
+            available_i[0,:]=self.initial_stock+produced_i[0,:]
+            # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+            stock_i[0,:]=available_i[0,:]-demand_i[0,:]
+            # Corrects negative values
+            ix_neg=np.where(stock_i[0,:]<0)
+            if len(ix_neg)>0:
+                # Adds negative values to backlog
+                backlog_i[0,:][ix_neg]=(stock_i[0,:][ix_neg])*(-1)
+                # print(f"backlog {backlog_i[0,:][ix_neg]}")
+                # Corrects if Stock is negative
+                stock_i[0,:][ix_neg]=0
+                # print(f"backlog {backlog_i[0,:][ix_neg]} check if mutated after assignement of stock")
+            # Starts at Month 1
+            for j in range(1,self.num_months):
+                # print(stock_i[j,:])
+                # print(backlog_i[j,:])
+                calc_stock(available_i[j,:],stock_i[j-1:j+1,:],produced_i[j,:],demand_i[j,:],backlog_i[j,:])
+                # calc_stock(available_i_j,stock_i_j_2,produced_i_j,demand_i_j,backlog_i_j)
+                # print(stock_i[j,:])
+                # print(backlog_i[j,:])
             # Stores sum of all products backlogs per month
             pop.backlogs[i]=np.sum(backlog_i,axis=1).T
 

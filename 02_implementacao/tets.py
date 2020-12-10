@@ -20,9 +20,9 @@ import pandas as pd
 # from collections import defaultdict
 # from dateutil import relativedelta
 # import datetime
-ix_to_delete=np.array([-10])
-ix_falta_classificar=np.arange(1,2)
-ix_to_delete=np.append(ix_to_delete,np.where(ix_falta_classificar==0))
-ix_to_delete=np.delete(ix_to_delete,0)
+# ix_to_delete=np.array([-10])
+a=np.zeros(shape=(2,10))
+# ix_to_delete=np.append(ix_to_delete,np.where(ix_falta_classificar==0))
+# ix_to_delete=np.delete(ix_to_delete,0)
 
-print(ix_to_delete)
+print(a[0,0:1])
