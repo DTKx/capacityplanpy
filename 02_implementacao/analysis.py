@@ -19,3 +19,5 @@ for key,value in results.items():
     print(key)
     print(value)
     value[0]
+
+results[(100, 1, 2, 0.6, (0.04, 0.61, 0.77, 0.47))]

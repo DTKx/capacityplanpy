@@ -17,6 +17,8 @@ import concurrent.futures
 import multiprocessing
 import cProfile, pstats, io
 from pstats import SortKey
+import csv
+
 
 # Local Modules
 # import sys
@@ -154,8 +156,8 @@ class Population():
         Returns:
             list: Array with metrics:
                 "Hypervolume"
-                "Total throughput [kg]", "Max total backlog [kg]", "Mean total backlog [kg]", "Median total backlog [kg]","Min total backlog [kg]", "P(total backlog ≤ 0 kg)", 
-                "Max total inventory deficit [kg]", "Mean total inventory deficit [kg]", "Median total inventory deficit [kg]", "Min total inventory deficit [kg]"
+                Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]" 
+                Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" 
         """
         # Calculates hypervolume
         hv = hypervolume(points = self.objectives_raw)
@@ -163,7 +165,7 @@ class Population():
         metrics=[hv_vol_norma]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
-        self.objectives_raw=self.objectives_raw-inversion_val_throughput
+        self.objectives_raw[:,0]=inversion_val_throughput-self.objectives_raw[:,0]
 
         # resultados[(tipo_apt,tipo_pop_gerar,tipo_selecao_crossover,tipo_crossover,tipo_mutacao,tipo_reinsercao,n_exec, ger,
         #             "sumario_execucao__n_convergiu_tempo_execucao")] = [n_convergiu,ger,ind_solucoes]
@@ -238,7 +240,7 @@ class Planning():
     setup_key_to_subkey=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(s0,s1,s2,s3)]
 
     # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    inversion_val_throughput=1500
+    inversion_val_throughput=2000
 
     # NSGA Variables
 
@@ -251,7 +253,7 @@ class Planning():
     # Hypervolume parameters
 
     # Reference point
-    ref_point=[inversion_val_throughput+500,2000]
+    ref_point=[inversion_val_throughput+500,2500]
     # hv_vol_norma=volume_ger
     volume_max=np.prod(ref_point)
 
@@ -782,7 +784,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
 
-    def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
+    def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         print("START")
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
@@ -900,8 +902,8 @@ class Planning():
             if (pop_offspring.objectives_raw<0).any():
                 raise Exception ("Negative value of objectives, consider modifying the inversion value.")
             # 13) Merge Current Pop with Offspring
-            pop_offspring_copy=copy.deepcopy(pop_offspring)
-            self.merge_pop_with_offspring(pop,pop_offspring_copy)
+            # pop_offspring_copy=copy.deepcopy(pop_offspring)
+            self.merge_pop_with_offspring(pop,pop_offspring)
             for i in range(0,len(pop.products_raw)):
                 if any(pop.batches_raw[i][pop.masks[i]]==0):
                     raise Exception("Invalid number of batches (0).")
@@ -967,8 +969,8 @@ class Planning():
         # hv_vol_norma=volume_ger/Planning.volume_max
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
-        pop.objectives_raw=pop.objectives_raw-self.inversion_val_throughput
-        return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput),num_exec
+        # pop.objectives_raw=pop.objectives_raw-self.inversion_val_throughput
+        return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput)
 
     def run_parallel():
         """Runs with Multiprocessing.
@@ -976,14 +978,14 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=100
+        n_exec=50
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
         # Number of Chromossomes
         nc=[100]
         # Number of Generations
-        ng=[1]
+        ng=[1000]
         # Number of tour
         nt=[2]
         # Crossover Probability
@@ -996,36 +998,44 @@ class Planning():
 
         # Dictionary store results
         results={}
+        times=[]
 
         for v_i in list_vars:
             t0=time.perf_counter()
+            results_append=[]
             # with concurrent.futures.ThreadPoolExecutor() as executor:
             with concurrent.futures.ProcessPoolExecutor() as executor:
                 # for result in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
 
-                for result,num_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+                for result in (executor.map(Planning().main,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     # results[(num_exec,v_i)]=[result]
-                    results[(num_exec)]=result
+                    results_append.append(result)
+            results[(v_i[0],v_i[1],v_i[2],v_i[3],v_i[4])]=results_append
             tf=time.perf_counter()
+            delta_t=tf-t0
+            print("Tempo ",delta_t)
+            times.append(delta_t)
 
-            root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-            name_var="var_1"
-            # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
-            file_name = name_var+"_results.pkl"
-            path = root_path + file_name
-            tempo=tf-t0
+        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        name_var="v_0"
+        # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
+        file_name = name_var+"_results.csv"
+        path = root_path + file_name
+        # print(f"{tempo} tempo/exec{tempo/n_exec}")
+        # Export times
+        with open(path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            try:
+                writer.writerows(times)
+            except:
+                writer.writerow(times)
 
-            resumo_exec=(f'\n{tempo},{tempo/n_exec}')
-            # print(f"{tempo} tempo/exec{tempo/n_exec}")
-            # Export File
-            file = open(path,'a')
-            file.write(resumo_exec)
-            file.close()
-            # Export Pickle
-            file_pkl = open(path, "wb")
-            pickle.dump(results, file_pkl)
-            file_pkl.close()
-            print(resumo_exec)
+        # Export Pickle
+        file_name = name_var+"_results.pkl"
+        path = root_path + file_name
+        file_pkl = open(path, "wb")
+        pickle.dump(results, file_pkl)
+        file_pkl.close()
 
 
 
@@ -1034,28 +1044,28 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=100
+        num_geracoes=2
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
 
-        # results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
         # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
-        pr = cProfile.Profile()
-        pr.enable()
-        pr.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats("cumtime")
-        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        file_name = "cprofile.txt"
-        path = root_path + file_name
-        ps.print_stats()
-        with open(path, 'w+') as f:
-            f.write(s.getvalue())
+        # pr = cProfile.Profile()
+        # pr.enable()
+        # pr.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        # pr.disable()
+        # s = io.StringIO()
+        # sortby = SortKey.CUMULATIVE
+        # ps = pstats.Stats(pr, stream=s).sort_stats("cumtime")
+        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        # file_name = "cprofile.txt"
+        # path = root_path + file_name
+        # ps.print_stats()
+        # with open(path, 'w+') as f:
+        #     f.write(s.getvalue())
 
 if __name__=="__main__":
     # Planning.run_cprofile()
