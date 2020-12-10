@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import copy
-import timeit
+# import timeit
 import datetime
 from dateutil.relativedelta import *
 import pandas as pd
@@ -10,6 +10,13 @@ from numba import jit
 from pygmo import *
 from collections import defaultdict
 from scipy import stats
+import pickle
+import time
+from itertools import product
+import concurrent.futures
+import multiprocessing
+import cProfile, pstats, io
+from pstats import SortKey
 
 # Local Modules
 # import sys
@@ -23,7 +30,7 @@ from genetic import AlgNsga2,Crossovers,Mutations
 class Population():
     """Stores population attributes and methods
     """
-    def __init__(self,num_genes,num_chromossomes,num_products,num_objectives,start_date,initial_stock):
+    def __init__(self,num_genes,num_chromossomes,num_products,num_objectives,start_date,initial_stock,num_months):
         """Initiates the current population, with a batch population,product population and a mask.
         batch population contains the number of batches, initially with only one batch
         product population contains the product being produced related to the batch number of the batch population,r randolmly assigned across different number of products
@@ -36,6 +43,7 @@ class Population():
             num_objectives (int): Number of objectives being evaluated
             start_date (datetime): Start Date of planning
             initial_stock (array): Initial Stock of products
+            num_months (int): Number of months of planning
         """
         self.num_chromossomes=num_chromossomes
         self.num_genes=num_genes
@@ -58,7 +66,10 @@ class Population():
         self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
 
         # Initializes Stock backlog_i
-        self.backlogs=np.zeros(shape=(num_chromossomes,1),dtype=int)
+        self.backlogs=np.zeros(shape=(num_chromossomes,num_months),dtype=int)
+
+        # Initializes Inventory deficit per month (Objective 1, but with breakdown per month)
+        self.deficit=np.zeros(shape=(num_chromossomes,num_months),dtype=int)
 
         # Initializes the objectives throughput_i,deficit_strat_i
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -97,12 +108,72 @@ class Population():
         self.masks=copy.deepcopy(new_mask)
         self.update_genes_per_chromo()
 
-    def return_best(self):
+    def extract_metrics(self,ix):
+        """Extract Metrics
+
+        Args:
+            ix (int): Index of the solution to verify metrics
+
+        Returns:
+            list: List with the metrics Total throughput [kg] Max total backlog [kg] Mean total backlog [kg] Median total backlog [kg] a Min total backlog [kg] P(total backlog ≤ 0 kg) 
+                Max total inventory deficit [kg] Mean total inventory deficit [kg] a Median total inventory deficit [kg] Min total inventory deficit [kg]
+        """
+        metrics=[]
+        # Total throughput [kg] 
+        metrics.append(self.objectives_raw[0][ix])
+        # Max total backlog [kg]
+        metrics.append(np.max(self.backlogs[ix]))
+        # Mean total backlog [kg] +1stdev 
+        metrics.append(np.mean(self.backlogs[ix]))
+        # Standard Dev
+        metrics.append(np.std(self.backlogs[ix]))
+        # Median total backlog [kg]
+        metrics.append(np.median(self.backlogs[ix]))
+        # Min total backlog [kg] 
+        metrics.append(np.min(self.backlogs[ix]))
+        # P(total backlog ≤ 0 kg) 
+        metrics.append(np.sum(self.backlogs[ix]))
+        # DeltaXY (total backlog) [kg]
+
+        # Max total inventory deficit [kg]
+        metrics.append(self.deficit[ix])
+        # Mean total inventory deficit [kg] +1stdev 
+        metrics.append(np.mean(self.deficit[ix]))
+        # Standard Dev
+        metrics.append(np.std(self.deficit[ix]))
+        # Median total inventory deficit [kg] 
+        metrics.append(np.median(self.deficit[ix]))
+        # Min total inventory deficit [kg] 
+        metrics.append(np.min(self.deficit[ix]))
+        # DeltaXY (total inventory deficit) [kg]
+        return metrics
+
+    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput):
+        """Organizes metrics and inverts the inversion made to convert form maximization to minimization
+
+        Returns:
+            list: Array with metrics:
+                "Hypervolume"
+                "Total throughput [kg]", "Max total backlog [kg]", "Mean total backlog [kg]", "Median total backlog [kg]","Min total backlog [kg]", "P(total backlog ≤ 0 kg)", 
+                "Max total inventory deficit [kg]", "Mean total inventory deficit [kg]", "Median total inventory deficit [kg]", "Min total inventory deficit [kg]"
+        """
+        # Calculates hypervolume
+        hv = hypervolume(points = self.objectives_raw)
+        hv_vol_norma=hv.compute(ref_point)/volume_max
+        metrics=[hv_vol_norma]
+
+        # Reinverts again the throughput, that was modified for minimization by addying a constant
+        self.objectives_raw=self.objectives_raw-inversion_val_throughput
+
+        # resultados[(tipo_apt,tipo_pop_gerar,tipo_selecao_crossover,tipo_crossover,tipo_mutacao,tipo_reinsercao,n_exec, ger,
+        #             "sumario_execucao__n_convergiu_tempo_execucao")] = [n_convergiu,ger,ind_solucoes]
+        # # print("p_final")
         ix_best_f0=np.argmax(self.objectives_raw[0])
         ix_best_f1=np.argmin(self.objectives_raw[1])
-        return stats.describe(self.objectives_raw),(self.products_raw[ix_best_f0][self.masks[ix_best_f0]],self.batches_raw[ix_best_f0][self.masks[ix_best_f0]]),(self.products_raw[ix_best_f1][self.masks[ix_best_f1]],self.batches_raw[ix_best_f1][self.masks[ix_best_f1]])
-
-
+        metrics.extend(self.extract_metrics(ix_best_f0))
+        metrics.extend(self.extract_metrics(ix_best_f1))
+        # stats.describe(self.objectives_raw),(self.products_raw[ix_best_f0][self.masks[ix_best_f0]],self.batches_raw[ix_best_f0][self.masks[ix_best_f0]]),(self.products_raw[ix_best_f1][self.masks[ix_best_f1]],self.batches_raw[ix_best_f1][self.masks[ix_best_f1]])
+        return metrics
 
 class Planning():
     # Class Variables
@@ -167,7 +238,7 @@ class Planning():
     setup_key_to_subkey=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(s0,s1,s2,s3)]
 
     # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    inversion_val_throughput=650
+    inversion_val_throughput=1500
 
     # NSGA Variables
 
@@ -176,6 +247,14 @@ class Planning():
 
     # Big Dummy for crowding distance computation
     big_dummy=10**5
+
+    # Hypervolume parameters
+
+    # Reference point
+    ref_point=[inversion_val_throughput+500,2000]
+    # hv_vol_norma=volume_ger
+    volume_max=np.prod(ref_point)
+
 
     def calc_start_end(self,pop_obj):
         """Calculates start and end dates of batch manufacturing, as well as generates (dicts_batches_end_dsp) a list of dictionaries (List index = Chromossome, key=Number of products and date values os release from QC) per chromossome with release dates of each batch per product. 
@@ -251,10 +330,10 @@ class Planning():
                             temp_b=pop_obj.batches_raw[i].copy()
                             temp_b[j:-1]=temp_b[j+1:]
                             temp_b[-1]=0
-                            print("Number of Batches before removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
+                            # print("Number of Batches before removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
                             pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
                             pop_obj.batches_raw[i]=temp_b.copy()
-                            print("Number of Batches after removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
+                            # print("Number of Batches after removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
                             pop_obj.genes_per_chromo[i]=pop_obj.genes_per_chromo[i]-1
                             continue
                             # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
@@ -351,8 +430,8 @@ class Planning():
         # print(type(len(ix_neg)))
         if len(ix_neg)>int(0):
             deficit_strat_i[ix_neg]=np.float64(0.0)
-        # Stores sum of all deficit to the objectives
-        return np.sum(deficit_strat_i)
+        # Sum of all product deficit per month
+        return np.sum(deficit_strat_i,axis=1)
 
     def calc_inventory_objectives(self,pop):
         """Calculates Inventory levels returning the backlog and calculates the objectives the total deficit and total throughput addying to the pop attribute
@@ -421,11 +500,13 @@ class Planning():
                         # Corrects if Stock is negative
                         stock_i[j,:][ix_neg]=0
                         # print(f"backlog {backlog_i[j,:][ix_neg]} check if mutated after assignement of stock")
-            # Stores sum of all backlogs to the stock
-            pop.backlogs[i,0]=np.sum(backlog_i)
+
+            # Stores sum of all products backlogs per month
+            pop.backlogs[i]=np.sum(backlog_i,axis=1).T
 
             # Calculates the objective Strategic Deficit 
-            pop.objectives_raw[i,1]=self.calc_objective_deficit_strat(self.target_stock,stock_i)
+            pop.deficit[i]=self.calc_objective_deficit_strat(self.target_stock,stock_i)
+            pop.objectives_raw[i,1]=np.sum(pop.deficit[i])
 
             # Calculates the objective Throughput
             pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
@@ -435,7 +516,7 @@ class Planning():
             if any(pop.batches_raw[i][pop.masks[i]]==0):
                 raise Exception("Invalid number of batches (0).")
         # Check if inversion value is well selected
-        if any(pop.objectives_raw[:,0]<0):
+        if (pop.objectives_raw<0).any():
             raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
 
 
@@ -468,6 +549,8 @@ class Planning():
         Returns:
             array: Array with indexes of selected individuals
         """
+        # Backlogs contains values per month
+        aggregated_backlogs=np.sum(pop.backlogs,axis=1)
         # Arrays representing the indexes
         idx_population=np.arange(0,pop.num_chromossomes)    
         # Indexes of winners
@@ -479,10 +562,14 @@ class Planning():
         for i in range(0,n_tour*n_parents-1,2):
             i_1,i_2=idx_for_tournament[i],idx_for_tournament[i+1]
             # Criteria
+            # # 1) Lowest backlog
+            # if pop.backlogs[i_1]!=pop.backlogs[i_2]:
+            #     # To change for different number of tours c=np.where(a==np.min(a))
+            #     if pop.backlogs[i_1]-pop.backlogs[i_2]>0:
             # 1) Lowest backlog
-            if pop.backlogs[i_1]!=pop.backlogs[i_2]:
+            if aggregated_backlogs[i_1]!=aggregated_backlogs[i_2]:
                 # To change for different number of tours c=np.where(a==np.min(a))
-                if pop.backlogs[i_1]-pop.backlogs[i_2]>0:
+                if aggregated_backlogs[i_1]-aggregated_backlogs[i_2]>0:
                     idx_winners[j]=i_1
                 else:
                     idx_winners[j]=i_2
@@ -590,20 +677,20 @@ class Planning():
                     while i<genes_per_chromo[j]-1:
                         if products[j][i]==products[j][i+1]:
                             # Sum next
-                            print(batches[j])
+                            # print(batches[j])
                             batches[j][i]=batches[j][i]+batches[j][i+1]
-                            print(batches[j])
+                            # print(batches[j])
                             # Deletes [i+a] and insert a value in the last
-                            print(batches[j])
+                            # print(batches[j])
                             batches[j]=np.insert(np.delete(batches[j],i+1),-1,0)
-                            print(batches[j])
-                            print(products[j])
+                            # print(batches[j])
+                            # print(products[j])
                             products[j]=np.insert(np.delete(products[j],i+1),-1,0)
-                            print(products[j])
-                            print(masks[j])
+                            # print(products[j])
+                            # print(masks[j])
                             print("Added False agg_product_batch")
                             masks[j]=np.insert(np.delete(masks[j],i),-1,False)
-                            print(masks[j])
+                            # print(masks[j])
                         else:
                             i+=1
                 if np.sum(masks[j,genes_per_chromo[j]:])>0:
@@ -633,6 +720,9 @@ class Planning():
 
         # Stock backlog_i
         pop.backlogs=np.vstack((pop.backlogs,pop_new.backlogs))
+
+        # Stock Deficit_i
+        pop.deficit=np.vstack((pop.deficit,pop_new.deficit))
 
         # Objectives throughput_i,deficit_strat_i
         pop.objectives_raw=np.vstack((pop.objectives_raw,pop_new.objectives_raw))
@@ -674,6 +764,9 @@ class Planning():
         # Stock backlog_i
         pop.backlogs=pop.backlogs[ix_reinsert]
 
+        # Stock Deficit_i
+        pop.deficit=pop.deficit[ix_reinsert]
+
         # Objectives throughput_i,deficit_strat_i
         pop.objectives_raw=pop.objectives_raw[ix_reinsert]
 
@@ -689,16 +782,16 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
 
-    def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
+    def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         print("START")
         # 1) Random parent population is initialized with its attributes
-        pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
+        pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
         # 1.1) Initializes class object for Offspring Population
         # Number of chromossomes for crossover, guarantees an even number
         n_parents = int(num_chromossomes * perc_crossover)
         if n_parents % 2 == 1:
             n_parents = n_parents + 1
-        pop_offspring=Population(self.num_genes,n_parents,self.num_products,self.num_objectives,self.start_date,self.initial_stock)
+        pop_offspring=Population(self.num_genes,n_parents,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
         # 1.2) Creates start and end date from schedule assures only batches with End date<Last day of manufacturing
 
         # 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
@@ -706,27 +799,27 @@ class Planning():
 
         # 3)Calculate inventory levels and objectives
         self.calc_inventory_objectives(pop)
+        if (pop.objectives_raw<0).any():
+            raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         # 4)Front Classification
-        a0=np.sum(copy.deepcopy(pop.objectives_raw))
+        # a0=np.sum(copy.deepcopy(pop.objectives_raw))
         pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-        a1=np.sum(pop.objectives_raw)
-        if (a1-a0)!=0:
-            raise Exception('Mutation is affecting values, consider making a deepcopy.')
+        # a1=np.sum(pop.objectives_raw)
+        # if (a1-a0)!=0:
+        #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
+        if (pop.objectives_raw<0).any():
+            raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         # 5) Crowding Distance
         # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
-        a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
+        # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
         pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
-        a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-        if ((a1-a0)!=0)|((b1-b0)!=0):
-            raise Exception('Mutation is affecting values, consider making a deepcopy.')
-        for i in range(0,len(pop.products_raw)):
-            if any(pop.batches_raw[i][pop.masks[i]]==0):
-                raise Exception("Invalid number of batches (0).")
-            if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                raise Exception("Invalid bool after number of active genes.")
-
+        # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+        # if ((a1-a0)!=0)|((b1-b0)!=0):
+        #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
+        if (pop.objectives_raw<0).any():
+            raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         for i_gen in range(0,num_geracoes):
             print("Generation ",i_gen)
@@ -804,6 +897,8 @@ class Planning():
                 if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
                     raise Exception("Invalid bool after number of active genes.")
 
+            if (pop_offspring.objectives_raw<0).any():
+                raise Exception ("Negative value of objectives, consider modifying the inversion value.")
             # 13) Merge Current Pop with Offspring
             pop_offspring_copy=copy.deepcopy(pop_offspring)
             self.merge_pop_with_offspring(pop,pop_offspring_copy)
@@ -812,6 +907,8 @@ class Planning():
                     raise Exception("Invalid number of batches (0).")
                 if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
                     raise Exception("Invalid bool after number of active genes.")
+            if (pop.objectives_raw<0).any():
+                raise Exception ("Negative value of objectives, consider modifying the inversion value.")
   
             # 14) 4)Front Classification
             a0=np.sum(copy.deepcopy(pop.objectives_raw))
@@ -850,34 +947,116 @@ class Planning():
                     raise Exception("Invalid number of batches (0).")
                 if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
                     raise Exception("Invalid bool after number of active genes.")
-
-            self.select_pop_by_index(pop,ix_reinsert)
+            ix_reinsert_copy=ix_reinsert.copy()
+            self.select_pop_by_index(pop,ix_reinsert_copy)
             for i in range(0,len(pop.products_raw)):
                 if any(pop.batches_raw[i][pop.masks[i]]==0):
                     raise Exception("Invalid number of batches (0).")
                 if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
                     raise Exception("Invalid bool after number of active genes.")
 
+        # resultados[(tipo_apt,tipo_pop_gerar,tipo_selecao_crossover,tipo_crossover,tipo_mutacao,tipo_reinsercao,n_exec, ger,
+        #             "sumario_execucao__n_convergiu_tempo_execucao")] = [n_convergiu,ger,ind_solucoes]
+        # # print("p_final")
+        
+        # return resultados
+
+        # # Calcula o hypervolume
+        # hv = hypervolume(points = pop.objectives_raw)
+        # volume_ger=hv.compute(Planning.ref_point)
+        # hv_vol_norma=volume_ger/Planning.volume_max
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
         pop.objectives_raw=pop.objectives_raw-self.inversion_val_throughput
-        return pop.return_best()
+        return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput),num_exec
 
+    def run_parallel():
+        """Runs with Multiprocessing.
+        """
+        # Parameters
+
+        # Number of executions
+        n_exec=100
+        n_exec_ite=range(0,n_exec)
+
+        # Variation 1
+        # Number of Chromossomes
+        nc=[100]
+        # Number of Generations
+        ng=[1]
+        # Number of tour
+        nt=[2]
+        # Crossover Probability
+        pcross=[0.6]
+        # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
+        pmut=[(0.04,0.61,0.77,0.47)]
         
-    
+        # List of variants
+        list_vars = list(product(*[nc, ng, nt, pcross,pmut]))
+
+        # Dictionary store results
+        results={}
+
+        for v_i in list_vars:
+            t0=time.perf_counter()
+            # with concurrent.futures.ThreadPoolExecutor() as executor:
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                # for result in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+
+                for result,num_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+                    # results[(num_exec,v_i)]=[result]
+                    results[(num_exec)]=result
+            tf=time.perf_counter()
+
+            root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+            name_var="var_1"
+            # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
+            file_name = name_var+"_results.pkl"
+            path = root_path + file_name
+            tempo=tf-t0
+
+            resumo_exec=(f'\n{tempo},{tempo/n_exec}')
+            # print(f"{tempo} tempo/exec{tempo/n_exec}")
+            # Export File
+            file = open(path,'a')
+            file.write(resumo_exec)
+            file.close()
+            # Export Pickle
+            file_pkl = open(path, "wb")
+            pickle.dump(results, file_pkl)
+            file_pkl.close()
+            print(resumo_exec)
+
+
+
     def run_cprofile():
+        """Runs without multiprocessing.
+        """
+        num_exec=1
         num_chromossomes=100
-        num_geracoes=1000
+        num_geracoes=100
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
 
-        results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
-        print(results)
+        # results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
-
+        pr = cProfile.Profile()
+        pr.enable()
+        pr.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats("cumtime")
+        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        file_name = "cprofile.txt"
+        path = root_path + file_name
+        ps.print_stats()
+        with open(path, 'w+') as f:
+            f.write(s.getvalue())
 
 if __name__=="__main__":
-    # Planning.main()
-    Planning.run_cprofile()
+    # Planning.run_cprofile()
+    Planning.run_parallel()
