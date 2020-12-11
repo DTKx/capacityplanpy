@@ -273,10 +273,10 @@ class Planning():
 
         # Loop per chromossome i
         for i in range(0,len(pop_obj.start_raw)):
-            if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-                raise Exception("Invalid bool after number of active genes.")
-            if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
-                raise Exception("Invalid number of batches (0).")
+            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+            #     raise Exception("Invalid bool after number of active genes.")
+            # if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
 
             batches_end_date_i=defaultdict(list)
             # pop_obj.batches_end_date_dsp=[]
@@ -313,8 +313,8 @@ class Planning():
                     # Add a Start Date=Previous End Date+Change Over Time
                     pop_obj.start_raw[i,j]=pop_obj.end_raw[i,j-1]+np.timedelta64(self.setup_key_to_subkey[pop_obj.products_raw[i,j]][pop_obj.products_raw[i,j-1]],'D')
 
-                    if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
-                        raise Exception("Invalid number of batches (0).")
+                    # if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
+                    #     raise Exception("Invalid number of batches (0).")
                     # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
                     end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
 
@@ -348,16 +348,16 @@ class Planning():
                     for date in end_dates:
                         batches_end_date_i[pop_obj.products_raw[i][j]].append(date)           
                     j+=1
-                if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+                # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+                #     raise Exception("Invalid bool after number of active genes.")
             # Appends dictionary of individual to the list of dictionaries
             pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
         # Updates Genes per Chromo
         pop_obj.update_genes_per_chromo()
 
-        for i in range(0,len(pop_obj.products_raw)):
-            if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-                raise Exception("Invalid bool after number of active genes.")
+        # for i in range(0,len(pop_obj.products_raw)):
+        #     if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+        #         raise Exception("Invalid bool after number of active genes.")
 
 
 
@@ -419,7 +419,7 @@ class Planning():
                 if demand_distribution[i,j]==0:
                     continue
                 else:
-                    demand_i[i,j]=self.calc_triangular_dist(demand_distribution[i,j][0],demand_distribution[i,j][1],demand_distribution[i,j][2],num_monte)
+                    demand_i[i,j]=Planning.calc_triangular_dist(demand_distribution[i,j][0],demand_distribution[i,j][1],demand_distribution[i,j][2],num_monte)
         return demand_i
 
     @staticmethod
@@ -479,8 +479,8 @@ class Planning():
 
         # Loop per Chromossome
         for i in range(0,len(pop.products_raw)):
-            if any(pop.batches_raw[i][pop.masks[i]]==0):
-                raise Exception("Invalid number of batches (0).")
+            # if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
 
             available_i=np.zeros(shape=(self.num_months,self.num_products))
             stock_i=np.zeros(shape=(self.num_months,self.num_products))
@@ -538,26 +538,11 @@ class Planning():
             # Inversion of the Throughput by a fixed value to generate a minimization problem
             pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
 
-            if any(pop.batches_raw[i][pop.masks[i]]==0):
-                raise Exception("Invalid number of batches (0).")
-        # Check if inversion value is well selected
-        if (pop.objectives_raw<0).any():
-            raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
-
-
-    def calc_objectives(self,pop_batches,pop_products,pop_objectives):
-        """Overall, the goal is to generate a set of schedules: 
-                maximise the total production throughput (Column 0)
-                minimise the median total inventory deficit subject to the median total backlog being no greater than 0 kg (Column 1)
-        Args:
-            pop_batches (array): Population of number of batches
-            pop_products (array): Population of products
-        Returns:
-            [type]: [description]
-        """
-        # Calculating the throughput
-        pop_objectives=self.calc_throughput(pop_objectives,pop_products)
-        return pop_objectives
+        #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+        #         raise Exception("Invalid number of batches (0).")
+        # # Check if inversion value is well selected
+        # if (pop.objectives_raw<0).any():
+        #     raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
 
     @staticmethod
     def tournament_restrictions_binary(pop,n_parents,n_tour):
@@ -630,29 +615,29 @@ class Planning():
             [type]: [description]
         """
        
-        if (new_product>=self.num_products).any():
-            raise Exception("Error in labels of products, labels superior than maximum defined.")
+        # if (new_product>=self.num_products).any():
+        #     raise Exception("Error in labels of products, labels superior than maximum defined.")
         # Active genes per chromossome
         genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
         # Loop per chromossome
         for i in range(0,len(new_product)):
-            if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-                raise Exception("Invalid bool after number of active genes.")
-            # print(new_batches[i])
-            if any(new_batches[i][new_mask[i]]==0):
-                raise Exception("Invalid number of batches (0).")
+            # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+            #     raise Exception("Invalid bool after number of active genes.")
+            # # print(new_batches[i])
+            # if any(new_batches[i][new_mask[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
             # 1. To mutate a product label with a rate of pMutP. 
             # print("In label",new_product[i])
             new_product[i,0:genes_per_chromo[i]]=Mutations._label_mutation(new_product[i,0:genes_per_chromo[i]],self.num_products,pmut[0])
-            if any(new_batches[i][new_mask[i]]==0):
-                raise Exception("Invalid number of batches (0).")
+            # if any(new_batches[i][new_mask[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
             # print(new_product[i])
             # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
             # print("In add_subtract",new_batches[i])
             new_batches[i,0:genes_per_chromo[i]]=Mutations._add_subtract_mutation(new_batches[i,0:genes_per_chromo[i]],pmut[1],pmut[2])
             # print(new_batches[i])
-            if any(new_batches[i][new_mask[i]]==0):
-                raise Exception("Invalid number of batches (0).")
+            # if any(new_batches[i][new_mask[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
             # 3. To add a new random gene to the end of the chromosome (un- conditionally).
             # print(new_product[i])
             # print("In new gene",new_batches[i])
@@ -661,8 +646,8 @@ class Planning():
             new_batches[i,genes_per_chromo[i]]=1
             new_mask[i,genes_per_chromo[i]]=True
             genes_per_chromo[i]=genes_per_chromo[i]+1
-            if any(new_batches[i][new_mask[i]]==0):
-                raise Exception("Invalid number of batches (0).")
+            # if any(new_batches[i][new_mask[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
             # print(new_product[i])
             # print(new_batches[i])
             # print(new_mask[i])
@@ -670,13 +655,13 @@ class Planning():
             # print("In Swap",new_product[i])
             new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]]=Mutations._swap_mutation(new_product[i,0:genes_per_chromo[i]],new_batches[i,0:genes_per_chromo[i]],pmut[3])
             # print(new_product[i])
-            if any(new_batches[i][new_mask[i]]==0):
-                raise Exception("Invalid number of batches (0).")
-            if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-                raise Exception("Invalid bool after number of active genes.")
+            # if any(new_batches[i][new_mask[i]]==0):
+            #     raise Exception("Invalid number of batches (0).")
+            # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+            #     raise Exception("Invalid bool after number of active genes.")
 
-        if (new_product>=self.num_products).any():
-            raise Exception("Error in labels of products, labels superior than maximum defined.")
+        # if (new_product>=self.num_products).any():
+        #     raise Exception("Error in labels of products, labels superior than maximum defined.")
 
         return new_product,new_batches,new_mask
 
@@ -693,8 +678,8 @@ class Planning():
         if any(genes_per_chromo)>1:
             # Loop per chromossome in population
             for j in range(0,len(genes_per_chromo)):
-                if np.sum(masks[j,genes_per_chromo[j]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+                # if np.sum(masks[j,genes_per_chromo[j]:])>0:
+                #     raise Exception("Invalid bool after number of active genes.")
                 if genes_per_chromo[j]>1:
                     # Loop per gene i in chromossome
                     # for i in range(0,genes_per_chromo[j]-1)
@@ -718,8 +703,8 @@ class Planning():
                             # print(masks[j])
                         else:
                             i+=1
-                if np.sum(masks[j,genes_per_chromo[j]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+                # if np.sum(masks[j,genes_per_chromo[j]:])>0:
+                #     raise Exception("Invalid bool after number of active genes.")
         return products,batches,masks
 
     def merge_pop_with_offspring(self,pop,pop_new):
@@ -824,8 +809,8 @@ class Planning():
 
         # 3)Calculate inventory levels and objectives
         self.calc_inventory_objectives(pop)
-        if (pop.objectives_raw<0).any():
-            raise Exception ("Negative value of objectives, consider modifying the inversion value.")
+        # if (pop.objectives_raw<0).any():
+        #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
@@ -835,8 +820,8 @@ class Planning():
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
         #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
-        if (pop.objectives_raw<0).any():
-            raise Exception ("Negative value of objectives, consider modifying the inversion value.")
+        # if (pop.objectives_raw<0).any():
+        #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         # 5) Crowding Distance
         # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
@@ -845,16 +830,17 @@ class Planning():
         # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
         # if ((a1-a0)!=0)|((b1-b0)!=0):
         #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
-        if (pop.objectives_raw<0).any():
-            raise Exception ("Negative value of objectives, consider modifying the inversion value.")
+        # if (pop.objectives_raw<0).any():
+        #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         for i_gen in range(0,num_geracoes):
             print("Generation ",i_gen)
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+
+        #     for i in range(0,len(pop.products_raw)):
+        #         if any(pop.batches_raw[i][pop.masks[i]]==0):
+        #             raise Exception("Invalid number of batches (0).")
+        #         if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+        #             raise Exception("Invalid bool after number of active genes.")
 
             # 6)Selection for Crossover Tournament
 
@@ -867,134 +853,122 @@ class Planning():
             ix_to_crossover=ix_to_crossover[np.argsort(copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover])]
             # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
             # new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),perc_crossover)
 
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
             # 8)Mutation
             new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
 
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             # 9)Aggregate batches with same product neighbours
             new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask)
 
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
+
             # 10) Merge populations Current and Offspring
             # pop.append_offspring(new_products,new_batches,new_mask)
             pop_offspring.create_new_population(new_products,new_batches,new_mask)
-            for i in range(0,len(pop_offspring.products_raw)):
-                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop_offspring.products_raw)):
+            #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
             self.calc_start_end(pop_offspring)       
-            for i in range(0,len(pop_offspring.products_raw)):
-                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop_offspring.products_raw)):
+            #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             # 12) 3)Calculate inventory levels and objectives
             self.calc_inventory_objectives(pop_offspring)
-            for i in range(0,len(pop_offspring.products_raw)):
-                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop_offspring.products_raw)):
+            #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
-            if (pop_offspring.objectives_raw<0).any():
-                raise Exception ("Negative value of objectives, consider modifying the inversion value.")
+            # if (pop_offspring.objectives_raw<0).any():
+            #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
             # 13) Merge Current Pop with Offspring
             # pop_offspring_copy=copy.deepcopy(pop_offspring)
             self.merge_pop_with_offspring(pop,pop_offspring)
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
-            if (pop.objectives_raw<0).any():
-                raise Exception ("Negative value of objectives, consider modifying the inversion value.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
+            # if (pop.objectives_raw<0).any():
+            #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
   
             # 14) 4)Front Classification
-            a0=np.sum(copy.deepcopy(pop.objectives_raw))
+            # a0=np.sum(copy.deepcopy(pop.objectives_raw))
             pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-            a1=np.sum(pop.objectives_raw)
-            if (a1-a0)!=0:
-                raise Exception('Mutation is affecting values, consider making a deepcopy.')
+            # a1=np.sum(pop.objectives_raw)
+            # if (a1-a0)!=0:
+            #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             # 15) 5) Crowding Distance
             # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
-            a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
+            # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
             pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
-            a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-            if ((a1-a0)!=0)|((b1-b0)!=0):
-                raise Exception('Mutation is affecting values, consider making a deepcopy.')
+            # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
+            # if ((a1-a0)!=0)|((b1-b0)!=0):
+            #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
 
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
             # 16) Linear Reinsertion
 
             # 16.1) Selects indexes to maintain
             ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga(pop.crowding_dist,pop.fronts,num_chromossomes)
             # 16.2) Remove non reinserted chromossomes from pop
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
             ix_reinsert_copy=ix_reinsert.copy()
             self.select_pop_by_index(pop,ix_reinsert_copy)
-            for i in range(0,len(pop.products_raw)):
-                if any(pop.batches_raw[i][pop.masks[i]]==0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0,len(pop.products_raw)):
+            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            #         raise Exception("Invalid number of batches (0).")
+            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #         raise Exception("Invalid bool after number of active genes.")
 
-        # resultados[(tipo_apt,tipo_pop_gerar,tipo_selecao_crossover,tipo_crossover,tipo_mutacao,tipo_reinsercao,n_exec, ger,
-        #             "sumario_execucao__n_convergiu_tempo_execucao")] = [n_convergiu,ger,ind_solucoes]
-        # # print("p_final")
-        
-        # return resultados
-
-        # # Calcula o hypervolume
-        # hv = hypervolume(points = pop.objectives_raw)
-        # volume_ger=hv.compute(Planning.ref_point)
-        # hv_vol_norma=volume_ger/Planning.volume_max
-
-        # Reinverts again the throughput, that was modified for minimization by addying a constant
-        # pop.objectives_raw=pop.objectives_raw-self.inversion_val_throughput
         return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput)
 
     def run_parallel():

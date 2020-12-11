@@ -1,28 +1,17 @@
-# import copy
-# class FooInd():
-#     def __init__(self):
-#         self.a=1
-
-# class Planning():
-#     def foo(self,pop):
-#         print(pop.a)
-
-#     def main():
-#         ind=FooInd()
-#         print(ind.a)
-#         Planning().foo(copy.deepcopy(ind))
-# if __name__ == "__main__":
-#     Planning.main()
-
+import concurrent.futures
+import numba
 import numpy as np
-from functools import partial
-import pandas as pd
-# from collections import defaultdict
-# from dateutil import relativedelta
-# import datetime
-# ix_to_delete=np.array([-10])
-a=np.zeros(shape=(2,10))
-# ix_to_delete=np.append(ix_to_delete,np.where(ix_falta_classificar==0))
-# ix_to_delete=np.delete(ix_to_delete,0)
 
-print(a[0])
+# @numba.njit([numba.float64(numba.float64[:])], parallel=True) # works
+@numba.njit(parallel=True) # fails
+def plus(arr):
+    res = 0
+    for ii in numba.prange(len(arr)):
+        res += arr[ii]
+    return res
+
+xx = np.arange(10000).astype(float)
+
+with concurrent.futures.ThreadPoolExecutor(2) as pool:
+    for result in pool.map(plus, [xx, xx]):
+        print(result)
