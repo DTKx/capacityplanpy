@@ -266,7 +266,7 @@ class Planning():
         """
         # Extracts the population informations
         dsp_raw=np.vectorize(self.dsp_days.__getitem__)(pop_obj.products_raw)
-        usp_plus_dsp_raw=np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)+copy.deepcopy(dsp_raw)
+        usp_plus_dsp_raw=np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)+(dsp_raw).copy()
 
         # Initialize by addying the first date
         pop_obj.start_raw[:,0]=self.start_date
@@ -279,77 +279,74 @@ class Planning():
             #     raise Exception("Invalid number of batches (0).")
 
             batches_end_date_i=defaultdict(list)
-            # pop_obj.batches_end_date_dsp=[]
-            # Loop per gene j starting from second gene
-            # for j in range(0,pop_obj.genes_per_chromo[i]):
+            # Evaluates gene zero
             j=0
+            # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
+            end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
+            # Verifies if End day<Last Day ok else delete
+            num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
+            if num_batch_exceed_end_dates>0:
+                # Removes exceeding batches
+                pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
+                del end_dates[-num_batch_exceed_end_dates:]
+                if pop_obj.batches_raw[i][j]==0:
+                    # Removes the batch in position j and adds a batch 0 to the last one
+                    temp_b=pop_obj.batches_raw[i].copy()
+                    temp_b[j:-1]=temp_b[j+1:]
+                    temp_b[-1]=0
+                    pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
+                    pop_obj.batches_raw[i]=temp_b.copy()
+                    continue
+            # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
+            pop_obj.end_raw[i][j]=end_dates[-1]
+            # Addying the quality control time
+            end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D')
+            # Appends to the dictionary 
+            for date in end_dates:
+                batches_end_date_i[pop_obj.products_raw[i][j]].append(date)
+            j+=1
+            # Loop per gene j starting from second gene
             while j<pop_obj.genes_per_chromo[i]:
-                if j==0:
-                    # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
-                    end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
-                    # Verifies if End day<Last Day ok else delete
-                    num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
-                    if num_batch_exceed_end_dates>0:
-                        # Removes exceeding batches
-                        pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
-                        del end_dates[-num_batch_exceed_end_dates:]
-                        if pop_obj.batches_raw[i][j]==0:
-                            # Removes the batch in position j and adds a batch 0 to the last one
-                            temp_b=pop_obj.batches_raw[i].copy()
-                            temp_b[j:-1]=temp_b[j+1:]
-                            temp_b[-1]=0
-                            pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
-                            pop_obj.batches_raw[i]=temp_b.copy()
-                            continue
-                    # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
-                    pop_obj.end_raw[i][j]=end_dates[-1]
-                    # Addying the quality control time
-                    end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D')
-                    # Appends to the dictionary 
-                    for date in end_dates:
-                        batches_end_date_i[pop_obj.products_raw[i][j]].append(date)
-                    j+=1
-                else:
-                    # Add a Start Date=Previous End Date+Change Over Time
-                    pop_obj.start_raw[i,j]=pop_obj.end_raw[i,j-1]+np.timedelta64(self.setup_key_to_subkey[pop_obj.products_raw[i,j]][pop_obj.products_raw[i,j-1]],'D')
+                # Add a Start Date=Previous End Date+Change Over Time
+                pop_obj.start_raw[i,j]=pop_obj.end_raw[i,j-1]+np.timedelta64(self.setup_key_to_subkey[pop_obj.products_raw[i,j]][pop_obj.products_raw[i,j-1]],'D')
 
-                    # if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
-                    #     raise Exception("Invalid number of batches (0).")
-                    # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
-                    end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
+                # if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
+                #     raise Exception("Invalid number of batches (0).")
+                # List of batches end date End date=start+(USP+DSP)*1+DSP*num_batches
+                end_dates=[pop_obj.start_raw[i][j]+np.timedelta64(usp_plus_dsp_raw[i][j],'D')+np.timedelta64(dsp_raw[i][j]*k,'D') for k in range(0,pop_obj.batches_raw[i][j])]
 
-                    # Verifies if End day<Last Day ok else delete
-                    num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
-                    if num_batch_exceed_end_dates>0:
-                        # Number of batches
-                        # print("Number of Batches before removal: ",pop_obj.batches_raw[i][j])
-                        # Removes exceeding batches
-                        pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
-                        del end_dates[-num_batch_exceed_end_dates:]
-                        if pop_obj.batches_raw[i][j]==0:
-                            # raise Exception("Invalid bool after number of batches.")
-                            # Removes the batch in position j and adds a batch 0 to the last one
-                            temp_b=pop_obj.batches_raw[i].copy()
-                            temp_b[j:-1]=temp_b[j+1:]
-                            temp_b[-1]=0
-                            # print("Number of Batches before removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
-                            pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
-                            pop_obj.batches_raw[i]=temp_b.copy()
-                            # print("Number of Batches after removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
-                            pop_obj.genes_per_chromo[i]=pop_obj.genes_per_chromo[i]-1
-                            continue
-                            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-                            #     raise Exception("Invalid bool after number of active genes.")
-                    # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
-                    pop_obj.end_raw[i][j]=end_dates[-1]
-                    # Addying the quality control time
-                    end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D')
-                    # Appends to the dictionary
-                    for date in end_dates:
-                        batches_end_date_i[pop_obj.products_raw[i][j]].append(date)           
-                    j+=1
-                # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-                #     raise Exception("Invalid bool after number of active genes.")
+                # Verifies if End day<Last Day ok else delete
+                num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
+                if num_batch_exceed_end_dates>0:
+                    # Number of batches
+                    # print("Number of Batches before removal: ",pop_obj.batches_raw[i][j])
+                    # Removes exceeding batches
+                    pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
+                    del end_dates[-num_batch_exceed_end_dates:]
+                    if pop_obj.batches_raw[i][j]==0:
+                        # raise Exception("Invalid bool after number of batches.")
+                        # Removes the batch in position j and adds a batch 0 to the last one
+                        temp_b=pop_obj.batches_raw[i].copy()
+                        temp_b[j:-1]=temp_b[j+1:]
+                        temp_b[-1]=0
+                        # print("Number of Batches before removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
+                        pop_obj.masks[i][pop_obj.genes_per_chromo[i]-1]=False
+                        pop_obj.batches_raw[i]=temp_b.copy()
+                        # print("Number of Batches after removal: ",pop_obj.batches_raw[i][pop_obj.masks[i]])
+                        pop_obj.genes_per_chromo[i]=pop_obj.genes_per_chromo[i]-1
+                        continue
+                        # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+                        #     raise Exception("Invalid bool after number of active genes.")
+                # Add first campaign end date0=start0+(USP+DSP)*1+DSP*num_batches
+                pop_obj.end_raw[i][j]=end_dates[-1]
+                # Addying the quality control time
+                end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D')
+                # Appends to the dictionary
+                for date in end_dates:
+                    batches_end_date_i[pop_obj.products_raw[i][j]].append(date)           
+                j+=1
+            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+            #     raise Exception("Invalid bool after number of active genes.")
             # Appends dictionary of individual to the list of dictionaries
             pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
         # Updates Genes per Chromo
