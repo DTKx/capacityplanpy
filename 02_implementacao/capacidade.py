@@ -110,7 +110,7 @@ class Population():
         self.masks=copy.deepcopy(new_mask)
         self.update_genes_per_chromo()
 
-    def extract_metrics(self,ix):
+    def extract_metrics(self,ix,num_fronts):
         """Extract Metrics
 
         Args:
@@ -122,7 +122,7 @@ class Population():
         """
         metrics=[]
         # Total throughput [kg] 
-        metrics.append(self.objectives_raw[0][ix])
+        metrics.append(self.objectives_raw[:,0][ix])
         # Max total backlog [kg]
         metrics.append(np.max(self.backlogs[ix]))
         # Mean total backlog [kg] +1stdev 
@@ -148,34 +148,51 @@ class Population():
         # Min total inventory deficit [kg] 
         metrics.append(np.min(self.deficit[ix]))
         # DeltaXY (total inventory deficit) [kg]
+
+        # Extra Metrics for plotting
+        # Batches
+        metrics.append(self.batches_raw[ix][self.masks[ix]])
+        # Products
+        metrics.append(self.products_raw[ix][self.masks[ix]])
+        # Start of USP
+        metrics.append(self.start_raw[ix][self.masks[ix]])
+        # End of DSP
+        metrics.append(self.end_raw[ix][self.masks[ix]])
+
         return metrics
 
-    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput):
-        """Organizes metrics and inverts the inversion made to convert form maximization to minimization
+    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput,num_fronts):
+        """Inverts the inversion made to convert form maximization to minimization, organizes metrics and data for visualization.
 
         Returns:
             list: Array with metrics:
                 "Hypervolume"
                 Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]" 
-                Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" 
+                Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" Pareto Front
         """
         # Calculates hypervolume
         hv = hypervolume(points = self.objectives_raw)
         hv_vol_norma=hv.compute(ref_point)/volume_max
         metrics=[hv_vol_norma]
+        # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
         self.objectives_raw[:,0]=inversion_val_throughput-self.objectives_raw[:,0]
+        # Metrics
+        ix_best_f0=np.argmax(self.objectives_raw[:,0])
+        ix_best_f1=np.argmin(self.objectives_raw[:,1])
+        # self.objectives_raw[ix_best_f0]
+        # self.objectives_raw[ix_best_f1]
 
-        # resultados[(tipo_apt,tipo_pop_gerar,tipo_selecao_crossover,tipo_crossover,tipo_mutacao,tipo_reinsercao,n_exec, ger,
-        #             "sumario_execucao__n_convergiu_tempo_execucao")] = [n_convergiu,ger,ind_solucoes]
-        # # print("p_final")
-        ix_best_f0=np.argmax(self.objectives_raw[0])
-        ix_best_f1=np.argmin(self.objectives_raw[1])
-        metrics.extend(self.extract_metrics(ix_best_f0))
-        metrics.extend(self.extract_metrics(ix_best_f1))
-        # stats.describe(self.objectives_raw),(self.products_raw[ix_best_f0][self.masks[ix_best_f0]],self.batches_raw[ix_best_f0][self.masks[ix_best_f0]]),(self.products_raw[ix_best_f1][self.masks[ix_best_f1]],self.batches_raw[ix_best_f1][self.masks[ix_best_f1]])
+        metrics.extend(self.extract_metrics(ix_best_f0,num_fronts))
+        metrics.extend(self.extract_metrics(ix_best_f1,num_fronts))
+        # Plot Data
+        # Pareto Fronts Total Throughput [kg]
+        ix_pareto=np.where(self.fronts==0)
+        metrics.append(self.objectives_raw[ix_pareto])
         return metrics
+
+        # return metrics,data_plot
 
 class Planning():
     # Class Variables
@@ -973,7 +990,17 @@ class Planning():
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
 
-        return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput)
+        # metrics=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput)
+
+        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        # name_var="v_0_pop"
+        # # Export Pickle
+        # file_name = name_var+"_results.pkl"
+        # path = root_path + file_name
+        # file_pkl = open(path, "wb")
+        # pickle.dump(pop, file_pkl,pickle.HIGHEST_PROTOCOL)
+        # file_pkl.close()
+        return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts)
 
     def run_parallel():
         """Runs with Multiprocessing.
@@ -981,7 +1008,7 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=10
+        n_exec=50
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
@@ -1047,7 +1074,7 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=100
+        num_geracoes=3
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
@@ -1076,5 +1103,5 @@ class Planning():
 
 
 if __name__=="__main__":
-    Planning.run_cprofile()
-    # Planning.run_parallel()
+    # Planning.run_cprofile()
+    Planning.run_parallel()
