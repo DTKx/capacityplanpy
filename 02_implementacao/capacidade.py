@@ -6,7 +6,7 @@ import datetime
 from dateutil.relativedelta import *
 import pandas as pd
 from dateutil import relativedelta
-from numba import jit,prange
+from numba import jit
 from pygmo import *
 from collections import defaultdict
 from scipy import stats
@@ -367,7 +367,7 @@ class Planning():
         demand_i=np.zeros(shape=(n,))
         # demand_i=np.median(np.random.triangular(demand_distribution[:][0],demand_distribution[:][1],demand_distribution[:][2],size=num_monte))
         # Loop in line
-        for i in prange(0,n):
+        for i in np.arange(0,n):
             demand_i[i]=np.median(np.random.triangular(demand_distribution[i][0],demand_distribution[i][1],demand_distribution[i][2],size=num_monte))
         return demand_i
 

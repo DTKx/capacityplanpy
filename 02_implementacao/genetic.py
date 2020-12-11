@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import copy
-import numba as nb
+# import numba as nb
 from numba import jit
 import time
 from sklearn.cluster import KMeans
@@ -598,16 +598,16 @@ class Crossovers():
                             new_mask[i,genes_per_chromo[i]]=True
                             genes_per_chromo[i]=genes_per_chromo[i]+1
                             # print("Offspring added",new_batches[i][new_mask[i]],new_batches[i+1][new_mask[i+1]])
-                            if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-                                raise Exception("Invalid bool after number of active genes.")
-                            if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
-                                raise Exception("Invalid number of batches (0).")
+                #             if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                #                 raise Exception("Invalid bool after number of active genes.")
+                #             if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
+                #                 raise Exception("Invalid number of batches (0).")
 
-                if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-                    raise Exception("Invalid bool after number of active genes.")
+                # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
+                #     raise Exception("Invalid bool after number of active genes.")
 
-                if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
-                    raise Exception("Invalid number of batches (0).")
+                # if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
+                #     raise Exception("Invalid number of batches (0).")
 
         return new_product,new_batches,new_mask
 
@@ -615,7 +615,7 @@ class Mutations():
     """Methods applied for mutation of individuals.
     """
     @staticmethod
-    @jit(nopython=True,nogil=True)
+    @jit(nopython=True,nogil=True,fastmath=True)
     def _label_mutation(chromossome,range_max,pmutp):
         """Label Mutation considering a probability of label mutation of pmutp, considering a range of label from 0 to range_max.
 
@@ -634,7 +634,7 @@ class Mutations():
             chromossome[ix_mut]=np.random.randint(0,range_max,size=mutations)
         return chromossome
     @staticmethod
-    @jit(nopython=True,nogil=True)
+    @jit(nopython=True,nogil=True,fastmath=True)
     def _add_subtract_mutation(chromossome,pposb,pnegb):
         """2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
            3. To add a new random gene to the end of the chromosome (un- conditionally).
@@ -662,7 +662,7 @@ class Mutations():
         return chromossome
 
     @staticmethod
-    @jit(nopython=True,nogil=True)
+    @jit(nopython=True,nogil=True,fastmath=True)
     def _swap_mutation(chromossome_atrib0,chromossome_atrib1,pswap):
         """Swaps in mutation two genes position, the cromossome received have two attribute, that means that if swapping occurs (given a pswap probability) both attributes are swapped.
 
@@ -810,7 +810,7 @@ class OffspringReinsertion():
 class AlgNsga2():
     """ Methods for Algorithm NSGA 2 (1. Deb, K. et al.: A Fast and Elitist Multiobjective Genetic Algorithm: NSGA-II. (2002).)
     """
-    @jit(nopython=True,nogil=True)
+    @jit(nopython=True,nogil=True,fastmath=True)
     def _fronts_numba(objectives_fn,num_fronts):
         """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população.
 
@@ -1116,8 +1116,8 @@ class AlgNsga2():
                 indice_nova_pop[k:k+len_val_front_i]=(val_front_i[:,2]).astype(int)
                 k+=len_val_front_i
 
-        if (len(indice_nova_pop)<n_ind)|(len(indice_nova_pop[indice_nova_pop<0])>0):
-            raise Exception("ValueError")
+        # if (len(indice_nova_pop)<n_ind)|(len(indice_nova_pop[indice_nova_pop<0])>0):
+        #     raise Exception("ValueError")
 
         return indice_nova_pop
 
