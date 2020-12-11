@@ -6,7 +6,7 @@ import datetime
 from dateutil.relativedelta import *
 import pandas as pd
 from dateutil import relativedelta
-from numba import jit
+from numba import jit,prange
 from pygmo import *
 from collections import defaultdict
 from scipy import stats
@@ -359,12 +359,17 @@ class Planning():
         #     if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
         #         raise Exception("Invalid bool after number of active genes.")
 
-
-
     @staticmethod
+    # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     @jit(nopython=True,nogil=True,fastmath=True)
-    def calc_triangular_dist(tr_min,tr_mode,tr_max,num_monte):
-        return np.median(np.random.triangular(tr_min,tr_mode,tr_max,size=num_monte))
+    def calc_triangular_dist(demand_distribution,num_monte):
+        n=len(demand_distribution)
+        demand_i=np.zeros(shape=(n,))
+        # demand_i=np.median(np.random.triangular(demand_distribution[:][0],demand_distribution[:][1],demand_distribution[:][2],size=num_monte))
+        # Loop in line
+        for i in prange(0,n):
+            demand_i[i]=np.median(np.random.triangular(demand_distribution[i][0],demand_distribution[i][1],demand_distribution[i][2],size=num_monte))
+        return demand_i
 
     @staticmethod
     # @jit(nopython=True,nogil=True,fastmath=True)
@@ -410,16 +415,15 @@ class Planning():
         [(8.3, 9.3, 13.95) ,0.0 ,(8.8, 9.8, 14.7) ,0.0],
         [(5.2, 6.2, 9.3),0.0,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25) ],
         [0.0,(5.2, 6.2, 9.3) ,0.0,(4.5, 5.5, 8.25)]])
-
-        # line,col=demand_distribution.shape
+        ix_not0=np.where(demand_distribution!=0)
         demand_i=np.zeros(shape=(line,col))
-        # Loop in line
-        for i in range(0,line):
-            for j in range(0,col):
-                if demand_distribution[i,j]==0:
-                    continue
-                else:
-                    demand_i[i,j]=Planning.calc_triangular_dist(demand_distribution[i,j][0],demand_distribution[i,j][1],demand_distribution[i,j][2],num_monte)
+        # Conversion to a structured array for numba
+        tr_len=len(demand_distribution[ix_not0])
+        tr_demand=np.zeros(shape=(tr_len,3),dtype=np.float64)
+        for i in range(0,tr_len):
+            tr_demand[i]=np.array(demand_distribution[ix_not0][i],dtype=np.float64)
+
+        demand_i[ix_not0]=Planning.calc_triangular_dist(tr_demand,num_monte)
         return demand_i
 
     @staticmethod
@@ -1018,7 +1022,7 @@ class Planning():
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
         name_var="v_0"
         # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
-        file_name = name_var+"_results.csv"
+        file_name = name_var+"test_results.csv"
         path = root_path + file_name
         # print(f"{tempo} tempo/exec{tempo/n_exec}")
         # Export times
@@ -1030,7 +1034,7 @@ class Planning():
                 writer.writerow(times)
 
         # Export Pickle
-        file_name = name_var+"_results.pkl"
+        file_name = name_var+"test_results.pkl"
         path = root_path + file_name
         file_pkl = open(path, "wb")
         pickle.dump(results, file_pkl)
@@ -1048,10 +1052,13 @@ class Planning():
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
-        t0=time.perf_counter()
-
+        # t0=time.perf_counter()
         # results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
-        # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        # # cProfile.runctx("results=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        # tf=time.perf_counter()
+        # delta_t=tf-t0
+        # print("Total time ",delta_t)
+
 
         pr = cProfile.Profile()
         pr.enable()
@@ -1061,7 +1068,7 @@ class Planning():
         sortby = SortKey.CUMULATIVE
         ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        file_name = "cprofile.txt"
+        file_name = "testcprofile.txt"
         path = root_path + file_name
         ps.print_stats()
         with open(path, 'w+') as f:
@@ -1072,5 +1079,5 @@ class Planning():
 
 
 if __name__=="__main__":
-    # Planning.run_cprofile()
-    Planning.run_parallel()
+    Planning.run_cprofile()
+    # Planning.run_parallel()
