@@ -25,4 +25,4 @@ a=np.zeros(shape=(2,10))
 # ix_to_delete=np.append(ix_to_delete,np.where(ix_falta_classificar==0))
 # ix_to_delete=np.delete(ix_to_delete,0)
 
-print(a[0,0:1])
+print(a[0])
