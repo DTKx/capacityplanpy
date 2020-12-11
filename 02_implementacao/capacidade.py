@@ -362,12 +362,12 @@ class Planning():
 
 
     @staticmethod
-    @jit(nopython=True,nogil=True)
+    @jit(nopython=True,nogil=True,fastmath=True)
     def calc_triangular_dist(tr_min,tr_mode,tr_max,num_monte):
         return np.median(np.random.triangular(tr_min,tr_mode,tr_max,size=num_monte))
 
     @staticmethod
-    # @jit(nopython=True,nogil=True)
+    # @jit(nopython=True,nogil=True,fastmath=True)
     def calc_demand_montecarlo(num_monte,line,col):
         """Performs a Montecarlo Simulation to define the Demand of products, uses a demand_distribution for containing either 0 as expected or a triangular distribution (minimum, mode (most likely),maximum) values in kg
 
@@ -423,7 +423,7 @@ class Planning():
         return demand_i
 
     @staticmethod
-    # @jit(nopython=True,nogil=True)
+    # @jit(nopython=True,nogil=True,fastmath=True)
     def calc_objective_deficit_strat(target_stock_i,stock_i):
         deficit_strat_i=target_stock_i-stock_i
         # Corrects negative values
@@ -438,7 +438,7 @@ class Planning():
         return np.sum(deficit_strat_i,axis=1)
 
     @staticmethod
-    @jit(nopython=True,nogil=True)
+    @jit(nopython=True,nogil=True,fastmath=True)
     def calc_stock(available_i,stock_i,produced_i,demand_i,backlog_i,num_months):
         """Calculates Stock per month along (over num_months) Stock=Available-Demand if any<0 Stock=0 & Back<0 = else.
 
