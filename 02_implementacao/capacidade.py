@@ -110,7 +110,7 @@ class Population():
         self.masks=copy.deepcopy(new_mask)
         self.update_genes_per_chromo()
 
-    def extract_metrics(self,ix,num_fronts):
+    def extract_metrics(self,ix,num_fronts,num_exec,id_solution):
         """Extract Metrics
 
         Args:
@@ -120,7 +120,7 @@ class Population():
             list: List with the metrics Total throughput [kg] Max total backlog [kg] Mean total backlog [kg] Median total backlog [kg] a Min total backlog [kg] P(total backlog ≤ 0 kg) 
                 Max total inventory deficit [kg] Mean total inventory deficit [kg] a Median total inventory deficit [kg] Min total inventory deficit [kg]
         """
-        metrics=[]
+        metrics=[num_exec,id_solution]
         # Total throughput [kg] 
         metrics.append(self.objectives_raw[:,0][ix])
         # Max total backlog [kg]
@@ -138,7 +138,7 @@ class Population():
         # DeltaXY (total backlog) [kg]
 
         # Max total inventory deficit [kg]
-        metrics.append(self.deficit[ix])
+        metrics.append(np.max(self.deficit[ix]))
         # Mean total inventory deficit [kg] +1stdev 
         metrics.append(np.mean(self.deficit[ix]))
         # Standard Dev
@@ -161,7 +161,7 @@ class Population():
 
         return metrics
 
-    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput,num_fronts):
+    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput,num_fronts,num_exec):
         """Inverts the inversion made to convert form maximization to minimization, organizes metrics and data for visualization.
 
         Returns:
@@ -173,7 +173,7 @@ class Population():
         # Calculates hypervolume
         hv = hypervolume(points = self.objectives_raw)
         hv_vol_norma=hv.compute(ref_point)/volume_max
-        metrics=[hv_vol_norma]
+        metrics_exec=[hv_vol_norma]
         # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
@@ -184,15 +184,14 @@ class Population():
         # self.objectives_raw[ix_best_f0]
         # self.objectives_raw[ix_best_f1]
 
-        metrics.extend(self.extract_metrics(ix_best_f0,num_fronts))
-        metrics.extend(self.extract_metrics(ix_best_f1,num_fronts))
+        metrics_id=[self.extract_metrics(ix_best_f0,num_fronts,num_exec,"X")]
+        metrics_id.append(self.extract_metrics(ix_best_f1,num_fronts,num_exec,"Y"))
+
         # Plot Data
         # Pareto Fronts Total Throughput [kg]
         ix_pareto=np.where(self.fronts==0)
-        metrics.append(self.objectives_raw[ix_pareto])
-        return metrics
-
-        # return metrics,data_plot
+        metrics_exec.append(self.objectives_raw[ix_pareto])
+        return metrics_exec,metrics_id
 
 class Planning():
     # Class Variables
@@ -813,7 +812,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
 
-    def main(self,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
+    def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         print("START")
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
@@ -1000,7 +999,8 @@ class Planning():
         # file_pkl = open(path, "wb")
         # pickle.dump(pop, file_pkl,pickle.HIGHEST_PROTOCOL)
         # file_pkl.close()
-        return pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts)
+        r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec)
+        return r_exec,r_ind,num_exec
 
     def run_parallel():
         """Runs with Multiprocessing.
@@ -1008,14 +1008,14 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=50
+        n_exec=4
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
         # Number of Chromossomes
         nc=[100]
         # Number of Generations
-        ng=[1000]
+        ng=[2]
         # Number of tour
         nt=[2]
         # Crossover Probability
@@ -1029,22 +1029,25 @@ class Planning():
         # Dictionary store results
         results={}
         times=[]
-
+        var=0
         for v_i in list_vars:
             t0=time.perf_counter()
-            results_append=[]
+            result_execs={}
+            result_ids={}
             # with concurrent.futures.ThreadPoolExecutor() as executor:
             with concurrent.futures.ProcessPoolExecutor() as executor:
                 # for result in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
 
-                for result in (executor.map(Planning().main,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
-                    # results[(num_exec,v_i)]=[result]
-                    results_append.append(result)
-            results[(v_i[0],v_i[1],v_i[2],v_i[3],v_i[4])]=results_append
+                for result_exec,result_id,n_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+                    result_execs[(var,n_exec)]=result_exec
+                    result_ids[(var,n_exec)]=result_id
+
+            # results[(v_i[0],v_i[1],v_i[2],v_i[3],v_i[4])]=results_append
             tf=time.perf_counter()
             delta_t=tf-t0
             print("Total time ",delta_t)
-            times.append(delta_t)
+            times.append([v_i,delta_t])
+            var+=1
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
         name_var="v_0"
@@ -1061,12 +1064,17 @@ class Planning():
                 writer.writerow(times)
 
         # Export Pickle
-        file_name = name_var+"_results.pkl"
+        file_name = name_var+"_exec.pkl"
         path = root_path + file_name
         file_pkl = open(path, "wb")
-        pickle.dump(results, file_pkl)
+        pickle.dump(result_execs, file_pkl)
         file_pkl.close()
 
+        file_name = name_var+"_id.pkl"
+        path = root_path + file_name
+        file_pkl = open(path, "wb")
+        pickle.dump(result_ids, file_pkl)
+        file_pkl.close()
 
 
     def run_cprofile():
@@ -1074,34 +1082,34 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=3
+        num_geracoes=2
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
         t0=time.perf_counter()
 
-        # results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        results,results_ind,n_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
         # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
-        pr = cProfile.Profile()
-        pr.enable()
-        pr.runctx("results=Planning().main(num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
-        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        file_name = "cprofile.txt"
-        path = root_path + file_name
-        ps.print_stats()
-        with open(path, 'w+') as f:
-            f.write(s.getvalue())
-        tf=time.perf_counter()
-        delta_t=tf-t0
-        print("Total time ",delta_t)
+        # pr = cProfile.Profile()
+        # pr.enable()
+        # pr.runctx("results=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        # pr.disable()
+        # s = io.StringIO()
+        # sortby = SortKey.CUMULATIVE
+        # ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
+        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        # file_name = "cprofile.txt"
+        # path = root_path + file_name
+        # ps.print_stats()
+        # with open(path, 'w+') as f:
+        #     f.write(s.getvalue())
+        # tf=time.perf_counter()
+        # delta_t=tf-t0
+        # print("Total time ",delta_t)
 
 
 if __name__=="__main__":
-    # Planning.run_cprofile()
-    Planning.run_parallel()
+    Planning.run_cprofile()
+    # Planning.run_parallel()
