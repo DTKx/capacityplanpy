@@ -962,10 +962,7 @@ class Planning():
         pop.fronts=pop.fronts[ix_reinsert]
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
-
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        # Generates external file with demand Monte Carlo
-        # self.calc_demand_montecarlo_to_external_file(10)
         print("START")
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
@@ -1271,3 +1268,5 @@ class Planning():
 if __name__=="__main__":
     Planning.run_cprofile()
     # Planning.run_parallel()
+    # Saves Monte Carlo Simulations
+    # Planning().calc_demand_montecarlo_to_external_file(5000)
