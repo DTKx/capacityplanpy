@@ -685,7 +685,10 @@ class Planning():
 
         return new_product,new_batches,new_mask
 
-    def agg_product_batch(self,products,batches,masks):
+    # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
+    @staticmethod
+    @jit(nopython=True,nogil=True,fastmath=True)
+    def agg_product_batch(products,batches,masks,genes_per_chromo):
         """Aggregates product batches in case of neighbours products.
 
         Args:
@@ -693,11 +696,11 @@ class Planning():
             batches (array): Array of batches
             masks (array): Array of masks
         """
-        # Active genes per chromossome
-        genes_per_chromo=np.sum(masks,axis=1,dtype=int)
-        if any(genes_per_chromo)>1:
+        # # Active genes per chromossome
+        # genes_per_chromo=np.sum(masks,axis=1,dtype=int)
+        if (genes_per_chromo>1).any():
             # Loop per chromossome in population
-            for j in range(0,len(genes_per_chromo)):
+            for j in np.arange(0,len(genes_per_chromo)):
                 # if np.sum(masks[j,genes_per_chromo[j]:])>0:
                 #     raise Exception("Invalid bool after number of active genes.")
                 if genes_per_chromo[j]>1:
@@ -705,21 +708,28 @@ class Planning():
                     # for i in range(0,genes_per_chromo[j]-1)
                     i=0
                     while i<genes_per_chromo[j]-1:
-                        if products[j][i]==products[j][i+1]:
+                        if products[j,i]==products[j,i+1]:
+                            # Option 2
                             # Sum next
                             # print(batches[j])
-                            batches[j][i]=batches[j][i]+batches[j][i+1]
+                            batches[j,i]=batches[j,i]+batches[j,i+1]
                             # print(batches[j])
                             # Deletes [i+a] and insert a value in the last
                             # print(batches[j])
-                            batches[j]=np.insert(np.delete(batches[j],i+1),-1,0)
+                            # Brings the sequence forward and sets the last value as 0
+                            temp_ar=batches[j,i+2:].copy()
+                            batches[j,i+1:-1]=temp_ar
+                            batches[j,-1]=0
                             # print(batches[j])
                             # print(products[j])
-                            products[j]=np.insert(np.delete(products[j],i+1),-1,0)
+                            # Brings the sequence forward and sets the last value as 0
+                            temp_ar=products[j,i+2:].copy()
+                            products[j,i+1:-1]=temp_ar
+                            products[j,-1]=0
                             # print(products[j])
                             # print(masks[j])
-                            print("Added False agg_product_batch")
-                            masks[j]=np.insert(np.delete(masks[j],i),-1,False)
+                            masks[j,genes_per_chromo[j]-1]=False
+                            genes_per_chromo[j]=genes_per_chromo[j]-1
                             # print(masks[j])
                         else:
                             i+=1
@@ -898,12 +908,17 @@ class Planning():
             #         raise Exception("Invalid bool after number of active genes.")
 
             # 9)Aggregate batches with same product neighbours
-            new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask)
+            # if i_gen>10:
+            #     print("Hey")
+            # Active genes per chromossome
+            genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
+            new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask,genes_per_chromo)
+            genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
 
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
+            # for i in range(0,len(new_products)):
+            #     if any(new_batches[i][new_mask[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
+            #     if np.sum(new_mask[i][genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
 
             # 10) Merge populations Current and Offspring
@@ -1082,7 +1097,7 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=2
+        num_geracoes=100
         n_tour=2
         pcross=0.6
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
