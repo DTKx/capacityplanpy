@@ -564,10 +564,46 @@ class Planning():
         # if (pop.objectives_raw<0).any():
         #     raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
 
-    @staticmethod
-    def tournament_restrictions_binary(pop,n_parents,n_tour):
+    def calc_violations(self,pop):
+        """Calculates number of violations of constraints, each type of violation is type any, ie if any campaign violates it counts as one.
+        Considers 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches
+
+        Args:
+            pop (class object): Class object to evaluate 
+
+        Returns:
+            array: Array with number of violations per individual
+        """
+        # 1)Median Backlog>0, 
+        num_violations=np.median(pop.backlogs,axis=1)
+        num_violations[num_violations>0]=1
+        num_violations[num_violations<=0]=0
+
+        min_batch_raw=np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
+        max_batch_raw=np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
+        batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(pop.products_raw)
+        # v_min=pop.batches_raw>=min_batch_raw
+        # v_min=pop.batches_raw>=min_batch_raw
+        # v_min=pop.batches_raw>=min_batch_raw
+        # Loop per chromossome
+        for i in range(0,pop.num_chromossomes):
+            # Counter for num of violations
+            # v_min=np.sum(pop.batches_raw[:genes_per_chromo[i]]>=min_batch_raw[:genes_per_chromo[i]])
+            # v_max=np.sum(pop.batches_raw[:genes_per_chromo[i]]<=max_batch_raw[:genes_per_chromo[i]])
+            # v_mult=np.sum(np.remainder(pop.batches_raw[:genes_per_chromo[i]],batch_multiples_raw[:genes_per_chromo[i]])!=0)
+            # 2)Minimum number of batches, 
+            v_min=(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]]).any()
+            # 3)Maximum number of batches, 
+            v_max=(pop.batches_raw[i,:pop.genes_per_chromo[i]]>max_batch_raw[i,:pop.genes_per_chromo[i]]).any()
+            # 4)Multiples of number of batches
+            v_mult=(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0).any()
+            num_violations[i]+=v_min+v_max+v_mult
+        return num_violations
+
+    # @staticmethod
+    def tournament_restrictions_binary(self,pop,n_parents,n_tour):
         """Tournament with replacement for selection to crossover, considering those criteria:
-        1)Lowest backlog value, if draw then: 
+        1)Lowest number of constraints: 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches. If draw then: 
         2)Best pareto front, if draw then:
         3)Highest Crowding Distance
 
@@ -579,6 +615,9 @@ class Planning():
         Returns:
             array: Array with indexes of selected individuals
         """
+        # Calculates number of violated constraints
+        num_violations=self.calc_violations(pop)
+
         # Backlogs contains values per month
         aggregated_backlogs=np.sum(pop.backlogs,axis=1)
         # Arrays representing the indexes
@@ -592,14 +631,10 @@ class Planning():
         for i in range(0,n_tour*n_parents-1,2):
             i_1,i_2=idx_for_tournament[i],idx_for_tournament[i+1]
             # Criteria
-            # # 1) Lowest backlog
-            # if pop.backlogs[i_1]!=pop.backlogs[i_2]:
-            #     # To change for different number of tours c=np.where(a==np.min(a))
-            #     if pop.backlogs[i_1]-pop.backlogs[i_2]>0:
-            # 1) Lowest backlog
-            if aggregated_backlogs[i_1]!=aggregated_backlogs[i_2]:
+            # 1) Lowest Restrictions
+            if num_violations[i_1]!=num_violations[i_2]:
                 # To change for different number of tours c=np.where(a==np.min(a))
-                if aggregated_backlogs[i_1]-aggregated_backlogs[i_2]>0:
+                if num_violations[i_1]-num_violations[i_2]>0:
                     idx_winners[j]=i_1
                 else:
                     idx_winners[j]=i_2
