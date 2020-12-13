@@ -688,15 +688,9 @@ class Planning():
         min_batch_raw=np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
         max_batch_raw=np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
         batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(pop.products_raw)
-        # v_min=pop.batches_raw>=min_batch_raw
-        # v_min=pop.batches_raw>=min_batch_raw
-        # v_min=pop.batches_raw>=min_batch_raw
         # Loop per chromossome
         for i in range(0,pop.num_chromossomes):
             # Counter for num of violations
-            # v_min=np.sum(pop.batches_raw[:genes_per_chromo[i]]>=min_batch_raw[:genes_per_chromo[i]])
-            # v_max=np.sum(pop.batches_raw[:genes_per_chromo[i]]<=max_batch_raw[:genes_per_chromo[i]])
-            # v_mult=np.sum(np.remainder(pop.batches_raw[:genes_per_chromo[i]],batch_multiples_raw[:genes_per_chromo[i]])!=0)
             # 2)Minimum number of batches, 
             v_min=(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]]).any()
             # 3)Maximum number of batches, 

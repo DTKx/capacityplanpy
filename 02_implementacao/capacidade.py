@@ -664,14 +664,38 @@ class Planning():
             # Inversion of the Throughput by a fixed value to generate a minimization problem
             pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
 
-        #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-        #         raise Exception("Invalid number of batches (0).")
-        # # Check if inversion value is well selected
-        # if (pop.objectives_raw<0).any():
-        #     raise Exception('Inversion Value is too low, generating negative values. Consider:',np.min(pop.objectives_raw[:,0]))
-
     def calc_violations(self,pop):
         """Calculates number of violations of constraints, each type of violation is type any, ie if any campaign violates it counts as one.
+        Considers 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches
+
+        Args:
+            pop (class object): Class object to evaluate 
+
+        Returns:
+            array: Array with number of violations per individual
+        """
+        # 1)Median Backlog>0, 
+        num_violations=np.median(pop.backlogs,axis=1)
+        num_violations[num_violations>0]=1
+        num_violations[num_violations<=0]=0
+
+        min_batch_raw=np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
+        max_batch_raw=np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
+        batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(pop.products_raw)
+        # Loop per chromossome
+        for i in range(0,pop.num_chromossomes):
+            # Counter for num of violations
+            # 2)Minimum number of batches, 
+            v_min=(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]]).any()
+            # 3)Maximum number of batches, 
+            v_max=(pop.batches_raw[i,:pop.genes_per_chromo[i]]>max_batch_raw[i,:pop.genes_per_chromo[i]]).any()
+            # 4)Multiples of number of batches
+            v_mult=(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0).any()
+            num_violations[i]+=v_min+v_max+v_mult
+        return num_violations
+
+    def calc_violations_unit(self,pop):
+        """Calculates number of violations of constraints, each violation counts one.
         Considers 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches
 
         Args:
@@ -686,9 +710,6 @@ class Planning():
         min_batch_raw=np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
         max_batch_raw=np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
         batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(pop.products_raw)
-        # v_min=pop.batches_raw>=min_batch_raw
-        # v_min=pop.batches_raw>=min_batch_raw
-        # v_min=pop.batches_raw>=min_batch_raw
         # Loop per chromossome
         for i in range(0,pop.num_chromossomes):
             # Counter for num of violations
@@ -698,12 +719,6 @@ class Planning():
             v_max=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]<=max_batch_raw[i,:pop.genes_per_chromo[i]])
             # # 4)Multiples of number of batches
             v_mult=np.sum(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0)
-            # # 2)Minimum number of batches, 
-            # v_min=(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]]).any()
-            # # 3)Maximum number of batches, 
-            # v_max=(pop.batches_raw[i,:pop.genes_per_chromo[i]]>max_batch_raw[i,:pop.genes_per_chromo[i]]).any()
-            # # 4)Multiples of number of batches
-            # v_mult=(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0).any()
             num_violations[i]+=v_min+v_max+v_mult
         return num_violations
 
@@ -1201,7 +1216,6 @@ class Planning():
                     result_ids[(var,n_exec)]=result_id
                     print(n_exec)
 
-            # results[(v_i[0],v_i[1],v_i[2],v_i[3],v_i[4])]=results_append
             tf=time.perf_counter()
             delta_t=tf-t0
             print("Total time ",delta_t)
@@ -1209,13 +1223,13 @@ class Planning():
             var+=1
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        name_var="v_0_unit_violations"
+        name_var="v_0"
         # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
         file_name = name_var+"_results.csv"
         path = root_path + file_name
         # print(f"{tempo} tempo/exec{tempo/n_exec}")
         # Export times
-        with open(path, 'w', newline='') as f:
+        with open(path, 'a', newline='') as f:
             writer = csv.writer(f)
             try:
                 writer.writerows(times)
