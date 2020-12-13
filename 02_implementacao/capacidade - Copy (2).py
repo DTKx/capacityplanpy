@@ -67,11 +67,11 @@ class Population():
         # self.start_raw[:,0]=start_date
         self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
 
-        # Initializes Stock backlog_i [kg]
-        self.backlogs=np.zeros(shape=(num_chromossomes,num_months),dtype=float)
+        # Initializes Stock backlog_i
+        self.backlogs=np.zeros(shape=(num_chromossomes,num_months),dtype=int)
 
-        # Initializes Inventory deficit per month (Objective 1, but with breakdown per month) [kg]
-        self.deficit=np.zeros(shape=(num_chromossomes,num_months),dtype=float)
+        # Initializes Inventory deficit per month (Objective 1, but with breakdown per month)
+        self.deficit=np.zeros(shape=(num_chromossomes,num_months),dtype=int)
 
         # Initializes the objectives throughput_i,deficit_strat_i
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -627,7 +627,7 @@ class Planning():
             # demand_i=self.calc_demand_montecarlo(self.num_monte,self.num_months,self.num_products)
             demand_i=self.load_demand_montecarlo(self.num_months,self.num_products)
 
-            # Loop per Months (Values already in kg)
+            # Loop per Months
 
             # Evaluates stock for Initial Month (0)
             # Available=Previous Stock+Produced this month
@@ -681,7 +681,9 @@ class Planning():
             array: Array with number of violations per individual
         """
         # 1)Median Backlog>0, 
-        num_violations=np.sum(pop.backlogs>0,axis=1)
+        num_violations=np.median(pop.backlogs,axis=1)
+        num_violations[num_violations>0]=1
+        num_violations[num_violations<=0]=0
 
         min_batch_raw=np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
         max_batch_raw=np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
@@ -692,18 +694,15 @@ class Planning():
         # Loop per chromossome
         for i in range(0,pop.num_chromossomes):
             # Counter for num of violations
-            # # 2)Minimum number of batches, 
-            v_min=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]>=min_batch_raw[i,:pop.genes_per_chromo[i]])
-            # # 3)Maximum number of batches, 
-            v_max=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]<=max_batch_raw[i,:pop.genes_per_chromo[i]])
-            # # 4)Multiples of number of batches
-            v_mult=np.sum(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0)
-            # # 2)Minimum number of batches, 
-            # v_min=(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]]).any()
-            # # 3)Maximum number of batches, 
-            # v_max=(pop.batches_raw[i,:pop.genes_per_chromo[i]]>max_batch_raw[i,:pop.genes_per_chromo[i]]).any()
-            # # 4)Multiples of number of batches
-            # v_mult=(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0).any()
+            # v_min=np.sum(pop.batches_raw[:genes_per_chromo[i]]>=min_batch_raw[:genes_per_chromo[i]])
+            # v_max=np.sum(pop.batches_raw[:genes_per_chromo[i]]<=max_batch_raw[:genes_per_chromo[i]])
+            # v_mult=np.sum(np.remainder(pop.batches_raw[:genes_per_chromo[i]],batch_multiples_raw[:genes_per_chromo[i]])!=0)
+            # 2)Minimum number of batches, 
+            v_min=(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]]).any()
+            # 3)Maximum number of batches, 
+            v_max=(pop.batches_raw[i,:pop.genes_per_chromo[i]]>max_batch_raw[i,:pop.genes_per_chromo[i]]).any()
+            # 4)Multiples of number of batches
+            v_mult=(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0).any()
             num_violations[i]+=v_min+v_max+v_mult
         return num_violations
 
@@ -1176,7 +1175,7 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.5]
+        pcross=[0.11]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
         
@@ -1208,7 +1207,7 @@ class Planning():
             var+=1
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        name_var="v_0_unit_violations"
+        name_var="v_0"
         # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
         file_name = name_var+"_results.csv"
         path = root_path + file_name
