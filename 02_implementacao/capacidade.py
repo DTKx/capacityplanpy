@@ -110,7 +110,7 @@ class Population():
         self.masks=copy.deepcopy(new_mask)
         self.update_genes_per_chromo()
 
-    def extract_metrics(self,ix,num_fronts,num_exec,id_solution,name_var):
+    def extract_metrics(self,ix,num_fronts,num_exec,id_solution,name_var,ix_pareto):
         """Extract Metrics
 
         Args:
@@ -122,47 +122,47 @@ class Population():
         """
         metrics=[name_var,num_exec,id_solution]
         # Total throughput [kg] 
-        metrics.append(self.objectives_raw[:,0][ix])
+        metrics.append(self.objectives_raw[:,0][ix_pareto][ix])
         # Max total backlog [kg]
-        metrics.append(np.max(self.backlogs[ix]))
+        metrics.append(np.max(self.backlogs[ix_pareto][ix]))
         # Mean total backlog [kg] +1stdev 
-        metrics.append(np.mean(self.backlogs[ix]))
+        metrics.append(np.mean(self.backlogs[ix_pareto][ix]))
         # Standard Dev
-        metrics.append(np.std(self.backlogs[ix]))
+        metrics.append(np.std(self.backlogs[ix_pareto][ix]))
         # Median total backlog [kg]
-        metrics.append(np.median(self.backlogs[ix]))
+        metrics.append(np.median(self.backlogs[ix_pareto][ix]))
         # Min total backlog [kg] 
-        metrics.append(np.min(self.backlogs[ix]))
+        metrics.append(np.min(self.backlogs[ix_pareto][ix]))
         # P(total backlog ≤ 0 kg) 
-        metrics.append(np.sum(self.backlogs[ix]))
+        metrics.append(np.sum(self.backlogs[ix_pareto][ix]))
         # DeltaXY (total backlog) [kg]
 
         # Max total inventory deficit [kg]
-        metrics.append(np.max(self.deficit[ix]))
+        metrics.append(np.max(self.deficit[ix_pareto][ix]))
         # Mean total inventory deficit [kg] +1stdev 
-        metrics.append(np.mean(self.deficit[ix]))
+        metrics.append(np.mean(self.deficit[ix_pareto][ix]))
         # Standard Dev
-        metrics.append(np.std(self.deficit[ix]))
+        metrics.append(np.std(self.deficit[ix_pareto][ix]))
         # Median total inventory deficit [kg] 
-        metrics.append(np.median(self.deficit[ix]))
+        metrics.append(np.median(self.deficit[ix_pareto][ix]))
         # Min total inventory deficit [kg] 
-        metrics.append(np.min(self.deficit[ix]))
+        metrics.append(np.min(self.deficit[ix_pareto][ix]))
         # DeltaXY (total inventory deficit) [kg]
 
         # Extra Metrics for plotting
         # Batches
-        metrics.append(self.batches_raw[ix][self.masks[ix]])
+        metrics.append(self.batches_raw[ix_pareto][ix][self.masks[ix_pareto][ix]])
         # Products
-        metrics.append(self.products_raw[ix][self.masks[ix]])
+        metrics.append(self.products_raw[ix_pareto][ix][self.masks[ix_pareto][ix]])
         # Start of USP
-        metrics.append(self.start_raw[ix][self.masks[ix]])
+        metrics.append(self.start_raw[ix_pareto][ix][self.masks[ix_pareto][ix]])
         # End of DSP
-        metrics.append(self.end_raw[ix][self.masks[ix]])
+        metrics.append(self.end_raw[ix_pareto][ix][self.masks[ix_pareto][ix]])
 
         return metrics
 
     def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput,num_fronts,num_exec,name_var):
-        """Inverts the inversion made to convert form maximization to minimization, organizes metrics and data for visualization.
+        """Extract the metrics only from the pareto front, inverts the inversion made to convert form maximization to minimization, organizes metrics and data for visualization.
 
         Returns:
             list: Array with metrics:
@@ -170,8 +170,11 @@ class Population():
                 Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]" 
                 Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" Pareto Front
         """
+        # Pareto Fronts
+        ix_pareto=np.where(self.fronts==0)
+
         # Calculates hypervolume
-        hv = hypervolume(points = self.objectives_raw)
+        hv = hypervolume(points = self.objectives_raw[ix_pareto])
         hv_vol_norma=hv.compute(ref_point)/volume_max
         metrics_exec=[name_var,hv_vol_norma]
         # data_plot=[]
@@ -179,17 +182,15 @@ class Population():
         # Reinverts again the throughput, that was modified for minimization by addying a constant
         self.objectives_raw[:,0]=inversion_val_throughput-self.objectives_raw[:,0]
         # Metrics
-        ix_best_f0=np.argmax(self.objectives_raw[:,0])
-        ix_best_f1=np.argmin(self.objectives_raw[:,1])
-        # self.objectives_raw[ix_best_f0]
-        # self.objectives_raw[ix_best_f1]
+        ix_best_min=np.argmin(self.objectives_raw[:,0][ix_pareto])
+        ix_best_max=np.argmax(self.objectives_raw[:,0][ix_pareto])
+        # self.objectives_raw[ix_best_min]
+        # self.objectives_raw[ix_best_max]
 
-        metrics_id=[self.extract_metrics(ix_best_f0,num_fronts,num_exec,"X",name_var)]
-        metrics_id.append(self.extract_metrics(ix_best_f1,num_fronts,num_exec,"Y",name_var))
+        metrics_id=[self.extract_metrics(ix_best_min,num_fronts,num_exec,"X",name_var,ix_pareto)]
+        metrics_id.append(self.extract_metrics(ix_best_max,num_fronts,num_exec,"Y",name_var,ix_pareto))
 
         # Plot Data
-        # Pareto Fronts Total Throughput [kg]
-        ix_pareto=np.where(self.fronts==0)
         metrics_exec.append(self.objectives_raw[ix_pareto])
         return metrics_exec,metrics_id
 
@@ -638,7 +639,7 @@ class Planning():
             ix_neg=np.where(stock_i[0,:]<0)
             if len(ix_neg)>0:
                 # Adds negative values to backlog
-                backlog_i[0,:][ix_neg]=(stock_i[0,:][ix_neg])*(-1)
+                backlog_i[0,:][ix_neg]=(stock_i[0,:][ix_neg]).copy()*(-1)
                 # Corrects if Stock is negative
                 stock_i[0,:][ix_neg]=0
             # Evaluates Stock over all months
@@ -723,7 +724,7 @@ class Planning():
         return num_violations
 
     # @staticmethod
-    def tournament_restrictions_binary(self,pop,n_parents,n_tour):
+    def tournament_restrictions_binary(self,pop,n_parents,n_tour,num_violations):
         """Tournament with replacement for selection to crossover, considering those criteria:
         1)Lowest number of constraints: 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches. If draw then: 
         2)Best pareto front, if draw then:
@@ -737,8 +738,8 @@ class Planning():
         Returns:
             array: Array with indexes of selected individuals
         """
-        # Calculates number of violated constraints
-        num_violations=self.calc_violations(pop)
+        # # Calculates number of violated constraints
+        # num_violations=self.calc_violations(pop)
 
         # Backlogs contains values per month
         aggregated_backlogs=np.sum(pop.backlogs,axis=1)
@@ -1002,7 +1003,8 @@ class Planning():
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
         # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-        pop.fronts=AlgNsga2._fronts_numba(pop.objectives_raw,self.num_fronts)
+        violations=self.calc_violations(pop)
+        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
    
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
@@ -1031,7 +1033,7 @@ class Planning():
 
             # 6)Selection for Crossover Tournament
 
-            ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour)
+            ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
             # selected_num_genes=copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover]
             # sorted_ix=np.argsort(selected_num_genes)
             # ix_to_crossover=ix_to_crossover[sorted_ix]
@@ -1147,7 +1149,8 @@ class Planning():
 
             # 16.1) Selects indexes to maintain
             # Calculates number of violated constraints
-            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(self.calc_violations(pop),pop.crowding_dist,pop.fronts,num_chromossomes)
+            violations=self.calc_violations(pop)
+            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(violations,pop.crowding_dist,pop.fronts,num_chromossomes)
             # 16.2) Remove non reinserted chromossomes from pop
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
@@ -1155,7 +1158,24 @@ class Planning():
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
             ix_reinsert_copy=ix_reinsert.copy()
+            violations=violations[ix_reinsert_copy]
             self.select_pop_by_index(pop,ix_reinsert_copy)
+
+            try:
+                ix_pareto=np.where(pop.fronts==0)
+                print("Objectives",pop.objectives_raw[ix_pareto])
+                # print("Products",pop.products_raw[ix_pareto])
+                # print("Batches",pop.batches_raw[ix_pareto])
+                # print("Masks",pop.masks[ix_pareto])
+                ix_best_min=np.argmin(self.objectives_raw[:,0][ix_pareto])
+                ix_best_max=np.argmax(self.objectives_raw[:,0][ix_pareto])
+
+                print("X batches",self.batches_raw[ix_pareto][ix_best_min][self.masks[ix_pareto][ix_best_min]])
+                print("X Products",self.products_raw[ix_pareto][ix_best_min][self.masks[ix_pareto][ix_best_min]])
+                print("Y batches",self.batches_raw[ix_pareto][ix_best_max][self.masks[ix_pareto][ix_best_max]])
+                print("Y Products",self.products_raw[ix_pareto][ix_best_max][self.masks[ix_pareto][ix_best_max]])
+            except:
+                pass
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
@@ -1181,7 +1201,7 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=4
+        n_exec=1
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
@@ -1192,7 +1212,7 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.11]
+        pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
         

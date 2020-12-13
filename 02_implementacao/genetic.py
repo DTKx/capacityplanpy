@@ -812,6 +812,88 @@ class AlgNsga2():
     """ Methods for Algorithm NSGA 2 (1. Deb, K. et al.: A Fast and Elitist Multiobjective Genetic Algorithm: NSGA-II. (2002).)
     """
     @jit(nopython=True,nogil=True,fastmath=True)
+    def _fronts_violations(objectives_fn,num_fronts,violations):
+        """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população. Modified criteria evaluates first the number of violations and then in case draw evaluates the objective functions.
+
+        Args:
+            resultado_fn (Array floats): Array de floats shape(m,n) com a solução dos valores de individuos avaliados em n funções Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
+            num_fronts (int): Número de fronteiras
+            violations (Array int): Array with the number of violations
+        Returns:
+            int: Array shape (n,1) com a classificação das fronteiras de pareto para cada individuo
+        """
+        row,col=objectives_fn.shape
+        # Definição de fronteiras
+        ix_falta_classificar=np.arange(0,row)
+        fronts=np.zeros(shape=(row,1),dtype=np.int64)
+        # fronts=np.empty(dtype=int,shape=(row,0))
+        # Loop por fronts exceto a ultima pois os valores remanescentes serão adicionados na ultima fronteira
+        j=0
+        existe_n_dominados=True
+        while (j<num_fronts-1) & (existe_n_dominados):
+            dominado=np.ones(shape=(row,1))
+            # dominado[ix_falta_classificar]=_ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
+            resultado_fn=objectives_fn[ix_falta_classificar].copy()
+
+
+            # Loop por função
+            p=resultado_fn.shape[0]
+            dominado_fn=np.ones(shape=(p,1))
+            # Loop por ponto a verificar se é dominado
+            for i in np.arange(0,p):
+                # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
+                k=0
+                dominado_sum=int(0)
+                while (k<p) & (dominado_sum==int(0)):
+                    if i==k:
+                        k+=int(1)
+                        continue
+                    # 1) Violation Criteria
+                    if violations[i]>violations[k]:
+                        dominado_count=1
+                    else:
+                        # 2)Domiation Criteria
+                        # Problema de minimização, verifico se o ponto é dominado (1) ou não dominado (0)
+                        ar_distintos=np.where(resultado_fn[k]!=resultado_fn[i])
+
+                        # Se são exatamente iguais são não dominados, porque se não posso perder todos os valores duplicados vou ter que filtrar depois
+                        if len(ar_distintos)==0:
+                            dominado_count=0               
+                        else:
+                            dominado_count=int(np.all(resultado_fn[k][ar_distintos]<resultado_fn[i][ar_distintos]))
+                    dominado_sum+=dominado_count
+                    k+=int(1)
+                if dominado_sum==0:
+                    dominado_fn[i]=0
+                else:
+                    dominado_fn[i]=1
+
+            dominado[ix_falta_classificar]=dominado_fn.copy()
+
+            # dominado[ix_falta_classificar]=_ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
+            ix_nao_dominados=np.where(dominado==0)[0]
+            if len(ix_nao_dominados)==0:
+                existe_n_dominados=False
+                continue
+            fronts[ix_nao_dominados]=j
+            # Creates an array for ix deletion
+            ix_to_delete_list=[]
+            for ix in ix_nao_dominados:
+                ix_to_add=np.where(ix_falta_classificar==ix)[0]
+                for ix in ix_to_add:
+                    ix_to_delete_list.append(ix)
+            num_delete=len(ix_to_delete_list)
+            ix_to_delete=np.array(num_delete)
+            # Removes classified points
+            if num_delete>int(0):
+                ix_falta_classificar=np.delete(ix_falta_classificar,ix_to_delete)
+            j+=1
+        # Adiciona todos os outros pontos na última fronteira
+        fronts[ix_falta_classificar]=j
+
+        return fronts
+
+    @jit(nopython=True,nogil=True,fastmath=True)
     def _fronts_numba(objectives_fn,num_fronts):
         """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população.
 
