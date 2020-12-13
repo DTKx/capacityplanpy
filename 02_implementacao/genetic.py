@@ -1175,7 +1175,7 @@ class AlgNsga2():
             else:
                 # Removes selected values
                 ix_fro=np.where(criteria_array[:,1]<=last_fro-1)
-                ix_selected=np.append(ix_selected,criteria_array[:,3][ix_vio])
+                ix_selected=np.append(ix_selected,criteria_array[:,3][ix_fro])
                 criteria_array=np.delete(criteria_array,ix_fro, 0)
                 remain=remain-len(ix_fro[0])
 

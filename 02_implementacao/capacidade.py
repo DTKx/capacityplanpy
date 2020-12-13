@@ -1164,7 +1164,7 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=4
+        n_exec=50
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
@@ -1197,6 +1197,7 @@ class Planning():
                 for result_exec,result_id,n_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     result_execs[(var,n_exec)]=result_exec
                     result_ids[(var,n_exec)]=result_id
+                    print(n_exec)
 
             # results[(v_i[0],v_i[1],v_i[2],v_i[3],v_i[4])]=results_append
             tf=time.perf_counter()
@@ -1267,7 +1268,7 @@ class Planning():
 
 
 if __name__=="__main__":
-    Planning.run_cprofile()
-    # Planning.run_parallel()
+    # Planning.run_cprofile()
+    Planning.run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)
