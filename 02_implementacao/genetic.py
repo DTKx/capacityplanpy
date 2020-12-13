@@ -7,6 +7,7 @@ import time
 from sklearn.cluster import KMeans
 import math
 from itertools import combinations 
+from scipy.stats import rankdata
 
 
 class Helpers():
@@ -1120,6 +1121,70 @@ class AlgNsga2():
         #     raise Exception("ValueError")
 
         return indice_nova_pop
+
+    def _index_linear_reinsertion_nsga_constraints(violations,crowd_dist,fronts,n_ind):
+        """Returns the indexes of the chromossomes for the reinsertion in the new population, evaluating:
+        1)Lowest number of violations.
+        2)Best front, in case of draw evaluates the next item.
+        3)Highest Crowding distance
+
+        Args:
+            violations (array): Number of violations criteria
+            crowd_dist (array): Crowding Distance criteria
+            fronts (array): Ascendent pareto fronts
+            n_ind (array): Number of chromossome to select
+
+        Returns:
+            [array]: Array with selected indexes for next generation.
+        """  
+        # Value for inversion of crowding distance, to create a minimization
+        val_inversion_crowd=np.amax(crowd_dist)
+        crowd_dist=val_inversion_crowd-crowd_dist
+        ix=np.arange(0,len(fronts))
+        criteria_array=np.column_stack([rankdata(violations,method="min"),rankdata(fronts,method="min"),rankdata(crowd_dist,method="ordinal"),ix])
+        sort_vio=np.argsort(criteria_array[:,0])
+        criteria_array=criteria_array[sort_vio]
+        # 1)Violations
+        # Verify if there is a draw in the last number of violations
+        last_vio=criteria_array[:,0][n_ind]
+        dup_vio=np.sum(criteria_array[:,0]==last_vio)
+        # No draw at Violations
+        if dup_vio==1:
+            ix_selected=criteria_array[:,3][np.where(criteria_array[:,0]<=last_vio)]
+        # Draw, goes to fronts
+        else:
+            # Removes selected values
+            # print(criteria_array.shape)
+            ix_vio=np.where(criteria_array[:,0]<=last_vio-1)
+            ix_selected=criteria_array[:,3][ix_vio]
+            criteria_array=np.delete(criteria_array,ix_vio, 0)
+            # print(criteria_array.shape)
+            remain=n_ind-len(ix_vio[0])
+
+            sort_front=np.argsort(criteria_array[:,1])
+            criteria_array=criteria_array[sort_front]
+
+            # Verify draw in number of fronts
+            last_fro=criteria_array[:,1][remain]
+            dup_fro=np.sum(criteria_array[:,1]==last_fro)
+
+            # No draw at Fronts
+            if dup_fro==1:
+                ix_selected=np.append(ix_selected,criteria_array[:,3][np.where(criteria_array[:,0]<=last_fro)])
+            # Draw, goes to Crowding
+            else:
+                # Removes selected values
+                ix_fro=np.where(criteria_array[:,1]<=last_fro-1)
+                ix_selected=np.append(ix_selected,criteria_array[:,3][ix_vio])
+                criteria_array=np.delete(criteria_array,ix_fro, 0)
+                remain=remain-len(ix_fro[0])
+
+                sort_front=np.argsort(criteria_array[:,2])
+                criteria_array=criteria_array[sort_front]
+
+                # Appends Solution
+                ix_selected=np.append(ix_selected,criteria_array[:remain,3])
+        return ix_selected
 
 
 class AlgSpea():

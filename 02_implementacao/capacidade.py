@@ -747,15 +747,15 @@ class Planning():
             # 2)Best Pareto Front
             elif pop.fronts[i_1]!=pop.fronts[i_2]:
                 if pop.fronts[i_1]-pop.fronts[i_2]>0:
-                    idx_winners[j]=idx_for_tournament[i]
+                    idx_winners[j]=i_1
                 else:
-                    idx_winners[j]=idx_for_tournament[i+1]
+                    idx_winners[j]=i_2
             # 3)Highest Crowding Distance
             else:
                 if pop.crowding_dist[i_1]-pop.crowding_dist[i_2]>0:
-                    idx_winners[j]=idx_for_tournament[i_1]
+                    idx_winners[j]=i_1
                 else:
-                    idx_winners[j]=idx_for_tournament[i_2]
+                    idx_winners[j]=i_2
             j+=1
         return idx_winners
 
@@ -1129,7 +1129,8 @@ class Planning():
             # 16) Linear Reinsertion
 
             # 16.1) Selects indexes to maintain
-            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga(pop.crowding_dist,pop.fronts,num_chromossomes)
+            # Calculates number of violated constraints
+            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(self.calc_violations(pop),pop.crowding_dist,pop.fronts,num_chromossomes)
             # 16.2) Remove non reinserted chromossomes from pop
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
