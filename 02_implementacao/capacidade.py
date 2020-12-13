@@ -110,7 +110,7 @@ class Population():
         self.masks=copy.deepcopy(new_mask)
         self.update_genes_per_chromo()
 
-    def extract_metrics(self,ix,num_fronts,num_exec,id_solution):
+    def extract_metrics(self,ix,num_fronts,num_exec,id_solution,name_var):
         """Extract Metrics
 
         Args:
@@ -120,7 +120,7 @@ class Population():
             list: List with the metrics Total throughput [kg] Max total backlog [kg] Mean total backlog [kg] Median total backlog [kg] a Min total backlog [kg] P(total backlog ≤ 0 kg) 
                 Max total inventory deficit [kg] Mean total inventory deficit [kg] a Median total inventory deficit [kg] Min total inventory deficit [kg]
         """
-        metrics=[num_exec,id_solution]
+        metrics=[name_var,num_exec,id_solution]
         # Total throughput [kg] 
         metrics.append(self.objectives_raw[:,0][ix])
         # Max total backlog [kg]
@@ -161,7 +161,7 @@ class Population():
 
         return metrics
 
-    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput,num_fronts,num_exec):
+    def metrics_inversion_minimization(self,ref_point,volume_max,inversion_val_throughput,num_fronts,num_exec,name_var):
         """Inverts the inversion made to convert form maximization to minimization, organizes metrics and data for visualization.
 
         Returns:
@@ -173,7 +173,7 @@ class Population():
         # Calculates hypervolume
         hv = hypervolume(points = self.objectives_raw)
         hv_vol_norma=hv.compute(ref_point)/volume_max
-        metrics_exec=[hv_vol_norma]
+        metrics_exec=[name_var,hv_vol_norma]
         # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
@@ -184,8 +184,8 @@ class Population():
         # self.objectives_raw[ix_best_f0]
         # self.objectives_raw[ix_best_f1]
 
-        metrics_id=[self.extract_metrics(ix_best_f0,num_fronts,num_exec,"X")]
-        metrics_id.append(self.extract_metrics(ix_best_f1,num_fronts,num_exec,"Y"))
+        metrics_id=[self.extract_metrics(ix_best_f0,num_fronts,num_exec,"X",name_var)]
+        metrics_id.append(self.extract_metrics(ix_best_f1,num_fronts,num_exec,"Y",name_var))
 
         # Plot Data
         # Pareto Fronts Total Throughput [kg]
@@ -964,6 +964,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
+        name_var=f'{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START")
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
@@ -1156,7 +1157,7 @@ class Planning():
         # file_pkl = open(path, "wb")
         # pickle.dump(pop, file_pkl,pickle.HIGHEST_PROTOCOL)
         # file_pkl.close()
-        r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec)
+        r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
         return r_exec,r_ind,num_exec
 
     def run_parallel():
@@ -1176,7 +1177,7 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.5]
+        pcross=[0.11]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
         
@@ -1240,9 +1241,9 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=100
+        num_geracoes=2
         n_tour=2
-        pcross=0.5
+        pcross=0.11
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
         t0=time.perf_counter()
