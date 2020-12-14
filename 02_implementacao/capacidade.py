@@ -120,7 +120,7 @@ class Population():
             list: List with the metrics Total throughput [kg] Max total backlog [kg] Mean total backlog [kg] Median total backlog [kg] a Min total backlog [kg] P(total backlog ≤ 0 kg) 
                 Max total inventory deficit [kg] Mean total inventory deficit [kg] a Median total inventory deficit [kg] Min total inventory deficit [kg]
         """
-        metrics=[name_var,num_exec,id_solution]
+        metrics=[num_exec,name_var,id_solution]
         # Total throughput [kg] 
         metrics.append(self.objectives_raw[:,0][ix_pareto][ix])
         # Max total backlog [kg]
@@ -176,7 +176,7 @@ class Population():
         # Calculates hypervolume
         hv = hypervolume(points = self.objectives_raw[ix_pareto])
         hv_vol_norma=hv.compute(ref_point)/volume_max
-        metrics_exec=[name_var,hv_vol_norma]
+        metrics_exec=[num_exec,name_var,hv_vol_norma]
         # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
@@ -1065,7 +1065,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_nsga,tour_vio,rein_vio,metrics_pareto_vio"
+        var="front_vio,tour_vio,rein_vio,metrics_pareto"
         name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START")
         # 1) Random parent population is initialized with its attributes
@@ -1088,9 +1088,9 @@ class Planning():
 
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-        pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-        # violations=self.calc_violations(pop)
-        # pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
+        # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+        violations=self.calc_violations(pop)
+        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
    
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
@@ -1208,10 +1208,10 @@ class Planning():
   
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-            pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+            # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
 
-            # violations=self.calc_violations(pop)
-            # pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
+            violations=self.calc_violations(pop)
+            pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
 
             # a1=np.sum(pop.objectives_raw)
             # if (a1-a0)!=0:
@@ -1253,44 +1253,28 @@ class Planning():
             violations=violations[ix_reinsert_copy]
             self.select_pop_by_index(pop,ix_reinsert_copy)
 
-            # try:
-            #     ix_vio=np.where(violations==0)[0]
-            #     print("Number of violations ",len(ix_vio))
-            #     ix_par=np.where(pop.fronts==0)[0]
-            #     ix_pareto=np.intersect(ix_vio,ix_par)
-            #     # ix_pareto=np.where(pop.fronts==0)[0]
-            #     print("Objectives",pop.objectives_raw[ix_pareto])
-            #     # print("Products",pop.products_raw[ix_pareto])
-            #     # print("Batches",pop.batches_raw[ix_pareto])
-            #     # print("Masks",pop.masks[ix_pareto])
-            #     ix_best_min=np.argmin(pop.objectives_raw[:,0][ix_pareto])
-            #     ix_best_max=np.argmax(pop.objectives_raw[:,0][ix_pareto])
+            try:
+                # ix_vio=np.where(violations==0)[0]
+                # print("Number of violations ",len(ix_vio))
+                # ix_par=np.where(pop.fronts==0)[0]
+                # ix_pareto=np.intersect(ix_vio,ix_par)
+                ix_pareto=np.where(pop.fronts==0)[0]
+                print("Objectives",pop.objectives_raw[ix_pareto])
+                # print("Products",pop.products_raw[ix_pareto])
+                # print("Batches",pop.batches_raw[ix_pareto])
+                # print("Masks",pop.masks[ix_pareto])
+                ix_best_min=np.argmin(pop.objectives_raw[:,0][ix_pareto])
+                ix_best_max=np.argmax(pop.objectives_raw[:,0][ix_pareto])
 
-            #     print("X batches",pop.batches_raw[ix_pareto][ix_best_min][pop.masks[ix_pareto][ix_best_min]])
-            #     print("X Products",pop.products_raw[ix_pareto][ix_best_min][pop.masks[ix_pareto][ix_best_min]])
-            #     print("Y batches",pop.batches_raw[ix_pareto][ix_best_max][pop.masks[ix_pareto][ix_best_max]])
-            #     print("Y Products",pop.products_raw[ix_pareto][ix_best_max][pop.masks[ix_pareto][ix_best_max]])
-            # except:
-            #     pass
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
+                print("X batches",pop.batches_raw[ix_pareto][ix_best_min][pop.masks[ix_pareto][ix_best_min]])
+                print("X Products",pop.products_raw[ix_pareto][ix_best_min][pop.masks[ix_pareto][ix_best_min]])
+                print("Y batches",pop.batches_raw[ix_pareto][ix_best_max][pop.masks[ix_pareto][ix_best_max]])
+                print("Y Products",pop.products_raw[ix_pareto][ix_best_max][pop.masks[ix_pareto][ix_best_max]])
+            except:
+                pass
 
-        # metrics=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput)
-
-        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        # name_var="v_0_pop"
-        # # Export Pickle
-        # file_name = name_var+"_results.pkl"
-        # path = root_path + file_name
-        # file_pkl = open(path, "wb")
-        # pickle.dump(pop, file_pkl,pickle.HIGHEST_PROTOCOL)
-        # file_pkl.close()
-        # r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
-        r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,violations)
-        return r_exec,r_ind,num_exec
+        r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
+        return r_exec,r_ind
 
     def run_parallel():
         """Runs with Multiprocessing.
@@ -1298,7 +1282,7 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=10
+        n_exec=1
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
@@ -1309,35 +1293,32 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.9,0.5,0.1]
+        pcross=[0.5,0.1]
         # pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
-        pmut=[(0.04,0.61,0.77,0.47),(0.04,0.80,0.80,0.47),(0.04,0.90,0.80,0.47)]
+        pmut=[(0.04,0.61,0.77,0.47)]
 
         # List of variants
         list_vars = list(product(*[nc, ng, nt, pcross,pmut]))
 
-        # Dictionary store results
-        results={}
+        # Lists store results
+        result_execs=[]
+        result_ids=[]
+
         times=[]
         var=0
         for v_i in list_vars:
             t0=time.perf_counter()
-            result_execs={}
-            result_ids={}
-            # with concurrent.futures.ThreadPoolExecutor() as executor:
             with concurrent.futures.ProcessPoolExecutor() as executor:
-                # for result in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
-
-                for result_exec,result_id,n_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
-                    result_execs[(var,n_exec)]=result_exec
-                    result_ids[(var,n_exec)]=result_id
-                    print(n_exec)
+                for result_exec,result_id in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+                    result_execs.append(result_exec)
+                    result_ids.append(result_id[0])# X
+                    result_ids.append(result_id[1])# Y
 
             tf=time.perf_counter()
             delta_t=tf-t0
-            print("Total time ",delta_t)
-            times.append([v_i,delta_t])
+            print("Total time ",delta_t,"Per execution",delta_t/n_exec)
+            times.append([v_i,delta_t,delta_t/n_exec])
             var+=1
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
@@ -1366,6 +1347,10 @@ class Planning():
         file_pkl = open(path, "wb")
         pickle.dump(result_ids, file_pkl)
         file_pkl.close()
+        print("Finish")
+        # import winsound
+        # path_uhuu="C:\\Users\\Debora\\Documents\\Audacity\\01_funny\\uhuu.wav"
+        # winsound.PlaySound(path,winsound.SND_FILENAME)
 
 
     def run_cprofile():
@@ -1402,7 +1387,7 @@ class Planning():
 
 
 if __name__=="__main__":
-    Planning.run_cprofile()
-    # Planning.run_parallel()
+    # Planning.run_cprofile()
+    Planning.run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)

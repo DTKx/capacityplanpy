@@ -1261,8 +1261,8 @@ class AlgNsga2():
                 criteria_array=np.delete(criteria_array,ix_fro, 0)
                 remain=remain-len(ix_fro[0])
 
-                sort_front=np.argsort(criteria_array[:,2])
-                criteria_array=criteria_array[sort_front]
+                sort_crowd=np.argsort(criteria_array[:,2])
+                criteria_array=criteria_array[sort_crowd]
 
                 # Appends Solution
                 ix_selected=np.append(ix_selected,criteria_array[:remain,3])
