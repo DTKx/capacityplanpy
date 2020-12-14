@@ -32,6 +32,13 @@ from genetic import AlgNsga2,Crossovers,Mutations
 class Population():
     """Stores population attributes and methods
     """
+    # Metrics per backlog deficit
+        # 0)Max total months and products, 1)Mean total months and products, 
+        # 2)Std Dev total months and products, 3)Median total months and products,
+        # 4)Min total months and products 5)Sum total months and products
+        # 6)Backlog violations
+
+    num_metrics=7
     def __init__(self,num_genes,num_chromossomes,num_products,num_objectives,start_date,initial_stock,num_months):
         """Initiates the current population, with a batch population,product population and a mask.
         batch population contains the number of batches, initially with only one batch
@@ -67,11 +74,19 @@ class Population():
         # self.start_raw[:,0]=start_date
         self.end_raw=np.zeros(shape=(num_chromossomes,num_genes),dtype='datetime64[D]')
 
-        # Initializes Stock backlog_i [kg]
-        self.backlogs=np.zeros(shape=(num_chromossomes,num_months),dtype=float)
+        # Initializes Stock backlog_i [kg] 
+
+        # 0)Max total backlog months and products, 1)Mean total backlog months and products, 
+        # 2)Std Dev total backlog months and products, 3)Median total backlog months and products,
+        # 4)Min total backlog months and products 5)Sum total backlog months and products
+        # 6)Backlog violations
+        self.backlogs=np.zeros(shape=(num_chromossomes,self.num_metrics),dtype=float)
 
         # Initializes Inventory deficit per month (Objective 1, but with breakdown per month) [kg]
-        self.deficit=np.zeros(shape=(num_chromossomes,num_months),dtype=float)
+        # 0)Max total months and products, 1)Mean total months and products, 
+        # 2)Std Dev total months and products, 3)Median total months and products,
+        # 4)Min total months and products 5)Sum total months and products
+        self.deficit=np.zeros(shape=(num_chromossomes,self.num_metrics-1),dtype=float)
 
         # Initializes the objectives throughput_i,deficit_strat_i
         self.objectives_raw=np.zeros(shape=(num_chromossomes,num_objectives),dtype=float)
@@ -124,30 +139,31 @@ class Population():
         # Total throughput [kg] 
         metrics.append(self.objectives_raw[:,0][ix_pareto][ix])
         # Max total backlog [kg]
-        metrics.append(np.max(self.backlogs[ix_pareto][ix]))
+        metrics.append(self.backlogs[:,0][ix_pareto][ix])
         # Mean total backlog [kg] +1stdev 
-        metrics.append(np.mean(self.backlogs[ix_pareto][ix]))
+        metrics.append(self.backlogs[:,1][ix_pareto][ix])
         # Standard Dev
-        metrics.append(np.std(self.backlogs[ix_pareto][ix]))
+        metrics.append(self.backlogs[:,2][ix_pareto][ix])
         # Median total backlog [kg]
-        metrics.append(np.median(self.backlogs[ix_pareto][ix]))
+        metrics.append(self.backlogs[:,3][ix_pareto][ix])
         # Min total backlog [kg] 
-        metrics.append(np.min(self.backlogs[ix_pareto][ix]))
+        metrics.append(self.backlogs[:,4][ix_pareto][ix])
         # P(total backlog ≤ 0 kg) 
-        metrics.append(np.sum(self.backlogs[ix_pareto][ix]))
+        metrics.append(self.backlogs[:,5][ix_pareto][ix])
         # DeltaXY (total backlog) [kg]
 
         # Max total inventory deficit [kg]
-        metrics.append(np.max(self.deficit[ix_pareto][ix]))
+        metrics.append(self.deficit[:,0][ix_pareto][ix])
         # Mean total inventory deficit [kg] +1stdev 
-        metrics.append(np.mean(self.deficit[ix_pareto][ix]))
+        metrics.append(self.deficit[:,1][ix_pareto][ix])
         # Standard Dev
-        metrics.append(np.std(self.deficit[ix_pareto][ix]))
+        metrics.append(self.deficit[:,2][ix_pareto][ix])
         # Median total inventory deficit [kg] 
-        metrics.append(np.median(self.deficit[ix_pareto][ix]))
+        metrics.append(self.deficit[:,3][ix_pareto][ix])
         # Min total inventory deficit [kg] 
-        metrics.append(np.min(self.deficit[ix_pareto][ix]))
-        # DeltaXY (total inventory deficit) [kg]
+        metrics.append(self.deficit[:,4][ix_pareto][ix])
+        # Total Deficit 
+        metrics.append(self.objectives_raw[:,1][ix_pareto][ix])
 
         # Extra Metrics for plotting
         # Batches
@@ -174,8 +190,11 @@ class Population():
         ix_pareto=np.where(self.fronts==0)
 
         # Calculates hypervolume
-        hv = hypervolume(points = self.objectives_raw[ix_pareto])
-        hv_vol_norma=hv.compute(ref_point)/volume_max
+        try:
+            hv = hypervolume(points = self.objectives_raw[ix_pareto])
+            hv_vol_norma=hv.compute(ref_point)/volume_max
+        except ValueError:
+            hv=0
         metrics_exec=[num_exec,name_var,hv_vol_norma]
         # data_plot=[]
 
@@ -626,7 +645,7 @@ class Planning():
         # Sum of all product deficit per month
         # return np.sum(deficit_strat_i,axis=1)
         # return deficit_strat_i
-        return np.median(deficit_strat_i)
+        return deficit_strat_i
 
     @staticmethod
     @jit(nopython=True,nogil=True,fastmath=True)
@@ -722,15 +741,20 @@ class Planning():
             # print("ouBack")
             # print(backlog_i)
 
-            # Stores sum of all products backlogs per month
-            pop.backlogs[i]=np.median(backlog_i,axis=1).T
-            # pop.backlogs[i]=np.median(backlog_i,axis=1).T
-            # pop.backlogs[i]=np.sum(backlog_i,axis=1).T
+            # Stores backlogs and metrics 
+            # # 0)Max total backlog months and products, 1)Mean total backlog months and products, 
+            # # 2)Std Dev total backlog months and products, 3)Median total backlog months and products,
+            # # 4)Min total backlog months and products 5)Sum total backlog months and products
+            # 6)Backlog violations
+            pop.backlogs[i]=np.array([np.amax(backlog_i),np.mean(backlog_i),np.std(backlog_i),
+            np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(backlog_i>0)])
 
-            # Calculates the objective Strategic Deficit 
-            deficit=self.calc_objective_deficit_strat(self.target_stock,stock_i)
-            pop.deficit[i]=deficit
-            pop.objectives_raw[i,1]=deficit
+            # Calculates the objective AND METRICS Strategic Deficit 
+            deficit_i=self.calc_objective_deficit_strat(self.target_stock,stock_i)
+
+            pop.deficit[i]=np.array([np.amax(deficit_i),np.mean(deficit_i),np.std(deficit_i),
+            np.median(deficit_i),np.amin(deficit_i),np.sum(deficit_i)])
+            pop.objectives_raw[i,1]=pop.deficit[i][3]
 
             # pop.deficit[i]=np.median(deficit,axis=1)
             # pop.objectives_raw[i,1]=np.median(pop.deficit[i])
@@ -755,8 +779,8 @@ class Planning():
         Returns:
             array: Array with number of violations per individual
         """
-        # 1)Median Backlog>0, 
-        num_violations=np.median(pop.backlogs,axis=1)
+        # 1)Backlog Violations 
+        num_violations=pop.backlogs[:,6].copy()
         num_violations[num_violations>0]=1
         num_violations[num_violations<=0]=0
 
@@ -775,6 +799,7 @@ class Planning():
             num_violations[i]+=v_min+v_max+v_mult
         return num_violations
 
+
     def calc_violations_unit(self,pop):
         """Calculates number of violations of constraints, each violation counts one.
         Considers 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches
@@ -785,8 +810,8 @@ class Planning():
         Returns:
             array: Array with number of violations per individual
         """
-        # 1)Median Backlog>0, 
-        num_violations=np.sum(pop.backlogs>0,axis=1)
+        # 1)Backlog Violations 
+        num_violations=pop.backlogs[:,6].copy()
 
         min_batch_raw=np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
         max_batch_raw=np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
@@ -821,8 +846,6 @@ class Planning():
         # # Calculates number of violated constraints
         # num_violations=self.calc_violations(pop)
 
-        # Backlogs contains values per month
-        aggregated_backlogs=np.sum(pop.backlogs,axis=1)
         # Arrays representing the indexes
         idx_population=np.arange(0,pop.num_chromossomes)    
         # Indexes of winners
@@ -1060,7 +1083,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_vio,tour_vio,rein_vio,vio_unit,metrics_pareto"
+        var="front_vio,tour_vio,rein_vio,vio_unit_month_product,metrics_pareto"
         name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START")
         # 1) Random parent population is initialized with its attributes
