@@ -448,12 +448,6 @@ class Planning():
         # Creates a vector for batch/kg por the products 
         pop_yield=np.vectorize(self.yield_kg_batch.__getitem__)(pop_obj.products_raw) #Equivalentt to         # pop_yield=np.array(list(map(self.yield_kg_batch.__getitem__,pop_products)))
 
-
-
-
-
-
-
         # Extracts the population informations
         dsp_raw=np.vectorize(self.dsp_days.__getitem__)(pop_obj.products_raw)
         usp_plus_dsp_raw=np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)+(dsp_raw).copy()
@@ -730,6 +724,7 @@ class Planning():
 
             # Stores sum of all products backlogs per month
             pop.backlogs[i]=np.median(backlog_i,axis=1).T
+            # pop.backlogs[i]=np.median(backlog_i,axis=1).T
             # pop.backlogs[i]=np.sum(backlog_i,axis=1).T
 
             # Calculates the objective Strategic Deficit 
@@ -1065,7 +1060,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_vio,tour_vio,rein_vio,metrics_pareto"
+        var="front_vio,tour_vio,rein_vio,vio_unit,metrics_pareto"
         name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START")
         # 1) Random parent population is initialized with its attributes
@@ -1089,7 +1084,8 @@ class Planning():
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
         # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-        violations=self.calc_violations(pop)
+        # violations=self.calc_violations(pop)
+        violations=self.calc_violations_unit(pop)
         pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
    
         # a1=np.sum(pop.objectives_raw)
@@ -1120,7 +1116,8 @@ class Planning():
             # 6)Selection for Crossover Tournament
 
             # ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
-            violations=self.calc_violations(pop)
+            # violations=self.calc_violations(pop)
+            violations=self.calc_violations_unit(pop)
             ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
             # selected_num_genes=copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover]
             # sorted_ix=np.argsort(selected_num_genes)
@@ -1209,8 +1206,9 @@ class Planning():
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
             # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+            # violations=self.calc_violations(pop)
 
-            violations=self.calc_violations(pop)
+            violations=self.calc_violations_unit(pop)
             pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
 
             # a1=np.sum(pop.objectives_raw)
@@ -1241,7 +1239,8 @@ class Planning():
 
             # 16.1) Selects indexes to maintain
             # Calculates number of violated constraints
-            violations=self.calc_violations(pop)
+            # violations=self.calc_violations(pop)
+            violations=self.calc_violations_unit(pop)
             ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(violations,pop.crowding_dist,pop.fronts,num_chromossomes)
             # 16.2) Remove non reinserted chromossomes from pop
             # for i in range(0,len(pop.products_raw)):
@@ -1293,7 +1292,7 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.5,0.1]
+        pcross=[0.5]
         # pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
@@ -1365,25 +1364,25 @@ class Planning():
         pmut=(0.04,0.61,0.77,0.47)
         t0=time.perf_counter()
 
-        # results,results_ind,n_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        results,results_ind=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
         # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
-        pr = cProfile.Profile()
-        pr.enable()
-        pr.runctx("results,results_ind,n_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
-        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        file_name = "cprofile.txt"
-        path = root_path + file_name
-        ps.print_stats()
-        with open(path, 'w+') as f:
-            f.write(s.getvalue())
-        tf=time.perf_counter()
-        delta_t=tf-t0
-        print("Total time ",delta_t)
+        # pr = cProfile.Profile()
+        # pr.enable()
+        # pr.runctx("results,results_ind=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        # pr.disable()
+        # s = io.StringIO()
+        # sortby = SortKey.CUMULATIVE
+        # ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
+        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        # file_name = "cprofile.txt"
+        # path = root_path + file_name
+        # ps.print_stats()
+        # with open(path, 'w+') as f:
+        #     f.write(s.getvalue())
+        # tf=time.perf_counter()
+        # delta_t=tf-t0
+        # print("Total time ",delta_t)
 
 
 if __name__=="__main__":
