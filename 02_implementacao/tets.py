@@ -1,6 +1,6 @@
 import numpy as np
+import inspect 
 
-a=np.random.rand(4,3)
-print(a)
-y=np.argsort(a[:,0],axis=0)
-print(a[y])
+print(inspect.isbuiltin(np.zeros)
+source_code = inspect.getsource(np.zeros)
+print(source_code)

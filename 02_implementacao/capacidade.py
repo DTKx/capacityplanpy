@@ -268,6 +268,7 @@ class Planning():
     usp_days=dict(zip(products,[45,36,45,49]))
     dsp_days=dict(zip(products,[7,11,7,7]))
     qc_days=dict(zip(products,[90,90,90,90]))
+    qc_max_months=4
     yield_kg_batch=dict(zip(products,[3.1,6.2,4.9,5.5]))
     yield_kg_batch_ar=np.array([3.1,6.2,4.9,5.5])
     # initial_stock=dict(zip(products,[18.6,0,19.6,33]))
@@ -443,12 +444,25 @@ class Planning():
         Args:
             pop_obj (Class object): Class Object of the population to be analized
         """
+        # # For testing produced_i can delete
+        # Creates a vector for batch/kg por the products 
+        pop_yield=np.vectorize(self.yield_kg_batch.__getitem__)(pop_obj.products_raw) #Equivalentt to         # pop_yield=np.array(list(map(self.yield_kg_batch.__getitem__,pop_products)))
+
+
+
+
+
+
+
         # Extracts the population informations
         dsp_raw=np.vectorize(self.dsp_days.__getitem__)(pop_obj.products_raw)
         usp_plus_dsp_raw=np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)+(dsp_raw).copy()
 
         # Initialize by addying the first date
         pop_obj.start_raw[:,0]=self.start_date
+
+        # Starts a new list of dicts, overwrites old one
+        pop_obj.dicts_batches_end_dsp=[]
 
         # Loop per chromossome i
         for i in range(0,len(pop_obj.start_raw)):
@@ -497,8 +511,6 @@ class Planning():
                 # Verifies if End day<Last Day ok else delete
                 num_batch_exceed_end_dates=np.sum(np.array(end_dates)>self.end_date)
                 if num_batch_exceed_end_dates>0:
-                    # Number of batches
-                    # print("Number of Batches before removal: ",pop_obj.batches_raw[i][j])
                     # Removes exceeding batches
                     pop_obj.batches_raw[i][j]=pop_obj.batches_raw[i][j]-num_batch_exceed_end_dates
                     del end_dates[-num_batch_exceed_end_dates:]
@@ -529,16 +541,24 @@ class Planning():
             # Appends dictionary of individual to the list of dictionaries
             pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
 
-            # # Produced Month 0 is the first month of inventory batches
-            # produced_i=np.zeros(shape=(self.num_months,self.num_products),dtype=int)
-            # for key in pop.dicts_batches_end_dsp[i].keys():
-            #     # Aggregated count per month 
-            #     # aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='end').sum()
-            #     aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
-            #     for k in range(0,len(aggregated)):
-            #         m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
-            #         # Updates the month with the number of batches produced
-            #         produced_i[m,key]=aggregated[k]
+            # Testing
+
+            # Produced Month 0 is the first month of inventory batches
+            produced_i=np.zeros(shape=(self.num_months+self.qc_max_months,self.num_products),dtype=int)
+            for key in pop_obj.dicts_batches_end_dsp[i].keys():
+                # Aggregated count per month 
+                # aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='end').sum()
+                aggregated=pd.Series(1,index=pd.to_datetime(pop_obj.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
+                for k in range(0,len(aggregated)):
+                    m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).years*12+relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
+                    # Updates the month with the number of batches produced
+                    produced_i[m,key]=aggregated[k]
+            # Conversion batches to kg
+            produced_i=np.sum(produced_i,axis=0)*self.yield_kg_batch_ar
+            a=np.sum(produced_i)
+            pop_obj.objectives_raw[i,0]=np.inner(pop_obj.batches_raw[i][pop_obj.masks[i]],pop_yield[i][pop_obj.masks[i]])
+            if pop_obj.objectives_raw[i,0]-a>1:
+                raise Exception("Error in Objective 1")
 
 
 
@@ -664,13 +684,13 @@ class Planning():
             backlog_i=np.zeros(shape=(self.num_months,self.num_products))
 
             # Produced Month 0 is the first month of inventory batches
-            produced_i=np.zeros(shape=(self.num_months,self.num_products),dtype=int)
+            produced_i=np.zeros(shape=(self.num_months+self.qc_max_months,self.num_products),dtype=int)
             for key in pop.dicts_batches_end_dsp[i].keys():
                 # Aggregated count per month 
                 # aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='end').sum()
                 aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
                 for k in range(0,len(aggregated)):
-                    m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
+                    m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).years*12+relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
                     # Updates the month with the number of batches produced
                     produced_i[m,key]=aggregated[k]
             # Conversion batches to kg
@@ -723,11 +743,10 @@ class Planning():
             # pop.objectives_raw[i,1]=np.sum(pop.deficit[i])
 
             # Calculates the objective Throughput
-            # a=np.sum(produced_i)
+            a=np.sum(produced_i)
             pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
-            # if pop.objectives_raw[i,0]-a>1:
-            #     raise Exception("Error in Objective 1")
-            # pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
+            if pop.objectives_raw[i,0]-a>1:
+                raise Exception("Error in Objective 1")
             # Inversion of the Throughput by a fixed value to generate a minimization problem
             pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
 
@@ -1354,7 +1373,7 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=2
+        num_geracoes=50
         n_tour=2
         pcross=0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
