@@ -524,10 +524,10 @@ class Planning():
                 for date in end_dates:
                     batches_end_date_i[pop_obj.products_raw[i][j]].append(date)           
                 j+=1
-            # # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-            # #     raise Exception("Invalid bool after number of active genes.")
-            # # Appends dictionary of individual to the list of dictionaries
-            # pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
+            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
+            #     raise Exception("Invalid bool after number of active genes.")
+            # Appends dictionary of individual to the list of dictionaries
+            pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
 
             # # Produced Month 0 is the first month of inventory batches
             # produced_i=np.zeros(shape=(self.num_months,self.num_products),dtype=int)
