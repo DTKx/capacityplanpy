@@ -839,9 +839,9 @@ class Planning():
         for i in range(0,pop.num_chromossomes):
             # Counter for num of violations
             # # 2)Minimum number of batches, 
-            v_min=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]>=min_batch_raw[i,:pop.genes_per_chromo[i]])
+            v_min=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]<min_batch_raw[i,:pop.genes_per_chromo[i]])
             # # 3)Maximum number of batches, 
-            v_max=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]<=max_batch_raw[i,:pop.genes_per_chromo[i]])
+            v_max=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]>max_batch_raw[i,:pop.genes_per_chromo[i]])
             # # 4)Multiples of number of batches
             v_mult=np.sum(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0)
             num_violations[i]+=v_min+v_max+v_mult
@@ -1020,42 +1020,42 @@ class Planning():
         return products,batches,masks
 
 
-    def fix_batch_violations(self,products,batches,masks,genes_per_chromo):
-        """Aggregates product batches in case of neighbours products.
-        Fix process constraints of batch min, max and multiple.
-            If Batch<Min then Batch=Min, 
-            If Batch>Max then Batch=Max, 
-            If Batch Multiple !=Multiple then Batch round to closest given not within Min and Max
+    # def fix_batch_violations(self,products,batches,masks,genes_per_chromo):
+    #     """Aggregates product batches in case of neighbours products.
+    #     Fix process constraints of batch min, max and multiple.
+    #         If Batch<Min then Batch=Min, 
+    #         If Batch>Max then Batch=Max, 
+    #         If Batch Multiple !=Multiple then Batch round to closest given not within Min and Max
 
-        Args:
-            products (array): Array of products
-            batches (array): Array of batches
-            masks (array): Array of masks
-        """
-        min_batch_raw=np.vectorize(self.min_batch.__getitem__)(products)
-        max_batch_raw=np.vectorize(self.max_batch.__getitem__)(products)
-        batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(products)
+    #     Args:
+    #         products (array): Array of products
+    #         batches (array): Array of batches
+    #         masks (array): Array of masks
+    #     """
+    #     min_batch_raw=np.vectorize(self.min_batch.__getitem__)(products)
+    #     max_batch_raw=np.vectorize(self.max_batch.__getitem__)(products)
+    #     batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(products)
 
-        # # 1)Minimum number of batches, 
-        batches_raw[batches_raw>=]
-        v_min=np.sum(batches_raw[i,:genes_per_chromo[i]]>=min_batch_raw[i,:genes_per_chromo[i]])
-        # # 2)Maximum number of batches, 
-        v_max=np.sum(batches_raw[i,:genes_per_chromo[i]]<=max_batch_raw[i,:genes_per_chromo[i]])
-        # # 3)Multiples of number of batches
-        v_mult=np.sum(np.remainder(batches_raw[i,:genes_per_chromo[i]],batch_multiples_raw[i,:genes_per_chromo[i]])!=0)
+    #     # # 1)Minimum number of batches, 
+    #     batches_raw[batches_raw>=]
+    #     v_min=np.sum(batches_raw[i,:genes_per_chromo[i]]>=min_batch_raw[i,:genes_per_chromo[i]])
+    #     # # 2)Maximum number of batches, 
+    #     v_max=np.sum(batches_raw[i,:genes_per_chromo[i]]<=max_batch_raw[i,:genes_per_chromo[i]])
+    #     # # 3)Multiples of number of batches
+    #     v_mult=np.sum(np.remainder(batches_raw[i,:genes_per_chromo[i]],batch_multiples_raw[i,:genes_per_chromo[i]])!=0)
 
 
-        # # Loop per chromossome
-        # for i in range(0,len(products)):
-        #     # Counter for num of violations
-        #     # # 2)Minimum number of batches, 
-        #     v_min=np.sum(batches_raw[i,:genes_per_chromo[i]]>=min_batch_raw[i,:genes_per_chromo[i]])
-        #     # # 3)Maximum number of batches, 
-        #     v_max=np.sum(batches_raw[i,:genes_per_chromo[i]]<=max_batch_raw[i,:genes_per_chromo[i]])
-        #     # # 4)Multiples of number of batches
-        #     v_mult=np.sum(np.remainder(batches_raw[i,:genes_per_chromo[i]],batch_multiples_raw[i,:genes_per_chromo[i]])!=0)
-        #     num_violations[i]+=v_min+v_max+v_mult
-        return products,batches,masks
+    #     # # Loop per chromossome
+    #     # for i in range(0,len(products)):
+    #     #     # Counter for num of violations
+    #     #     # # 2)Minimum number of batches, 
+    #     #     v_min=np.sum(batches_raw[i,:genes_per_chromo[i]]>=min_batch_raw[i,:genes_per_chromo[i]])
+    #     #     # # 3)Maximum number of batches, 
+    #     #     v_max=np.sum(batches_raw[i,:genes_per_chromo[i]]<=max_batch_raw[i,:genes_per_chromo[i]])
+    #     #     # # 4)Multiples of number of batches
+    #     #     v_mult=np.sum(np.remainder(batches_raw[i,:genes_per_chromo[i]],batch_multiples_raw[i,:genes_per_chromo[i]])!=0)
+    #     #     num_violations[i]+=v_min+v_max+v_mult
+    #     return products,batches,masks
 
 
     def fix_aggregation_batches(products,batches,masks,genes_per_chromo):
@@ -1371,7 +1371,7 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=4
+        n_exec=2
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
