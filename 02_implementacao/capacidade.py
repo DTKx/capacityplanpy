@@ -1037,21 +1037,21 @@ class Planning():
         batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(products)
 
         # # 1)Minimum number of batches, 
-        mask_min=(batches_raw<min_batch_raw)&(batches_raw!=0)
-        batches_raw[mask_min]=min_batch_raw[mask_min].copy()
+        mask_min=(batches<min_batch_raw)&(batches!=0)
+        batches[mask_min]=min_batch_raw[mask_min].copy()
         # # 2)Maximum number of batches, 
-        mask_max=batches_raw>max_batch_raw
-        batches_raw[mask_max]=max_batch_raw[mask_max].copy()
+        mask_max=batches>max_batch_raw
+        batches[mask_max]=max_batch_raw[mask_max].copy()
         # # 3)Multiples of number of batches
-        remainder=np.remainder(batches_raw,batch_multiples_raw)
+        remainder=np.remainder(batches,batch_multiples_raw)
         mask_remainder=(remainder!=0).copy()
-        multiple=remainder+batches_raw.copy()
-        batches_raw[mask_remainder]=multiple[mask_remainder].copy()
+        multiple=remainder+batches.copy()
+        batches[mask_remainder]=multiple[mask_remainder].copy()
         # Max always respects the remainder, therefore no need to correct again
         return products,batches,masks
 
 
-    def fix_aggregation_batches(products,batches,masks,genes_per_chromo):
+    def fix_aggregation_batches(self,products,batches,masks,genes_per_chromo):
         """Fixes Aggregation of products and maximum, minimum and multiples of batches.
 
         Args:
@@ -1179,7 +1179,7 @@ class Planning():
         # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
         # violations=self.calc_violations(pop)
         # violations=self.calc_violation_unit_backlog(pop)
-        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts.copy(),pop.backlogs[:,6].copy())
+        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
    
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
@@ -1303,7 +1303,7 @@ class Planning():
             # violations=self.calc_violations(pop)
 
             # violations=self.calc_violation_unit_backlog(pop)
-            pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts.copy(),pop.backlogs[:,6].copy())
+            pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
 
             # a1=np.sum(pop.objectives_raw)
             # if (a1-a0)!=0:
@@ -1376,14 +1376,14 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=4
+        n_exec=2
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
         # Number of Chromossomes
         nc=[100]
         # Number of Generations
-        ng=[1000]
+        ng=[2]
         # Number of tour
         nt=[2]
         # Crossover Probability
@@ -1410,7 +1410,6 @@ class Planning():
                     result_execs.append(result_exec)
                     result_ids.append(result_id[0])# X
                     result_ids.append(result_id[1])# Y
-
             tf=time.perf_counter()
             delta_t=tf-t0
             print("Total time ",delta_t,"Per execution",delta_t/n_exec)
@@ -1444,7 +1443,6 @@ class Planning():
         pickle.dump(result_ids, file_pkl)
         file_pkl.close()
         print("Finish")
-
 
     def run_cprofile():
         """Runs without multiprocessing.
