@@ -962,8 +962,7 @@ class Planning():
 
         # if (new_product>=self.num_products).any():
         #     raise Exception("Error in labels of products, labels superior than maximum defined.")
-
-        return new_product,new_batches,new_mask
+        # return new_product,new_batches,new_mask
 
     # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     @staticmethod
@@ -1031,39 +1030,43 @@ class Planning():
             products (array): Array of products
             batches (array): Array of batches
             masks (array): Array of masks
+            genes_per_chromo (array): Array with number of active chromossomes
         """
         min_batch_raw=np.vectorize(self.min_batch.__getitem__)(products)
         max_batch_raw=np.vectorize(self.max_batch.__getitem__)(products)
         batch_multiples_raw=np.vectorize(self.batch_multiples.__getitem__)(products)
 
         # # 1)Minimum number of batches, 
-        batches_raw[batches_raw<=min_batch_raw]=min_batch_raw[batches_raw<=min_batch_raw].copy()
+        mask_min=(batches_raw<min_batch_raw)&(batches_raw!=0)
+        batches_raw[mask_min]=min_batch_raw[mask_min].copy()
         # # 2)Maximum number of batches, 
-        batches_raw[batches_raw>min_batch_raw]=min_batch_raw[batches_raw<=min_batch_raw].copy()
-        v_max=np.sum(batches_raw[i,:genes_per_chromo[i]]<=max_batch_raw[i,:genes_per_chromo[i]])
+        mask_max=batches_raw>max_batch_raw
+        batches_raw[mask_max]=max_batch_raw[mask_max].copy()
         # # 3)Multiples of number of batches
-        v_mult=np.sum(np.remainder(batches_raw[i,:genes_per_chromo[i]],batch_multiples_raw[i,:genes_per_chromo[i]])!=0)
-
-
-        # # Loop per chromossome
-        # for i in range(0,len(products)):
-        #     # Counter for num of violations
-        #     # # 2)Minimum number of batches, 
-        #     v_min=np.sum(batches_raw[i,:genes_per_chromo[i]]>=min_batch_raw[i,:genes_per_chromo[i]])
-        #     # # 3)Maximum number of batches, 
-        #     v_max=np.sum(batches_raw[i,:genes_per_chromo[i]]<=max_batch_raw[i,:genes_per_chromo[i]])
-        #     # # 4)Multiples of number of batches
-        #     v_mult=np.sum(np.remainder(batches_raw[i,:genes_per_chromo[i]],batch_multiples_raw[i,:genes_per_chromo[i]])!=0)
-        #     num_violations[i]+=v_min+v_max+v_mult
+        remainder=np.remainder(batches_raw,batch_multiples_raw)
+        mask_remainder=(remainder!=0).copy()
+        multiple=remainder+batches_raw.copy()
+        batches_raw[mask_remainder]=multiple[mask_remainder].copy()
+        # Max always respects the remainder, therefore no need to correct again
         return products,batches,masks
 
 
     def fix_aggregation_batches(products,batches,masks,genes_per_chromo):
+        """Fixes Aggregation of products and maximum, minimum and multiples of batches.
+
+        Args:
+            products (array): Array of products
+            batches (array): Array of batches
+            masks (array): Array of masks
+            genes_per_chromo (array): Array with number of active chromossomes
+
+        Returns:
+            Arrays: Fixed product, batches and masks array
+        """
         # Fix Aggregation of products
         products,batches,masks=self.agg_product_batch(products,batches,masks,genes_per_chromo)
         # Fix number of batches
         products,batches,masks=self.fix_batch_violations(products,batches,masks,genes_per_chromo)
-        return products,batches,masks
 
     def merge_pop_with_offspring(self,pop,pop_new):
         """Appends the offspring population to the Current population.
@@ -1175,8 +1178,8 @@ class Planning():
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
         # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
         # violations=self.calc_violations(pop)
-        violations=self.calc_violations_unit(pop)
-        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
+        # violations=self.calc_violation_unit_backlog(pop)
+        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts.copy(),pop.backlogs[:,6].copy())
    
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
@@ -1187,7 +1190,7 @@ class Planning():
         # 5) Crowding Distance
         # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
         # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
-        pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
+        pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw.copy(),pop.fronts.copy(),self.big_dummy)
         # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
         # if ((a1-a0)!=0)|((b1-b0)!=0):
         #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
@@ -1206,14 +1209,14 @@ class Planning():
 
             # ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
             # violations=self.calc_violations(pop)
-            violations=self.calc_violations_unit(pop)
-            ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
+            # violations=self.calc_violation_unit_backlog(pop)
+            ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,pop.backlogs[:,6].copy())
             # selected_num_genes=copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover]
             # sorted_ix=np.argsort(selected_num_genes)
             # ix_to_crossover=ix_to_crossover[sorted_ix]
             # 7)Crossover
             # 7.1 Sorts Selected by number of genes
-            ix_to_crossover=ix_to_crossover[np.argsort(copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover])]
+            ix_to_crossover=ix_to_crossover[np.argsort(pop.genes_per_chromo.copy()[ix_to_crossover])]
             # 7.2 Creates a new population for offspring population crossover and calls uniform crossover 
             # new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
             # for i in range(0,len(pop.products_raw)):
@@ -1222,7 +1225,7 @@ class Planning():
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
 
-            new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),perc_crossover)
+            new_products,new_batches,new_mask=Crossovers._crossover_uniform(pop.products_raw[ix_to_crossover].copy(),pop.batches_raw[ix_to_crossover].copy(),pop.masks[ix_to_crossover].copy(),perc_crossover)
 
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
@@ -1232,7 +1235,8 @@ class Planning():
 
             # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
             # 8)Mutation
-            new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
+            # new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
+            self.mutation_processes(new_products,new_batches,new_mask,pmut)
 
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
@@ -1245,7 +1249,8 @@ class Planning():
             #     print("Hey")
             # Active genes per chromossome
             genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
-            new_products,new_batches,new_mask=self.agg_product_batch(new_products,new_batches,new_mask,genes_per_chromo)
+            # new_products,new_batches,new_mask=self.fix_aggregation_batches(new_products,new_batches,new_mask,genes_per_chromo)
+            self.fix_aggregation_batches(new_products,new_batches,new_mask,genes_per_chromo)
             genes_per_chromo=np.sum(new_mask,axis=1,dtype=int)
 
             # for i in range(0,len(new_products)):
@@ -1297,8 +1302,8 @@ class Planning():
             # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
             # violations=self.calc_violations(pop)
 
-            violations=self.calc_violations_unit(pop)
-            pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
+            # violations=self.calc_violation_unit_backlog(pop)
+            pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts.copy(),pop.backlogs[:,6].copy())
 
             # a1=np.sum(pop.objectives_raw)
             # if (a1-a0)!=0:
@@ -1313,7 +1318,7 @@ class Planning():
             # 15) 5) Crowding Distance
             # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
             # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
-            pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw,pop.fronts,self.big_dummy)
+            pop.crowding_dist=AlgNsga2._crowding_distance(pop.objectives_raw.copy(),pop.fronts.copy(),self.big_dummy)
             # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
             # if ((a1-a0)!=0)|((b1-b0)!=0):
             #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
@@ -1329,8 +1334,8 @@ class Planning():
             # 16.1) Selects indexes to maintain
             # Calculates number of violated constraints
             # violations=self.calc_violations(pop)
-            violations=self.calc_violations_unit(pop)
-            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(violations,pop.crowding_dist,pop.fronts,num_chromossomes)
+            # violations=self.calc_violation_unit_backlog(pop)
+            ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(pop.backlogs[:,6].copy(),pop.crowding_dist.copy(),pop.fronts.copy(),num_chromossomes)
             # 16.2) Remove non reinserted chromossomes from pop
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
@@ -1338,7 +1343,7 @@ class Planning():
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
             ix_reinsert_copy=ix_reinsert.copy()
-            violations=violations[ix_reinsert_copy]
+            # violations=violations[ix_reinsert_copy]
             self.select_pop_by_index(pop,ix_reinsert_copy)
 
             # try:
@@ -1361,7 +1366,7 @@ class Planning():
             # except:
             #     pass
 
-        r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,violations)
+        r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,pop.backlogs[:,6])
         # r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
         return r_exec,r_ind
 
