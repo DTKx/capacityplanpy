@@ -187,14 +187,14 @@ class Population():
                 Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" Pareto Front
         """
         # Pareto Fronts
-        ix_pareto=np.where(self.fronts==0)
+        ix_pareto=np.where(self.fronts==0)[0]
 
         # Calculates hypervolume
         try:
             hv = hypervolume(points = self.objectives_raw[ix_pareto])
             hv_vol_norma=hv.compute(ref_point)/volume_max
         except ValueError:
-            hv=0
+            hv_vol_norma=0
         metrics_exec=[num_exec,name_var,hv_vol_norma]
         # data_plot=[]
 
@@ -223,13 +223,22 @@ class Population():
                 Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]" 
                 Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" Pareto Front
         """
-        # Pareto Fronts
-        ix_pareto=np.where(self.fronts==0)
+        # Indexes
+        try:
+            ix_vio=np.where(violations==0)[0]
+            ix_par=np.where(pop.fronts==0)[0]
+            ix_pareto=np.intersect(ix_vio,ix_par)
+            a=ix_pareto[0]
+        except:
+            ix_pareto=np.where(self.fronts==0)[0]
 
         # Calculates hypervolume
-        hv = hypervolume(points = self.objectives_raw[ix_pareto])
-        hv_vol_norma=hv.compute(ref_point)/volume_max
-        metrics_exec=[name_var,hv_vol_norma]
+        try:
+            hv = hypervolume(points = self.objectives_raw[ix_pareto])
+            hv_vol_norma=hv.compute(ref_point)/volume_max
+        except ValueError:
+            hv_vol_norma=0
+        metrics_exec=[num_exec,name_var,hv_vol_norma]
         # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
@@ -237,8 +246,6 @@ class Population():
         # Metrics
         ix_best_min=np.argmin(self.objectives_raw[:,0][ix_pareto])
         ix_best_max=np.argmax(self.objectives_raw[:,0][ix_pareto])
-        # self.objectives_raw[ix_best_min]
-        # self.objectives_raw[ix_best_max]
 
         metrics_id=[self.extract_metrics(ix_best_min,num_fronts,num_exec,"X",name_var,ix_pareto)]
         metrics_id.append(self.extract_metrics(ix_best_max,num_fronts,num_exec,"Y",name_var,ix_pareto))
@@ -246,7 +253,6 @@ class Population():
         # Plot Data
         metrics_exec.append(self.objectives_raw[ix_pareto])
         return metrics_exec,metrics_id
-
 
 class Planning():
     # Class Variables
@@ -762,10 +768,10 @@ class Planning():
             # pop.objectives_raw[i,1]=np.sum(pop.deficit[i])
 
             # Calculates the objective Throughput
-            a=np.sum(produced_i)
+            # a=np.sum(produced_i)
             pop.objectives_raw[i,0]=np.dot(pop.batches_raw[i][pop.masks[i]],pop_yield[i][pop.masks[i]])
-            if pop.objectives_raw[i,0]-a>1:
-                raise Exception("Error in Objective 1")
+            # if pop.objectives_raw[i,0]-a>1:
+            #     raise Exception("Error in Objective 1")
             # Inversion of the Throughput by a fixed value to generate a minimization problem
             pop.objectives_raw[i,0]=self.inversion_val_throughput-pop.objectives_raw[i,0]
 
@@ -861,15 +867,15 @@ class Planning():
             if num_violations[i_1]!=num_violations[i_2]:
                 # To change for different number of tours c=np.where(a==np.min(a))
                 if num_violations[i_1]-num_violations[i_2]>0:
-                    idx_winners[j]=i_1
-                else:
                     idx_winners[j]=i_2
-            # 2)Best Pareto Front
+                else:
+                    idx_winners[j]=i_1
+            # 2)Lowest Pareto Front
             elif pop.fronts[i_1]!=pop.fronts[i_2]:
                 if pop.fronts[i_1]-pop.fronts[i_2]>0:
-                    idx_winners[j]=i_1
-                else:
                     idx_winners[j]=i_2
+                else:
+                    idx_winners[j]=i_1
             # 3)Highest Crowding Distance
             else:
                 if pop.crowding_dist[i_1]-pop.crowding_dist[i_2]>0:
@@ -1083,7 +1089,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_vio,tour_vio,rein_vio,vio_unit_month_product,metrics_pareto"
+        var="front_vio,tour_vio,rein_vio,vio_unit_month_product,metrics_pareto_vio"
         name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START")
         # 1) Random parent population is initialized with its attributes
@@ -1135,7 +1141,6 @@ class Planning():
         #             raise Exception("Invalid number of batches (0).")
         #         if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
         #             raise Exception("Invalid bool after number of active genes.")
-
             # 6)Selection for Crossover Tournament
 
             # ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
@@ -1277,7 +1282,7 @@ class Planning():
 
             try:
                 # ix_vio=np.where(violations==0)[0]
-                # print("Number of violations ",len(ix_vio))
+                # print("Num_Vio=0",len(ix_vio))
                 # ix_par=np.where(pop.fronts==0)[0]
                 # ix_pareto=np.intersect(ix_vio,ix_par)
                 ix_pareto=np.where(pop.fronts==0)[0]
@@ -1295,7 +1300,8 @@ class Planning():
             except:
                 pass
 
-        r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
+        r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,violations)
+        # r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
         return r_exec,r_ind
 
     def run_parallel():
@@ -1315,7 +1321,7 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.5]
+        pcross=[0.5,0.11]
         # pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
@@ -1331,7 +1337,8 @@ class Planning():
         var=0
         for v_i in list_vars:
             t0=time.perf_counter()
-            with concurrent.futures.ProcessPoolExecutor() as executor:
+            # with concurrent.futures.ProcessPoolExecutor() as executor:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
                 for result_exec,result_id in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     result_execs.append(result_exec)
                     result_ids.append(result_id[0])# X
@@ -1370,9 +1377,6 @@ class Planning():
         pickle.dump(result_ids, file_pkl)
         file_pkl.close()
         print("Finish")
-        # import winsound
-        # path_uhuu="C:\\Users\\Debora\\Documents\\Audacity\\01_funny\\uhuu.wav"
-        # winsound.PlaySound(path,winsound.SND_FILENAME)
 
 
     def run_cprofile():
@@ -1380,7 +1384,7 @@ class Planning():
         """
         num_exec=1
         num_chromossomes=100
-        num_geracoes=50
+        num_geracoes=150
         n_tour=2
         pcross=0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
