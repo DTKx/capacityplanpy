@@ -1089,7 +1089,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_vio,tour_vio,rein_vio,vio_unit,metrics_pareto_vio"
+        var="front_vio,tour_vio,rein_vio,vio_step,metrics_pareto_vio"
         name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START Exec",num_exec)
         # 1) Random parent population is initialized with its attributes
@@ -1113,8 +1113,8 @@ class Planning():
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
         # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-        # violations=self.calc_violations(pop)
-        violations=self.calc_violations_unit(pop)
+        violations=self.calc_violations(pop)
+        # violations=self.calc_violations_unit(pop)
         pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
    
         # a1=np.sum(pop.objectives_raw)
@@ -1144,8 +1144,9 @@ class Planning():
             # 6)Selection for Crossover Tournament
 
             # ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
-            # violations=self.calc_violations(pop)
-            violations=self.calc_violations_unit(pop)
+            violations=self.calc_violations(pop)
+            # violations=self.calc_violations_unit(pop)
+
             ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
             # selected_num_genes=copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover]
             # sorted_ix=np.argsort(selected_num_genes)
@@ -1234,9 +1235,10 @@ class Planning():
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
             # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
-            # violations=self.calc_violations(pop)
+            violations=self.calc_violations(pop)
 
-            violations=self.calc_violations_unit(pop)
+            # violations=self.calc_violations_unit(pop)
+
             pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw,self.num_fronts,violations)
 
             # a1=np.sum(pop.objectives_raw)
@@ -1267,8 +1269,8 @@ class Planning():
 
             # 16.1) Selects indexes to maintain
             # Calculates number of violated constraints
-            # violations=self.calc_violations(pop)
-            violations=self.calc_violations_unit(pop)
+            violations=self.calc_violations(pop)
+            # violations=self.calc_violations_unit(pop)
             ix_reinsert=AlgNsga2._index_linear_reinsertion_nsga_constraints(violations,pop.crowding_dist,pop.fronts,num_chromossomes)
             # 16.2) Remove non reinserted chromossomes from pop
             # for i in range(0,len(pop.products_raw)):
@@ -1337,9 +1339,8 @@ class Planning():
         var=0
         for v_i in list_vars:
             t0=time.perf_counter()
-            # with concurrent.futures.ProcessPoolExecutor() as executor:
-            # with concurrent.futures.ThreadPoolExecutor() as executor:
             with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            # with concurrent.futures.ThreadPoolExecutor() as executor:
                 for result_exec,result_id in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     result_execs.append(result_exec)
                     result_ids.append(result_id[0])# X
@@ -1352,7 +1353,7 @@ class Planning():
             var+=1
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        name_var="v_0"
+        name_var="step_v_0"
         # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
         file_name = name_var+"_results.csv"
         path = root_path + file_name
@@ -1366,7 +1367,7 @@ class Planning():
                 writer.writerow(times)
 
         # Export Pickle
-        file_name = name_var+"_exec.pkl"
+        file_name = name_var+"step_exec.pkl"
         path = root_path + file_name
         file_pkl = open(path, "wb")
         pickle.dump(result_execs, file_pkl)
