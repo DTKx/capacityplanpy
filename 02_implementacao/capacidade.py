@@ -753,7 +753,9 @@ class Planning():
             # # 4)Min total backlog months and products 5)Sum total backlog months and products
             # 6)Backlog violations
             pop.backlogs[i]=np.array([np.amax(backlog_i),np.mean(backlog_i),np.std(backlog_i),
-            np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(backlog_i>0)])
+            np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(np.median(backlog_i)>0)])
+            # pop.backlogs[i]=np.array([np.amax(backlog_i),np.mean(backlog_i),np.std(backlog_i),
+            # np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(backlog_i>0)])
 
             # Calculates the objective AND METRICS Strategic Deficit 
             deficit_i=self.calc_objective_deficit_strat(self.target_stock,stock_i)
@@ -1321,7 +1323,7 @@ class Planning():
         # Number of tour
         nt=[2]
         # Crossover Probability
-        pcross=[0.5,0.11]
+        pcross=[0.5]
         # pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
@@ -1337,8 +1339,8 @@ class Planning():
         var=0
         for v_i in list_vars:
             t0=time.perf_counter()
-            # with concurrent.futures.ProcessPoolExecutor() as executor:
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+            # with concurrent.futures.ThreadPoolExecutor() as executor:
                 for result_exec,result_id in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     result_execs.append(result_exec)
                     result_ids.append(result_id[0])# X
