@@ -839,9 +839,9 @@ class Planning():
         for i in range(0,pop.num_chromossomes):
             # Counter for num of violations
             # # 2)Minimum number of batches, 
-            v_min=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]<=min_batch_raw[i,:pop.genes_per_chromo[i]])
+            v_min=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]>=min_batch_raw[i,:pop.genes_per_chromo[i]])
             # # 3)Maximum number of batches, 
-            v_max=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]>=max_batch_raw[i,:pop.genes_per_chromo[i]])
+            v_max=np.sum(pop.batches_raw[i,:pop.genes_per_chromo[i]]<=max_batch_raw[i,:pop.genes_per_chromo[i]])
             # # 4)Multiples of number of batches
             v_mult=np.sum(np.remainder(pop.batches_raw[i,:pop.genes_per_chromo[i]],batch_multiples_raw[i,:pop.genes_per_chromo[i]])!=0)
             num_violations[i]+=v_min+v_max+v_mult
