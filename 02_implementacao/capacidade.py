@@ -1153,7 +1153,7 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_vio,tour_vio,rein_vio,vio_unit,metrics_pareto_vio"
+        var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
         name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START Exec",num_exec)
         # 1) Random parent population is initialized with its attributes
@@ -1176,10 +1176,10 @@ class Planning():
 
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-        # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+        pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
         # violations=self.calc_violations(pop)
         # violations=self.calc_violation_unit_backlog(pop)
-        pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
+        # pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
    
         # a1=np.sum(pop.objectives_raw)
         # if (a1-a0)!=0:
@@ -1299,11 +1299,11 @@ class Planning():
   
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-            # pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
+            pop.fronts=AlgNsga2._fronts(pop.objectives_raw,self.num_fronts)
             # violations=self.calc_violations(pop)
 
             # violations=self.calc_violation_unit_backlog(pop)
-            pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
+            # pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
 
             # a1=np.sum(pop.objectives_raw)
             # if (a1-a0)!=0:
@@ -1376,14 +1376,14 @@ class Planning():
         # Parameters
 
         # Number of executions
-        n_exec=2
+        n_exec=4
         n_exec_ite=range(0,n_exec)
 
         # Variation 1
         # Number of Chromossomes
         nc=[100]
         # Number of Generations
-        ng=[2]
+        ng=[1000]
         # Number of tour
         nt=[2]
         # Crossover Probability
@@ -1405,7 +1405,7 @@ class Planning():
             t0=time.perf_counter()
             # with concurrent.futures.ProcessPoolExecutor() as executor:
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
                 for result_exec,result_id in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     result_execs.append(result_exec)
                     result_ids.append(result_id[0])# X
