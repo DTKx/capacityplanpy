@@ -260,7 +260,7 @@ class Planning():
     # General Genetic Algorithms parameters
 
     # Number of genes
-    num_genes=int(37)
+    num_genes=int(15)
 
     # # Mutation
     # pmutp=0.5
@@ -1153,8 +1153,8 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
-        name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
+        # var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
+        # name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START Exec",num_exec)
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
@@ -1196,7 +1196,6 @@ class Planning():
         #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
         # if (pop.objectives_raw<0).any():
         #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
-
         for i_gen in range(0,num_geracoes):
             print("Generation ",i_gen)
 
@@ -1366,24 +1365,35 @@ class Planning():
             # except:
             #     pass
 
-        r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,pop.backlogs[:,6])
-        # r_exec,r_ind=pop.metrics_inversion_minimization(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var)
-        return r_exec,r_ind
+        # r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,pop.backlogs[:,6])
+        # return r_exec,r_ind
+        try:
+            ix_vio=np.where(pop.backlogs[:,6]==0)[0]
+            ix_par=np.where(pop.fronts==0)[0]
+            ix_pareto_novio=np.intersect(ix_vio,ix_par)
+        except:
+            print("No solution without violations, passing all in front 0")
+            ix_pareto_novio=np.where(pop.fronts==0)[0]
 
-    def run_parallel():
+        self.select_pop_by_index(pop,ix_pareto_novio)
+        return pop
+
+    def run_parallel(self):
         """Runs with Multiprocessing.
         """
         # Parameters
-
         # Number of executions
         n_exec=4
         n_exec_ite=range(0,n_exec)
 
-        # Variation 1
+        # Variables
+        # Variant
+        var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
+
         # Number of Chromossomes
         nc=[100]
         # Number of Generations
-        ng=[1000]
+        ng=[20]
         # Number of tour
         nt=[2]
         # Crossover Probability
@@ -1400,21 +1410,52 @@ class Planning():
         result_ids=[]
 
         times=[]
-        var=0
+        # var=0
         for v_i in list_vars:
+            name_var=f'{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}'
+            # Creates a dummy pop with one chromossome to concatenate results
+            pop_main=Population(self.num_genes,1,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
+            pop_main.dicts_batches_end_dsp.append([0])
+
             t0=time.perf_counter()
-            # with concurrent.futures.ProcessPoolExecutor() as executor:
             # with concurrent.futures.ThreadPoolExecutor() as executor:
             with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
-                for result_exec,result_id in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
-                    result_execs.append(result_exec)
-                    result_ids.append(result_id[0])# X
-                    result_ids.append(result_id[1])# Y
+                for pop_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+                    print("In merge pop exec",pop_exec.fronts)
+                    print("In merge pop main",pop_main.fronts)
+                    self.merge_pop_with_offspring(pop_main,pop_exec)
+                    print("Out merge pop main",pop_main.fronts)
+
+            # Removes the first dummy one chromossome
+            self.select_pop_by_index(pop_main,np.arange(1,pop_main.num_chromossomes))
+            print("fronts in",pop_main.fronts)
+            # Front Classification
+            pop_main.fronts=AlgNsga2._fronts(pop_main.objectives_raw,self.num_fronts)
+            print("fronts out",pop_main.fronts)
+            # Select only front 0 with no violations or front 0
+            try:
+                ix_vio=np.where(pop_main.backlogs[:,6]==0)[0]
+                ix_par=np.where(pop_main.fronts==0)[0]
+                ix_pareto_novio=np.intersect(ix_vio,ix_par)
+            except:
+                print("No solution without violations, passing all in front 0.")
+                ix_pareto_novio=np.where(pop_main.fronts==0)[0]
+            print("Selected fronts",pop_main.fronts[ix_pareto_novio])
+            self.select_pop_by_index(pop_main,ix_pareto_novio)
+            print("After function",pop_main.fronts)
+
+            # Extract Metrics
+            r_exec,r_ind=pop_main.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,0,name_var,pop_main.backlogs[:,6])
+            result_execs.append(r_exec)
+            result_ids.append(r_ind[0])# X
+            result_ids.append(r_ind[1])# Y
+
             tf=time.perf_counter()
             delta_t=tf-t0
             print("Total time ",delta_t,"Per execution",delta_t/n_exec)
             times.append([v_i,delta_t,delta_t/n_exec])
-            var+=1
+
+            # var+=1
 
         root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
         name_var="v_0"
@@ -1447,16 +1488,16 @@ class Planning():
     def run_cprofile():
         """Runs without multiprocessing.
         """
-        num_exec=1
+        num_exec=2
         num_chromossomes=100
-        num_geracoes=150
+        num_geracoes=20
         n_tour=2
         pcross=0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
         t0=time.perf_counter()
 
-        results,results_ind=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
         # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
         # pr = cProfile.Profile()
@@ -1476,9 +1517,41 @@ class Planning():
         # delta_t=tf-t0
         # print("Total time ",delta_t)
 
+        # for l in range(0,num_exec):
+        # pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+
+        #     with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+        #         for pop_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
+        #             print("In merge pop exec",pop_exec.fronts)
+        #             print("In merge pop main",pop_main.fronts)
+        #             self.merge_pop_with_offspring(pop_main,pop_exec)
+        #             print("Out merge pop main",pop_main.fronts)
+
+        #     # Front Classification
+        #     pop_main.fronts=AlgNsga2._fronts(pop_main.objectives_raw,self.num_fronts)
+        #     print("fronts"+pop_main.fronts)
+        #     # Select only front 0 with no violations or front 0
+        #     try:
+        #         ix_vio=np.where(pop_main.backlogs[:,6]==0)[0]
+        #         ix_par=np.where(pop_main.fronts==0)[0]
+        #         ix_pareto_novio=np.intersect(ix_vio,ix_par)
+        #     except:
+        #         print("No solution without violations, passing all in front 0.")
+        #         ix_pareto_novio=np.where(pop_main.fronts==0)[0]
+        #     print("Selected fronts"+pop_main.fronts[ix_pareto_novio])
+        #     self.select_pop_by_index(pop_main,ix_pareto_novio)
+        #     print("After function"+pop_main.fronts)
+
+        #     # Extract Metrics
+        #     r_exec,r_ind=pop_main.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,0,name_var,pop_main.backlogs[:,6])
+        #     result_execs.append(r_exec)
+        #     result_ids.append(r_ind[0])# X
+        #     result_ids.append(r_ind[1])# Y
+
+
 
 if __name__=="__main__":
     # Planning.run_cprofile()
-    Planning.run_parallel()
+    Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)
