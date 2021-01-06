@@ -1488,34 +1488,34 @@ class Planning():
     def run_cprofile():
         """Runs without multiprocessing.
         """
-        num_exec=2
+        num_exec=1
         num_chromossomes=100
-        num_geracoes=20
+        num_geracoes=100
         n_tour=2
         pcross=0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=(0.04,0.61,0.77,0.47)
         t0=time.perf_counter()
 
-        pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
+        # pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
         # cProfile.runctx("results,num_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
 
-        # pr = cProfile.Profile()
-        # pr.enable()
-        # pr.runctx("results,results_ind=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
-        # pr.disable()
-        # s = io.StringIO()
-        # sortby = SortKey.CUMULATIVE
-        # ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
-        # root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        # file_name = "cprofile.txt"
-        # path = root_path + file_name
-        # ps.print_stats()
-        # with open(path, 'w+') as f:
-        #     f.write(s.getvalue())
-        # tf=time.perf_counter()
-        # delta_t=tf-t0
-        # print("Total time ",delta_t)
+        pr = cProfile.Profile()
+        pr.enable()
+        pr.runctx("pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)", globals(), locals())
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
+        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+        file_name = "cprofile.txt"
+        path = root_path + file_name
+        ps.print_stats()
+        with open(path, 'w+') as f:
+            f.write(s.getvalue())
+        tf=time.perf_counter()
+        delta_t=tf-t0
+        print("Total time ",delta_t)
 
         # for l in range(0,num_exec):
         # pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
