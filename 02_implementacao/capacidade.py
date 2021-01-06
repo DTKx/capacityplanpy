@@ -498,7 +498,8 @@ class Planning():
             end_dates=end_dates+np.timedelta64(self.qc_days[pop_obj.products_raw[i][j]],'D') # Add QC/QA time
             for date in end_dates:# Appends to the dictionary 
                 batches_end_date_i[pop_obj.products_raw[i][j]].append(date)
-            for j in range(1,pop_obj.genes_per_chromo[i]):# Loop per gene j starting from second gene
+            j+=1
+            while j<pop_obj.genes_per_chromo[i]:# Loop per gene j starting from second gene
                 # Add a Start Date=Previous End Date+Change Over Time
                 pop_obj.start_raw[i,j]=pop_obj.end_raw[i,j-1]+np.timedelta64(self.setup_key_to_subkey[pop_obj.products_raw[i,j]][pop_obj.products_raw[i,j-1]],'D')
 
