@@ -54,6 +54,7 @@ class Population():
             initial_stock (array): Initial Stock of products
             num_months (int): Number of months of planning
         """
+        self.name_variation="-"
         self.num_chromossomes=num_chromossomes
         self.num_genes=num_genes
 
@@ -607,12 +608,12 @@ class Planning():
         demand_i[self.ix_not0]=self.demand_montecarlo[i]
         return demand_i
 
-    def calc_demand_montecarlo(self,line,col):
+    def calc_demand_montecarlo(self):
         """Performs a Montecarlo Simulation to define the Demand of products, uses a demand_distribution for containing either 0 as expected or a triangular distribution (minimum, mode (most likely),maximum) values in kg
 
         Args:
         """       
-        demand_i=np.zeros(shape=(line,col))
+        demand_i=np.zeros(shape=(self.num_months,self.num_products))
         demand_i[self.ix_not0]=self.calc_triangular_dist(self.tr_demand,self.num_monte)
         return demand_i
 
@@ -697,8 +698,8 @@ class Planning():
             # print("Produced",produced_i)
 
             # Calling Monte Carlo to define demand
-            # demand_i=self.calc_demand_montecarlo(self.num_monte,self.num_months,self.num_products)
-            demand_i=self.load_demand_montecarlo(self.num_months,self.num_products)
+            demand_i=self.calc_demand_montecarlo()
+            # demand_i=self.load_demand_montecarlo(self.num_months,self.num_products)
 
             # Loop per Months (Values already in kg)
 
@@ -1135,7 +1136,7 @@ class Planning():
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
         # var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
         # name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
-        print("START Exec",num_exec)
+        print("START Exec number:",num_exec)
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
         # 1.1) Initializes class object for Offspring Population
@@ -1358,6 +1359,14 @@ class Planning():
         self.select_pop_by_index(pop,ix_pareto_novio)
         return pop
 
+    def export_obj(self,obj,path):
+        with open(path, 'wb') as output:  # Overwrites any existing file.
+            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+    def load_obj(self,path):
+        with open(path, 'rb') as input:
+            obj = pickle.load(input)
+        return obj
+
     def run_parallel(self):
         """Runs with Multiprocessing.
         """
@@ -1368,12 +1377,12 @@ class Planning():
 
         # Variables
         # Variant
-        var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
+        var="front_nsga,tour_vio,rein_vio,vio_back,calc_montecarlo"
 
         # Number of Chromossomes
         nc=[100]
         # Number of Generations
-        ng=[1000]
+        ng=[2]
         # Number of tour
         nt=[2]
         # Crossover Probability
@@ -1381,6 +1390,8 @@ class Planning():
         # pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut=[(0.04,0.61,0.77,0.47)]
+
+        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
 
         # List of variants
         list_vars = list(product(*[nc, ng, nt, pcross,pmut]))
@@ -1395,11 +1406,12 @@ class Planning():
             name_var=f'{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}'
             # Creates a dummy pop with one chromossome to concatenate results
             pop_main=Population(self.num_genes,1,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
+            pop_main.name_variation=name_var
             pop_main.dicts_batches_end_dsp.append([0])
 
             t0=time.perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
                 for pop_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
                     print("In merge pop exec",pop_exec.fronts)
                     print("In merge pop main",pop_main.fronts)
@@ -1417,8 +1429,10 @@ class Planning():
                 ix_vio=np.where(pop_main.backlogs[:,6]==0)[0]
                 ix_par=np.where(pop_main.fronts==0)[0]
                 ix_pareto_novio=np.intersect(ix_vio,ix_par)
+                var=var+"metrics_front0_wo_vio"
             except:
                 print("No solution without violations, passing all in front 0.")
+                var=var+"metrics_front0_w_vio"
                 ix_pareto_novio=np.where(pop_main.fronts==0)[0]
             print("Selected fronts",pop_main.fronts[ix_pareto_novio])
             self.select_pop_by_index(pop_main,ix_pareto_novio)
@@ -1430,14 +1444,15 @@ class Planning():
             result_ids.append(r_ind[0])# X
             result_ids.append(r_ind[1])# Y
 
+            file_name=f'pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl'
+            self.export_obj(pop_main,root_path + file_name)
+
             tf=time.perf_counter()
             delta_t=tf-t0
             print("Total time ",delta_t,"Per execution",delta_t/n_exec)
             times.append([v_i,delta_t,delta_t/n_exec])
 
             # var+=1
-
-        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
         name_var="v_0"
         # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
         file_name = name_var+"_results.csv"
@@ -1453,16 +1468,11 @@ class Planning():
 
         # Export Pickle
         file_name = name_var+"_exec.pkl"
-        path = root_path + file_name
-        file_pkl = open(path, "wb")
-        pickle.dump(result_execs, file_pkl)
-        file_pkl.close()
+        self.export_obj(result_execs,root_path + file_name)
 
         file_name = name_var+"_id.pkl"
-        path = root_path + file_name
-        file_pkl = open(path, "wb")
-        pickle.dump(result_ids, file_pkl)
-        file_pkl.close()
+        self.export_obj(result_ids,root_path + file_name)
+
         print("Finish")
 
     def run_cprofile():
@@ -1496,39 +1506,6 @@ class Planning():
         tf=time.perf_counter()
         delta_t=tf-t0
         print("Total time ",delta_t)
-
-        # for l in range(0,num_exec):
-        # pop_exec=Planning().main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)
-
-        #     with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
-        #         for pop_exec in (executor.map(Planning().main,n_exec_ite,[v_i[0]]*n_exec,[v_i[1]]*n_exec,[v_i[2]]*n_exec,[v_i[3]]*n_exec,[v_i[4]]*n_exec)):
-        #             print("In merge pop exec",pop_exec.fronts)
-        #             print("In merge pop main",pop_main.fronts)
-        #             self.merge_pop_with_offspring(pop_main,pop_exec)
-        #             print("Out merge pop main",pop_main.fronts)
-
-        #     # Front Classification
-        #     pop_main.fronts=AlgNsga2._fronts(pop_main.objectives_raw,self.num_fronts)
-        #     print("fronts"+pop_main.fronts)
-        #     # Select only front 0 with no violations or front 0
-        #     try:
-        #         ix_vio=np.where(pop_main.backlogs[:,6]==0)[0]
-        #         ix_par=np.where(pop_main.fronts==0)[0]
-        #         ix_pareto_novio=np.intersect(ix_vio,ix_par)
-        #     except:
-        #         print("No solution without violations, passing all in front 0.")
-        #         ix_pareto_novio=np.where(pop_main.fronts==0)[0]
-        #     print("Selected fronts"+pop_main.fronts[ix_pareto_novio])
-        #     self.select_pop_by_index(pop_main,ix_pareto_novio)
-        #     print("After function"+pop_main.fronts)
-
-        #     # Extract Metrics
-        #     r_exec,r_ind=pop_main.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,0,name_var,pop_main.backlogs[:,6])
-        #     result_execs.append(r_exec)
-        #     result_ids.append(r_ind[0])# X
-        #     result_ids.append(r_ind[1])# Y
-
-
 
 if __name__=="__main__":
     # Planning.run_cprofile()
