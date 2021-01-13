@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import copy
-# import timeit
+from ast import literal_eval
 import datetime
 from dateutil.relativedelta import *
 import pandas as pd
@@ -263,12 +263,6 @@ class Planning():
     # Number of genes
     num_genes=int(15)
 
-    # # Mutation
-    # pmutp=0.5
-    # pposb=0.5
-    # pnegb=0.5
-    # pswap=0.5
-
     # Problem variables
 
     # Number of products
@@ -288,12 +282,15 @@ class Planning():
 
     # Number of Monte Carlo executions Article ==1000
     num_monte=500
+    input_path="C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
 
     # Process Data 
+ 
     products = [0,1,2,3]
-    usp_days=dict(zip(products,[45,36,45,49]))
-    dsp_days=dict(zip(products,[7,11,7,7]))
-    qc_days=dict(zip(products,[90,90,90,90]))
+    inoculation_days=dict(zip(products,[20,15,20,26])) #Source: Thesis, Inoculation is a part of the USP
+    usp_days=dict(zip(products,[45,36,45,49])) #total USP days
+    dsp_days=dict(zip(products,[7,11,7,7])) #total USP days
+    qc_days=dict(zip(products,[90,90,90,90])) #total QC days
     qc_max_months=4
     yield_kg_batch=dict(zip(products,[3.1,6.2,4.9,5.5]))
     yield_kg_batch_ar=np.array([3.1,6.2,4.9,5.5])
@@ -302,17 +299,10 @@ class Planning():
     min_batch=dict(zip(products,[2,2,2,3]))
     max_batch=dict(zip(products,[50,50,50,30]))
     batch_multiples=dict(zip(products,[1,1,1,3]))
+   
+    target_stock=np.loadtxt(open(input_path+"target_stock.csv", "rb"), delimiter=",", skiprows=1)# Target Stock
 
-    # Target Stock
-    target_0=[6.2,6.2,9.3,9.3,12.4,12.4,15.5,21.7,21.7,24.8,21.7,24.8,27.9,21.7,24.8,24.8,24.8,27.9,27.9,27.9,31,31,34.1,34.1,27.9,27.9,27.9,27.9,34.1,34.1,31,31,21.7,15.5,6.2,0]
-    target_1=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2,6.2]
-    target_2=[0,4.9,9.8,9.8,9.8,9.8,19.6,19.6,14.7,19.6,19.6,19.6,14.7,19.6,19.6,14.7,14.7,19.6,19.6,9.8,19.6,19.6,19.6,19.6,24.5,34.3,24.5,29.4,39.2,39.2,29.4,19.6,19.6,14.7,4.9,0]
-    target_3=[22,27.5,27.5,27.5,27.5,33,33,27.5,27.5,27.5,38.5,33,33,33,33,33,27.5,33,33,33,38.5,33,38.5,33,33,33,33,44,33,33,33,33,22,11,11,5.5]
-    # target_stock=[{0: a,1: b,2: c,3: d} for a,b,c,d in zip(target_0,target_1,target_2,target_3)]
-    target_stock=np.column_stack([target_0,target_1,target_2,target_3])
-
-    # Setup Time
-    s0=[0,10,16,20]
+    s0=[0,10,16,20]# Setup Time
     s1=[16,0,16,20]
     s2=[16,10,0,20]
     s3=[18,10,18,0]
@@ -321,147 +311,37 @@ class Planning():
     # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
     inversion_val_throughput=2000
 
-    demand_distribution=np.array([[0.0 ,0.0 ,0.0 ,0.0],
-    [0.0,0.0,0.0 ,(4.5, 5.5, 8.25) ],
-    [(2.1, 3.1, 4.65) ,0.0,0.0 ,(4.5, 5.5, 8.25)],
-    [0.0,0.0 ,0.0 ,0.0],
-    [0.0,0.0 ,0.0 ,(4.5, 5.5, 8.25) ],
-    [(2.1, 3.1, 4.65) ,0.0 ,0.0,(4.5, 5.5, 8.25) ],
-    [0.0,0.0 ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25) ],
-    [(2.1, 3.1, 4.65) ,0.0 ,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25) ],
-    [(2.1, 3.1, 4.65) ,0.0 ,0.0 ,(4.5, 5.5, 8.25)],
-    [(2.1, 3.1, 4.65),0.0 ,0.0 ,0.0],
-    [0.0,0.0 ,0.0,(10, 11, 16.5) ],
-    [(5.2, 6.2, 9.3) ,0.0 ,(8.8, 9.8, 14.7) ,(4.5, 5.5, 8.25)],
-    [(5.2, 6.2, 9.3) ,0.0 ,(3.9, 4.9, 7.35),0.0],
-    [(2.1, 3.1, 4.65) ,0.0 ,0.0,(4.5, 5.5, 8.25) ],
-    [(5.2, 6.2, 9.3),0.0 ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25) ],
-    [0.0,0.0 ,0.0,(10, 11, 16.5) ],
-    [(2.1, 3.1, 4.65) ,0.0 ,0.0,(4.5, 5.5, 8.25) ],
-    [(8.3, 9.3, 13.95),0.0 ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25)],
-    [0.0,0.0 ,(8.8, 9.8, 14.7),0.0],
-    [(5.2, 6.2, 9.3) ,0.0 ,0.0 ,(4.5, 5.5, 8.25) ],
-    [(5.2, 6.2, 9.3),0.0 ,0.0 ,(4.5, 5.5, 8.25) ],
-    [0.0,0.0,0.0,(4.5, 5.5, 8.25) ],
-    [(5.2, 6.2, 9.3) ,(5.2, 6.2, 9.3) ,(3.9, 4.9, 7.35) ,(10, 11, 16.5) ],
-    [(8.3, 9.3, 13.95),0.0,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25)],
-    [0.0,0.0 ,0.0,0.0],
-    [(8.3, 9.3, 13.95) ,0.0 ,(8.8, 9.8, 14.7) ,(10, 11, 16.5) ],
-    [(5.2, 6.2, 9.3) ,0.0 ,0.0,0.0],
-    [(2.1, 3.1, 4.65) ,0.0,0.0,(10, 11, 16.5) ],
-    [(5.2, 6.2, 9.3) ,(5.2, 6.2, 9.3) ,(3.9, 4.9, 7.35) ,(4.5, 5.5, 8.25) ],
-    [(2.1, 3.1, 4.65),0.0,(8.8, 9.8, 14.7) ,(4.5, 5.5, 8.25)],
-    [0.0,0.0 ,(8.8, 9.8, 14.7),0.0],
-    [(8.3, 9.3, 13.95) ,0.0 ,0.0,(10, 11, 16.5) ],
-    [(5.2, 6.2, 9.3) ,0.0 ,(3.9, 4.9, 7.35) ,(10, 11, 16.5)],
-    [(8.3, 9.3, 13.95) ,0.0 ,(8.8, 9.8, 14.7) ,0.0],
-    [(5.2, 6.2, 9.3),0.0,(3.9, 4.9, 7.35),(4.5, 5.5, 8.25) ],
-    [0.0,(5.2, 6.2, 9.3) ,0.0,(4.5, 5.5, 8.25)]])
+    with open(input_path+'demand_distribution.txt',"r") as content:
+        demand_distribution=np.array(literal_eval(content.read()))
 
     # Monte Carlo 
-
-    # Index of values that are not zeros
-    ix_not0=np.where(demand_distribution!=0)
-    # Length of rows to calculate triangular
-    tr_len=len(demand_distribution[ix_not0])
-    # # Generates tr_demand 
-    # tr_demand=np.zeros(shape=(tr_len,3))
-    # for i in range(0,tr_len):
-    #     tr_demand[i]=np.array(demand_distribution[ix_not0][i],dtype=np.float64)
-    tr_demand=np.array([[ 4.5 ,  5.5 ,  8.25],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 2.1 ,  3.1 ,  4.65],
-        [10.  , 11.  , 16.5 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 8.8 ,  9.8 , 14.7 ],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [10.  , 11.  , 16.5 ],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 8.3 ,  9.3 , 13.95],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 8.8 ,  9.8 , 14.7 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 3.9 ,  4.9 ,  7.35],
-        [10.  , 11.  , 16.5 ],
-        [ 8.3 ,  9.3 , 13.95],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 8.3 ,  9.3 , 13.95],
-        [ 8.8 ,  9.8 , 14.7 ],
-        [10.  , 11.  , 16.5 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 2.1 ,  3.1 ,  4.65],
-        [10.  , 11.  , 16.5 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 2.1 ,  3.1 ,  4.65],
-        [ 8.8 ,  9.8 , 14.7 ],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 8.8 ,  9.8 , 14.7 ],
-        [ 8.3 ,  9.3 , 13.95],
-        [10.  , 11.  , 16.5 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 3.9 ,  4.9 ,  7.35],
-        [10.  , 11.  , 16.5 ],
-        [ 8.3 ,  9.3 , 13.95],
-        [ 8.8 ,  9.8 , 14.7 ],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 3.9 ,  4.9 ,  7.35],
-        [ 4.5 ,  5.5 ,  8.25],
-        [ 5.2 ,  6.2 ,  9.3 ],
-        [ 4.5 ,  5.5 ,  8.25]])
-    # External File Monte Carlo Simulations
-    # Open pickle dict Results
-    file_name='demand_montecarlo.pkl'
-    root_path_data = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-    path=root_path_data+file_name
-    infile = open(path,'rb')
-    demand_montecarlo= pickle.load(infile)
-    infile.close()
-    num_demands=len(demand_montecarlo)
+   
+    ix_not0=np.where(demand_distribution!=0)# Index of values that are not zeros
+    tr_demand=np.loadtxt(open(input_path+"triangular_demand.txt", "rb"), delimiter=",") #1D array with only not zeros demand_distribution
+    
+    with open(input_path+'demand_montecarlo.pkl','rb') as reader:
+        demand_montecarlo= pickle.load(reader) # Pre Calculated Monte Carlo Simulations option
 
     # NSGA Variables
-
-    # Number of fronts created
-    num_fronts=3
-
-    # Big Dummy for crowding distance computation
-    big_dummy=10**5
+  
+    num_fronts=3# Number of fronts created
+    big_dummy=10**5# Big Dummy for crowding distance computation
 
     # Hypervolume parameters
 
-    # Reference point
-    ref_point=[inversion_val_throughput+500,2500]
-    # hv_vol_norma=volume_ger
-    volume_max=np.prod(ref_point)
+    ref_point=[inversion_val_throughput+500,2500]# Hypervolume Reference point
+    volume_max=np.prod(ref_point) #Maximum Volume
+
+    def create_export_demand_not_null(self):
+        with open(self.input_path+'demand_distribution.txt',"r") as content:
+            demand_distribution=np.array(literal_eval(content.read()))
+        # Length of rows to calculate triangular
+        tr_len=len(demand_distribution[self.ix_not0])
+        # Generates tr_demand 
+        tr_demand=np.zeros(shape=(tr_len,3))
+        for i in range(0,tr_len):
+            tr_demand[i]=np.array(demand_distribution[ix_not0][i],dtype=np.float64)
+        np.savetxt(self.input_path+'triangular_demand.txt', tr_demand, delimiter=",")
 
 
     def calc_start_end(self,pop_obj):
@@ -541,24 +421,24 @@ class Planning():
             # Appends dictionary of individual to the list of dictionaries
             pop_obj.dicts_batches_end_dsp.append(batches_end_date_i)
 
-            # Testing
+            # # Testing
 
-            # Produced Month 0 is the first month of inventory batches
-            produced_i=np.zeros(shape=(self.num_months+self.qc_max_months,self.num_products),dtype=int)
-            for key in pop_obj.dicts_batches_end_dsp[i].keys():
-                # Aggregated count per month 
-                # aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='end').sum()
-                aggregated=pd.Series(1,index=pd.to_datetime(pop_obj.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
-                for k in range(0,len(aggregated)):
-                    m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).years*12+relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
-                    # Updates the month with the number of batches produced
-                    produced_i[m,key]=aggregated[k]
-            # Conversion batches to kg
-            produced_i=np.sum(produced_i,axis=0)*self.yield_kg_batch_ar
-            a=np.sum(produced_i)
-            pop_obj.objectives_raw[i,0]=np.inner(pop_obj.batches_raw[i][pop_obj.masks[i]],pop_yield[i][pop_obj.masks[i]])
-            if pop_obj.objectives_raw[i,0]-a>1:
-                raise Exception("Error in Objective 1")
+            # # Produced Month 0 is the first month of inventory batches
+            # produced_i=np.zeros(shape=(self.num_months+self.qc_max_months,self.num_products),dtype=int)
+            # for key in pop_obj.dicts_batches_end_dsp[i].keys():
+            #     # Aggregated count per month 
+            #     # aggregated=pd.Series(1,index=pd.to_datetime(pop.dicts_batches_end_dsp[i][key])).resample("M", convention='end').sum()
+            #     aggregated=pd.Series(1,index=pd.to_datetime(pop_obj.dicts_batches_end_dsp[i][key])).resample("M", convention='start').sum()
+            #     for k in range(0,len(aggregated)):
+            #         m = relativedelta.relativedelta(aggregated.index[k],self.date_stock).years*12+relativedelta.relativedelta(aggregated.index[k],self.date_stock).months
+            #         # Updates the month with the number of batches produced
+            #         produced_i[m,key]=aggregated[k]
+            # # Conversion batches to kg
+            # produced_i=np.sum(produced_i,axis=0)*self.yield_kg_batch_ar
+            # a=np.sum(produced_i)
+            # pop_obj.objectives_raw[i,0]=np.inner(pop_obj.batches_raw[i][pop_obj.masks[i]],pop_yield[i][pop_obj.masks[i]])
+            # if pop_obj.objectives_raw[i,0]-a>1:
+            #     raise Exception("Error in Objective 1")
 
 
 
@@ -604,9 +484,9 @@ class Planning():
         Args:
         """       
         i=random.randint(0,self.num_demands-1)
-        demand_i=np.zeros(shape=(line,col))
-        demand_i[self.ix_not0]=self.demand_montecarlo[i]
-        return demand_i
+        # demand_i=np.zeros(shape=(line,col))
+        # demand_i[self.ix_not0]=self.demand_montecarlo[i]
+        return self.demand_montecarlo[i]
 
     def calc_demand_montecarlo(self):
         """Performs a Montecarlo Simulation to define the Demand of products, uses a demand_distribution for containing either 0 as expected or a triangular distribution (minimum, mode (most likely),maximum) values in kg
@@ -1134,8 +1014,6 @@ class Planning():
         pop.crowding_dist=pop.crowding_dist[ix_reinsert]
 
     def main(self,num_exec,num_chromossomes,num_geracoes,n_tour,perc_crossover,pmut):
-        # var="front_nsga,tour_vio,rein_vio,vio_back,metrics_pareto_vio"
-        # name_var=f'{var},{num_chromossomes},{num_geracoes},{n_tour},{perc_crossover},{pmut}'
         print("START Exec number:",num_exec)
         # 1) Random parent population is initialized with its attributes
         pop=Population(self.num_genes,num_chromossomes,self.num_products,self.num_objectives,self.start_date,self.initial_stock,self.num_months)
@@ -1508,7 +1386,7 @@ class Planning():
         print("Total time ",delta_t)
 
 if __name__=="__main__":
-    # Planning.run_cprofile()
-    Planning().run_parallel()
+    Planning.run_cprofile()
+    # Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)
