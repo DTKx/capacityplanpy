@@ -329,8 +329,7 @@ class Planning:
 
     # Monte Carlo
 
-    # Index of values that are not zeros
-    ix_not0 = np.where(demand_distribution != 0)
+    ix_not0 = np.where(demand_distribution != 0)# Index of values that are not zeros
     tr_demand = np.loadtxt(
         open(input_path + "triangular_demand.txt", "rb"), delimiter=","
     )  # 1D array with only not zeros demand_distribution
@@ -501,11 +500,16 @@ class Planning:
     # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     @jit(nopython=True, nogil=True, fastmath=True)
     def calc_triangular_dist(demand_distribution, num_monte):
+        return np.random.triangular(demand_distribution[0], demand_distribution[1], demand_distribution[2], size=num_monte)
+
+    @staticmethod
+    # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
+    def calc_median_triangular_dist(demand_distribution, num_monte):
         n = len(demand_distribution)
         demand_i = np.zeros(shape=(n,))
         # demand_i=np.median(np.random.triangular(demand_distribution[:][0],demand_distribution[:][1],demand_distribution[:][2],size=num_monte))
-        # Loop in line
-        for i in np.arange(0, n):
+        for i in np.arange(0, n):# Loop per month
             demand_i[i] = np.median(
                 np.random.triangular(
                     demand_distribution[i][0], demand_distribution[i][1], demand_distribution[i][2], size=num_monte,
@@ -546,7 +550,7 @@ class Planning:
         Args:
         """
         demand_i = np.zeros(shape=(self.num_months, self.num_products))
-        demand_i[self.ix_not0] = self.calc_triangular_dist(self.tr_demand, self.num_monte)
+        demand_i[self.ix_not0] = self.calc_median_triangular_dist(self.tr_demand, self.num_monte)
         return demand_i
 
     @staticmethod
@@ -597,6 +601,112 @@ class Planning:
                 # print(f"backlog {backlog_i[j][ix_neg]} check if mutated after assignement of stock")
         return stock_i, backlog_i
 
+    def calc_median_deficit_backlog(self,pop,i):
+        """Calculates the Objective Deficit and backlog of distribution considering a Monte Carlo Simulation of demand.
+
+        Args:
+            pop (Population Class): Population object from class Population
+            i (int): Index of individual being evaluated
+
+        Returns:
+            float: Median of objective deficit
+        """
+        deficit_distribution=np.zeros(shape=(self.num_monte,))#Stores deficit 
+        backlog_distribution=np.zeros(shape=(self.num_monte,))#Stores backlog
+
+        n_tr_distributions=len(self.tr_demand)#number of different simulations needed to calculate one deficit 
+        # demand_i_tr={}
+        # demand_i_tr[0]=demand_values.copy()
+        # demand_i_mc={}
+        # demand_i_mc
+    	# demand_i_tr[0][0]=demand_values.copy()
+        # demand_i_tr = np.zeros(shape=(self.num_months,self.num_products))
+        for k in np.arange(0, n_tr_distributions):# Loop per triangular distributions
+            demand_values=self.calc_triangular_dist(self.tr_demand[t], self.num_monte)
+            demand[self.ix_not0] = self.calc_triangular_dist(self.tr_demand[t], self.num_monte)
+            print("hey")
+
+        # Loop per num_monte simulation
+        
+
+        demand_i = np.zeros(shape=(self.num_months,self.num_products))
+        produced_i = produced.copy()# Produced Month 0 is the first month of inventory batches
+        available_i = np.zeros(shape=(self.num_months, self.num_products))
+        stock_i = np.zeros(shape=(self.num_months, self.num_products))
+        backlog_i = np.zeros(shape=(self.num_months, self.num_products))
+
+        # # demand_i = self.calc_demand_montecarlo()
+        # # demand_i=self.load_demand_montecarlo(self.num_months,self.num_products)
+        # demand_i = np.zeros(shape=(self.num_months, self.num_products))
+        # demand_i[self.ix_not0] = self.calc_triangular_dist(self.tr_demand, self.num_monte)
+        
+        produced= pop.dicts_batches_month_kg[i]# Produced Month 0 is the first month of inventory batches
+
+        available_i[0, :] = self.initial_stock + produced_i[0, :]# Evaluates stock for Initial Month (0) Available=Previous Stock+Produced this month
+        
+        stock_i[0, :] = available_i[0, :] - demand_i[0, :]# Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+
+        ix_neg = np.where(stock_i[0, :] < 0)
+        if len(ix_neg) > 0:# Corrects negative values
+            backlog_i[0, :][ix_neg] = (stock_i[0, :][ix_neg]).copy() * (-1)# Adds negative values to backlog
+            stock_i[0, :][ix_neg] = 0# Corrects if Stock is negative
+
+
+
+        # # Loop per Months (Values already in kg)
+
+        # # Evaluates Stock over all months
+        # # print("inStock")
+        # # print(stock_i)
+        # # print("inBack")
+        # # print(backlog_i)
+        # # print("Produced",produced_i)
+        # stock_i, backlog_i = self.calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, self.num_months)
+        # # print("Produced",produced_i)
+        # # print("ouStock")
+        # # print(stock_i)
+        # # print("ouBack")
+        # # print(backlog_i)
+        #     # Stores backlogs and metrics
+        #     # # 0)Max total backlog months and products, 1)Mean total backlog months and products,
+        #     # # 2)Std Dev total backlog months and products, 3)Median total backlog months and products,
+        #     # # 4)Min total backlog months and products 5)Sum total backlog months and products
+        #     # 6)Backlog violations
+        #     pop.backlogs[i] = np.array(
+        #         [
+        #             np.amax(backlog_i),
+        #             np.mean(backlog_i),
+        #             np.std(backlog_i),
+        #             np.median(backlog_i),
+        #             np.amin(backlog_i),
+        #             np.sum(backlog_i),
+        #             np.sum(np.median(backlog_i) > 0),
+        #         ]
+        #     )
+        #     # pop.backlogs[i]=np.array([np.amax(backlog_i),np.mean(backlog_i),np.std(backlog_i),
+        #     # np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(backlog_i>0)])
+
+        #     # Calculates the objective AND METRICS Strategic Deficit
+        #     deficit_i = self.calc_objective_deficit_strat(self.target_stock, stock_i)
+
+        #     pop.deficit[i] = np.array(
+        #         [
+        #             np.amax(deficit_i),
+        #             np.mean(deficit_i),
+        #             np.std(deficit_i),
+        #             np.median(deficit_i),
+        #             np.amin(deficit_i),
+        #             np.sum(deficit_i),
+        #         ]
+        #     )
+        median_deficit=0
+
+
+        return median_deficit
+
+
+
+
     def calc_inventory_objectives(self, pop):
         """Calculates Inventory levels returning the backlog and calculates the objectives the total deficit and total throughput addying to the pop attribute
 
@@ -612,91 +722,90 @@ class Planning:
         for i in range(0, len(pop.products_raw)):
             if any(pop.batches_raw[i][pop.masks[i]] == 0):
                 raise Exception("Invalid number of batches (0).")
+            median_deficit_i=self.calc_median_deficit_backlog(pop,i)
 
-            available_i = np.zeros(shape=(self.num_months, self.num_products))
-            stock_i = np.zeros(shape=(self.num_months, self.num_products))
-            backlog_i = np.zeros(shape=(self.num_months, self.num_products))
+            # available_i = np.zeros(shape=(self.num_months, self.num_products))
+            # stock_i = np.zeros(shape=(self.num_months, self.num_products))
+            # backlog_i = np.zeros(shape=(self.num_months, self.num_products))
 
-            # Produced Month 0 is the first month of inventory batches
-            produced_i = pop.dicts_batches_month_kg[i]
+            # # Produced Month 0 is the first month of inventory batches
+            # produced_i = pop.dicts_batches_month_kg[i]
 
-            # Calling Monte Carlo to define demand
-            demand_i = self.calc_demand_montecarlo()
-            # demand_i=self.load_demand_montecarlo(self.num_months,self.num_products)
+            # # Calling Monte Carlo to define demand
+            # demand_i = self.calc_demand_montecarlo()
+            # # demand_i=self.load_demand_montecarlo(self.num_months,self.num_products)
 
-            # Loop per Months (Values already in kg)
+            # # Loop per Months (Values already in kg)
 
-            # Evaluates stock for Initial Month (0)
-            # Available=Previous Stock+Produced this month
-            available_i[0, :] = self.initial_stock + produced_i[0, :]
-            # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
-            stock_i[0, :] = available_i[0, :] - demand_i[0, :]
-            # Corrects negative values
-            ix_neg = np.where(stock_i[0, :] < 0)
-            if len(ix_neg) > 0:
-                # Adds negative values to backlog
-                backlog_i[0, :][ix_neg] = (stock_i[0, :][ix_neg]).copy() * (-1)
-                # Corrects if Stock is negative
-                stock_i[0, :][ix_neg] = 0
-            # Evaluates Stock over all months
-            # print("inStock")
-            # print(stock_i)
-            # print("inBack")
-            # print(backlog_i)
-            # print("Produced",produced_i)
-            stock_i, backlog_i = self.calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, self.num_months)
-            # print("Produced",produced_i)
-            # print("ouStock")
-            # print(stock_i)
-            # print("ouBack")
-            # print(backlog_i)
+            # # Evaluates stock for Initial Month (0)
+            # available_i[0, :] = self.initial_stock + produced_i[0, :]# Available=Previous Stock+Produced this month
+            
+            # stock_i[0, :] = available_i[0, :] - demand_i[0, :]# Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+            # # Corrects negative values
+            # ix_neg = np.where(stock_i[0, :] < 0)
+            # if len(ix_neg) > 0:
+            #     # Adds negative values to backlog
+            #     backlog_i[0, :][ix_neg] = (stock_i[0, :][ix_neg]).copy() * (-1)
+            #     # Corrects if Stock is negative
+            #     stock_i[0, :][ix_neg] = 0
+            # # Evaluates Stock over all months
+            # # print("inStock")
+            # # print(stock_i)
+            # # print("inBack")
+            # # print(backlog_i)
+            # # print("Produced",produced_i)
+            # stock_i, backlog_i = self.calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, self.num_months)
+            # # print("Produced",produced_i)
+            # # print("ouStock")
+            # # print(stock_i)
+            # # print("ouBack")
+            # # print(backlog_i)
 
-            # Stores backlogs and metrics
-            # # 0)Max total backlog months and products, 1)Mean total backlog months and products,
-            # # 2)Std Dev total backlog months and products, 3)Median total backlog months and products,
-            # # 4)Min total backlog months and products 5)Sum total backlog months and products
-            # 6)Backlog violations
-            pop.backlogs[i] = np.array(
-                [
-                    np.amax(backlog_i),
-                    np.mean(backlog_i),
-                    np.std(backlog_i),
-                    np.median(backlog_i),
-                    np.amin(backlog_i),
-                    np.sum(backlog_i),
-                    np.sum(np.median(backlog_i) > 0),
-                ]
-            )
-            # pop.backlogs[i]=np.array([np.amax(backlog_i),np.mean(backlog_i),np.std(backlog_i),
-            # np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(backlog_i>0)])
+            # # Stores backlogs and metrics
+            # # # 0)Max total backlog months and products, 1)Mean total backlog months and products,
+            # # # 2)Std Dev total backlog months and products, 3)Median total backlog months and products,
+            # # # 4)Min total backlog months and products 5)Sum total backlog months and products
+            # # 6)Backlog violations
+            # pop.backlogs[i] = np.array(
+            #     [
+            #         np.amax(backlog_i),
+            #         np.mean(backlog_i),
+            #         np.std(backlog_i),
+            #         np.median(backlog_i),
+            #         np.amin(backlog_i),
+            #         np.sum(backlog_i),
+            #         np.sum(np.median(backlog_i) > 0),
+            #     ]
+            # )
+            # # pop.backlogs[i]=np.array([np.amax(backlog_i),np.mean(backlog_i),np.std(backlog_i),
+            # # np.median(backlog_i),np.amin(backlog_i),np.sum(backlog_i),np.sum(backlog_i>0)])
 
-            # Calculates the objective AND METRICS Strategic Deficit
-            deficit_i = self.calc_objective_deficit_strat(self.target_stock, stock_i)
+            # # Calculates the objective AND METRICS Strategic Deficit
+            # deficit_i = self.calc_objective_deficit_strat(self.target_stock, stock_i)
 
-            pop.deficit[i] = np.array(
-                [
-                    np.amax(deficit_i),
-                    np.mean(deficit_i),
-                    np.std(deficit_i),
-                    np.median(deficit_i),
-                    np.amin(deficit_i),
-                    np.sum(deficit_i),
-                ]
-            )
-            pop.objectives_raw[i, 1] = pop.deficit[i][3]
+            # pop.deficit[i] = np.array(
+            #     [
+            #         np.amax(deficit_i),
+            #         np.mean(deficit_i),
+            #         np.std(deficit_i),
+            #         np.median(deficit_i),
+            #         np.amin(deficit_i),
+            #         np.sum(deficit_i),
+            #     ]
+            # )
+            pop.objectives_raw[i, 1] = median_deficit_i #Adds the objective deficit
+            # pop.objectives_raw[i, 1] = pop.deficit[i][3]
 
             # pop.deficit[i]=np.median(deficit,axis=1)
             # pop.objectives_raw[i,1]=np.median(pop.deficit[i])
             # pop.deficit[i]=self.calc_objective_deficit_strat(self.target_stock,stock_i)
             # pop.objectives_raw[i,1]=np.sum(pop.deficit[i])
 
-            # Calculates the objective Throughput
+            pop.objectives_raw[i, 0] = self.inversion_val_throughput - np.dot(pop.batches_raw[i][pop.masks[i]], pop_yield[i][pop.masks[i]])# Inversion of the Throughput by a fixed value to generate a minimization problem
             # a=np.sum(produced_i)
-            pop.objectives_raw[i, 0] = np.dot(pop.batches_raw[i][pop.masks[i]], pop_yield[i][pop.masks[i]])
             # if pop.objectives_raw[i,0]-a>1:
             #     raise Exception("Error in Objective 1")
-            # Inversion of the Throughput by a fixed value to generate a minimization problem
-            pop.objectives_raw[i, 0] = self.inversion_val_throughput - pop.objectives_raw[i, 0]
+            
 
     def calc_violations(self, pop):
         """Calculates number of violations of constraints, each type of violation is type any, ie if any campaign violates it counts as one.
@@ -1476,7 +1585,7 @@ class Planning:
 
 
 if __name__ == "__main__":
-    # Planning.run_cprofile()
-    Planning().run_parallel()
+    Planning.run_cprofile()
+    # Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)
