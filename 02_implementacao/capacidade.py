@@ -293,7 +293,7 @@ class Planning:
     # date_stock = list_months[0]
 
     # Number of Monte Carlo executions Article ==1000
-    num_monte = 100
+    num_monte = 1000
     input_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
 
     # Process Data
@@ -1318,7 +1318,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 2
+        n_exec = 9
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1359,7 +1359,7 @@ class Planning:
 
             t0 = time.perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
                 for pop_exec in executor.map(
                     Planning().main,
                     n_exec_ite,
