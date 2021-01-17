@@ -261,7 +261,7 @@ class Population:
         # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
-        self.objectives_raw[:, 0] -= inversion_val_throughput
+        self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
         # Metrics
         ix_best_min = np.argmin(self.objectives_raw[:, 0][ix_pareto])
         ix_best_max = np.argmax(self.objectives_raw[:, 0][ix_pareto])
@@ -300,7 +300,7 @@ class Planning:
     # date_stock = list_months[0]
 
     # Number of Monte Carlo executions Article ==1000
-    num_monte = 10
+    num_monte = 100
     input_path = (
         "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
     )
@@ -691,6 +691,9 @@ class Planning:
         distribution_sums_backlog = np.zeros(
             shape=(self.num_monte,), dtype=float
         )  # Stores backlog distributions
+        count_backlog_violations_j = (
+            0  # Stores the count of backlog violations (Median backlog >) per simulation
+        )
         for j in range(0, self.num_monte):  # Loop per number of monte carlo simulations
             demand_j = np.zeros(shape=self.demand_distribution.shape, dtype=float)
             produced_j = pop.dicts_batches_month_kg[
@@ -732,7 +735,7 @@ class Planning:
 
             deficit_strat_j = np.subtract(
                 self.target_stock.copy(), stock_j.copy()
-            )  # Minimise the median total inventory deficit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
+            )  # Minimise the median total inventory deicit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
             # print("deficit in",deficit_strat_j)
             deficit_strat_j[
                 deficit_strat_j < 0
@@ -740,6 +743,8 @@ class Planning:
             # print("deficit out",deficit_strat_j)
             distribution_sums_backlog[j] = np.sum(backlog_j)
             distribution_sums_deficit[j] = np.sum(deficit_strat_j)
+            if np.median(backlog_j) > 0:  # If higher than zero, violation.
+                count_backlog_violations_j += 1
 
         pop.backlogs[i] = np.array(
             [
@@ -749,7 +754,7 @@ class Planning:
                 np.median(distribution_sums_backlog),  # 3)Median total backlog months and products
                 np.amin(distribution_sums_backlog),  # 4)Min total backlog months and products
                 np.sum(distribution_sums_backlog),  # 5)Sum total backlog months and products
-                np.sum(np.median(distribution_sums_backlog) > 0),  # 6)Backlog violations
+                count_backlog_violations_j,  # 6)Backlog violations
             ]
         )  # Stores backlogs and metrics
         median_deficit = np.median(distribution_sums_deficit)
@@ -1425,7 +1430,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 9
+        n_exec = 20
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1435,7 +1440,7 @@ class Planning:
         # Number of Chromossomes
         nc = [100]
         # Number of Generations
-        ng = [5]
+        ng = [1000]
         # Number of tour
         nt = [2]
         # Crossover Probability
