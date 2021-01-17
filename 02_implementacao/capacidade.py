@@ -261,7 +261,7 @@ class Population:
         # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization by addying a constant
-        self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
+        self.objectives_raw[:, 0] -= inversion_val_throughput
         # Metrics
         ix_best_min = np.argmin(self.objectives_raw[:, 0][ix_pareto])
         ix_best_max = np.argmax(self.objectives_raw[:, 0][ix_pareto])
@@ -300,7 +300,7 @@ class Planning:
     # date_stock = list_months[0]
 
     # Number of Monte Carlo executions Article ==1000
-    num_monte = 100
+    num_monte = 10
     input_path = (
         "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
     )
@@ -685,58 +685,74 @@ class Planning:
             self.initial_stock + pop.dicts_batches_month_kg[i].copy()[0, :]
         )  # Evaluates stock for Initial Month (0) Available=Previous Stock+Produced this month
 
-        distribution_sums_deficit=np.zeros(shape=(self.num_monte,),dtype=float)#Stores deficit distributions
-        distribution_sums_backlog=np.zeros(shape=(self.num_monte,),dtype=float)#Stores backlog distributions
-        for j in range(0,self.num_monte):  # Loop per number of monte carlo simulations
-            demand_j = np.zeros(shape=self.demand_distribution.shape,dtype=float)
-            produced_j = pop.dicts_batches_month_kg[i].copy()  # Produced Month 0 is the first month of inventory batches
+        distribution_sums_deficit = np.zeros(
+            shape=(self.num_monte,), dtype=float
+        )  # Stores deficit distributions
+        distribution_sums_backlog = np.zeros(
+            shape=(self.num_monte,), dtype=float
+        )  # Stores backlog distributions
+        for j in range(0, self.num_monte):  # Loop per number of monte carlo simulations
+            demand_j = np.zeros(shape=self.demand_distribution.shape, dtype=float)
+            produced_j = pop.dicts_batches_month_kg[
+                i
+            ].copy()  # Produced Month 0 is the first month of inventory batches
             available_j = available.copy()
             stock_j = np.zeros(shape=(self.num_months, self.num_products))
             backlog_j = np.zeros(shape=(self.num_months, self.num_products))
             for k in range(0, n_tr_distributions):  # loop per values to simulate
-                demand_j[self.ix_not0[0][k],self.ix_not0[1][k]] = dict_demand_values_simulations[k][j]  # Populates all simulated values from simulations in each 1000 demand array. 
+                demand_j[self.ix_not0[0][k], self.ix_not0[1][k]] = dict_demand_values_simulations[k][
+                    j
+                ]  # Populates all simulated values from simulations in each 1000 demand array.
             stock_j[0, :] = (
                 available_j[0, :] - demand_j[0, :]
             )  # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
-           
+
             if any(stock_j[0, :] < 0):  # Corrects negative values
                 ix_neg = np.where(stock_j[0, :] < 0)
-                backlog_j[0, :][ix_neg] = (stock_j[0, :][ix_neg]).copy() * (-1)  # Adds negative values to backlog
-                print("backlog",backlog_j)
+                backlog_j[0, :][ix_neg] = (stock_j[0, :][ix_neg]).copy() * (
+                    -1
+                )  # Adds negative values to backlog
+                print("backlog", backlog_j)
                 stock_j[0, :][ix_neg] = 0  # Corrects if Stock is negative
-                print("stock_i",stock_j)
+                print("stock_i", stock_j)
 
             # print("inStock")
             # print(stock_j)
             # print("inBack")
             # print(backlog_j)
             # print("Produced",produced_j)
-            stock_j, backlog_j = self.calc_stock(available_j, stock_j, produced_j, demand_j, backlog_j, self.num_months)# Evaluates Stock over all months(Values already in kg)
+            stock_j, backlog_j = self.calc_stock(
+                available_j, stock_j, produced_j, demand_j, backlog_j, self.num_months
+            )  # Evaluates Stock over all months(Values already in kg)
             # print("Produced",produced_j)
             # print("ouStock")
             # print(stock_j)
             # print("ouBack")
             # print(backlog_j)
 
-            deficit_strat_j = np.subtract(self.target_stock.copy(),stock_j.copy())# Minimise the median total inventory deficit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
+            deficit_strat_j = np.subtract(
+                self.target_stock.copy(), stock_j.copy()
+            )  # Minimise the median total inventory deficit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
             # print("deficit in",deficit_strat_j)
-            deficit_strat_j[deficit_strat_j<0]=0# Corrects negative values, cumulative sum of the differences be- tween the product inventory levels and the corresponding strategic monthly targets whenever the latter are greater than the former.
+            deficit_strat_j[
+                deficit_strat_j < 0
+            ] = 0  # Corrects negative values, cumulative sum of the differences be- tween the product inventory levels and the corresponding strategic monthly targets whenever the latter are greater than the former.
             # print("deficit out",deficit_strat_j)
-            distribution_sums_backlog[j]=np.sum(backlog_j)
-            distribution_sums_deficit[j]=np.sum(deficit_strat_j)
+            distribution_sums_backlog[j] = np.sum(backlog_j)
+            distribution_sums_deficit[j] = np.sum(deficit_strat_j)
 
         pop.backlogs[i] = np.array(
             [
-                np.amax(distribution_sums_backlog),#0)Max total backlog months and products
-                np.mean(distribution_sums_backlog),#1)Mean total backlog months and products
-                np.std(distribution_sums_backlog),#2)Std Dev total backlog months and products
-                np.median(distribution_sums_backlog),#3)Median total backlog months and products
-                np.amin(distribution_sums_backlog),#4)Min total backlog months and products
-                np.sum(distribution_sums_backlog),#5)Sum total backlog months and products
-                np.sum(np.median(distribution_sums_backlog) > 0)#6)Backlog violations
+                np.amax(distribution_sums_backlog),  # 0)Max total backlog months and products
+                np.mean(distribution_sums_backlog),  # 1)Mean total backlog months and products
+                np.std(distribution_sums_backlog),  # 2)Std Dev total backlog months and products
+                np.median(distribution_sums_backlog),  # 3)Median total backlog months and products
+                np.amin(distribution_sums_backlog),  # 4)Min total backlog months and products
+                np.sum(distribution_sums_backlog),  # 5)Sum total backlog months and products
+                np.sum(np.median(distribution_sums_backlog) > 0),  # 6)Backlog violations
             ]
-        )# Stores backlogs and metrics
-        median_deficit=np.median(distribution_sums_deficit)
+        )  # Stores backlogs and metrics
+        median_deficit = np.median(distribution_sums_deficit)
         pop.deficit[i] = np.array(
             [
                 np.amax(distribution_sums_deficit),
@@ -764,10 +780,10 @@ class Planning:
         for i in range(0, len(pop.products_raw)):
             if any(pop.batches_raw[i][pop.masks[i]] == 0):
                 raise Exception("Invalid number of batches (0).")
-            pop.objectives_raw[i, 1] =self.calc_median_deficit_backlog(pop, i)  # Adds median_deficit_i
             pop.objectives_raw[i, 0] = self.inversion_val_throughput - np.dot(
                 pop.batches_raw[i][pop.masks[i]], pop_yield[i][pop.masks[i]]
             )  # Inversion of the Throughput by a fixed value to generate a minimization problem
+            pop.objectives_raw[i, 1] = self.calc_median_deficit_backlog(pop, i)  # Adds median_deficit_i
             # a=np.sum(produced_i)
             # if pop.objectives_raw[i,0]-a>1:
             #     raise Exception("Error in Objective 1")
@@ -1389,18 +1405,10 @@ class Planning:
             ix_reinsert_copy = ix_reinsert.copy()
             # violations=violations[ix_reinsert_copy]
             self.select_pop_by_index(pop, ix_reinsert_copy)
+        # print("In",pop.objectives_raw)
+        # pop.objectives_raw[:, 0] = self.inversion_val_throughput - pop.objectives_raw[:, 0]
+        # print("Out",pop.objectives_raw)
 
-        # r_exec,r_ind=pop.metrics_inversion_violations(self.ref_point,self.volume_max,self.inversion_val_throughput,self.num_fronts,num_exec,name_var,pop.backlogs[:,6])
-        # return r_exec,r_ind
-        try:
-            ix_vio = np.where(pop.backlogs[:, 6] == 0)[0]
-            ix_par = np.where(pop.fronts == 0)[0]
-            ix_pareto_novio = np.intersect(ix_vio, ix_par)
-        except:
-            print("No solution without violations, passing all in front 0")
-            ix_pareto_novio = np.where(pop.fronts == 0)[0]
-
-        self.select_pop_by_index(pop, ix_pareto_novio)
         return pop
 
     def export_obj(self, obj, path):
@@ -1427,7 +1435,7 @@ class Planning:
         # Number of Chromossomes
         nc = [100]
         # Number of Generations
-        ng = [1000]
+        ng = [5]
         # Number of tour
         nt = [2]
         # Crossover Probability
@@ -1500,9 +1508,13 @@ class Planning:
             print("Selected fronts", pop_main.fronts[ix_pareto_novio])
             self.select_pop_by_index(pop_main, ix_pareto_novio)
             print("After function", pop_main.fronts)
-            print("Objectives", pop_main.objectives_raw)
+            print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
 
             # Extract Metrics
+
+            # # Reinverts again the throughput, that was modified for minimization by addying a constant
+            # self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
+
             r_exec, r_ind = pop_main.metrics_inversion_violations(
                 self.ref_point,
                 self.volume_max,
@@ -1512,12 +1524,14 @@ class Planning:
                 name_var,
                 pop_main.backlogs[:, 6],
             )
+
             result_execs.append(r_exec)
             result_ids.append(r_ind[0])  # X
             result_ids.append(r_ind[1])  # Y
+            print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
 
-            # Reinverts again the throughput, that was modified for minimization by addying a constant
-            pop_main.objectives_raw[:, 0] = self.inversion_val_throughput - pop_main.objectives_raw[:, 0]
+            # # Reinverts again the throughput, that was modified for minimization by addying a constant
+            # pop_main.objectives_raw[:, 0] = self.inversion_val_throughput - pop_main.objectives_raw[:, 0]
 
             file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
             self.export_obj(pop_main, root_path + file_name)
@@ -1555,7 +1569,7 @@ class Planning:
         """
         num_exec = 1
         num_chromossomes = 100
-        num_geracoes = 1000
+        num_geracoes = 5
         n_tour = 2
         pcross = 0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
