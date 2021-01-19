@@ -371,7 +371,7 @@ class Planning:
         # Generates tr_demand
         tr_demand = np.zeros(shape=(tr_len, 3))
         for i in range(0, tr_len):
-            tr_demand[i] = np.array(demand_distribution[ix_not0][i], dtype=np.float64)
+            tr_demand[i] = np.array(demand_distribution[self.ix_not0][i], dtype=np.float64)
         np.savetxt(self.input_path + "triangular_demand.txt", tr_demand, delimiter=",")
 
     def calc_start_end(self, pop_obj):
@@ -650,8 +650,9 @@ class Planning:
             ix_neg = np.where(stock_i[j] < 0)[0]
             if len(ix_neg) > 0:
                 # Adds negative values to backlog
+                # print(f"backlog in {backlog_i[j]}")
                 backlog_i[j][ix_neg] = (stock_i[j][ix_neg].copy()) * (int(-1))
-                # print(f"backlog {backlog_i[j][ix_neg]}")
+                # print(f"backlog out {backlog_i[j]}")
                 # Corrects if Stock is negative
                 stock_i[j][ix_neg] = int(0)
                 # print(f"backlog {backlog_i[j][ix_neg]} check if mutated after assignement of stock")
@@ -691,9 +692,9 @@ class Planning:
         distribution_sums_backlog = np.zeros(
             shape=(self.num_monte,), dtype=float
         )  # Stores backlog distributions
-        count_backlog_violations_j = (
-            0  # Stores the count of backlog violations (Median backlog >) per simulation
-        )
+        # count_backlog_violations_j = (
+        #     0  # Stores the count of backlog violations (Median backlog >) per simulation
+        # )
         for j in range(0, self.num_monte):  # Loop per number of monte carlo simulations
             demand_j = np.zeros(shape=self.demand_distribution.shape, dtype=float)
             produced_j = pop.dicts_batches_month_kg[
@@ -743,8 +744,10 @@ class Planning:
             # print("deficit out",deficit_strat_j)
             distribution_sums_backlog[j] = np.sum(backlog_j)
             distribution_sums_deficit[j] = np.sum(deficit_strat_j)
-            if np.median(backlog_j) > 0:  # If higher than zero, violation.
-                count_backlog_violations_j += 1
+            # if np.median(backlog_j)>0:
+            #     count_backlog_violations_j += 1  # If higher than zero, violation.
+
+            #     # count_backlog_violations_j += np.sum(backlog_j > 0)  # If higher than zero, violation.
 
         pop.backlogs[i] = np.array(
             [
@@ -753,10 +756,14 @@ class Planning:
                 np.std(distribution_sums_backlog),  # 2)Std Dev total backlog months and products
                 np.median(distribution_sums_backlog),  # 3)Median total backlog months and products
                 np.amin(distribution_sums_backlog),  # 4)Min total backlog months and products
-                np.sum(distribution_sums_backlog),  # 5)Sum total backlog months and products
-                count_backlog_violations_j,  # 6)Backlog violations
+                np.sum(distribution_sums_backlog <= 0)
+                / self.num_monte,  # 5)Probability of Total Backlog <=0 P(total backlog<=0)
+                np.median(distribution_sums_backlog),  # 6)Backlog violations
             ]
         )  # Stores backlogs and metrics
+        # print("Distribution backlogj",distribution_sums_backlog)
+        # print("Median backlog pop",pop.backlogs[i][6])
+
         median_deficit = np.median(distribution_sums_deficit)
         pop.deficit[i] = np.array(
             [
@@ -1336,6 +1343,7 @@ class Planning:
             #         raise Exception("Invalid number of batches (0).")
             #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
+            # print("Backlog before calc_inventory offspring",pop.backlogs[:,6])
 
             # 12) 3)Calculate inventory levels and objectives
             self.calc_inventory_objectives(pop_offspring)
@@ -1357,6 +1365,7 @@ class Planning:
             #         raise Exception("Invalid bool after number of active genes.")
             # if (pop.objectives_raw<0).any():
             #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
+            # print("Backlog after merging offspring",pop.backlogs[:,6])
 
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
@@ -1430,7 +1439,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 20
+        n_exec = 1
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1479,7 +1488,7 @@ class Planning:
 
             t0 = time.perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                 for pop_exec in executor.map(
                     Planning().main,
                     n_exec_ite,
@@ -1490,9 +1499,15 @@ class Planning:
                     [v_i[4]] * n_exec,
                 ):
                     print("In merge pop exec", pop_exec.fronts)
+                    print("Backlog In merge", pop_exec.backlogs[:, 6])
+
                     print("In merge pop main", pop_main.fronts)
                     self.merge_pop_with_offspring(pop_main, pop_exec)
                     print("Out merge pop main", pop_main.fronts)
+                    print("Backlog Out merge", pop_main.backlogs[:, 6])
+
+                    file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
+                    self.export_obj(pop_main, root_path + file_name)
 
             # Removes the first dummy one chromossome
             self.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
@@ -1511,6 +1526,7 @@ class Planning:
                 var = var + "metrics_front0_w_vio"
                 ix_pareto_novio = np.where(pop_main.fronts == 0)[0]
             print("Selected fronts", pop_main.fronts[ix_pareto_novio])
+            print("Backlog In select by index", pop_main.backlogs[:, 6])
             self.select_pop_by_index(pop_main, ix_pareto_novio)
             print("After function", pop_main.fronts)
             print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
@@ -1534,6 +1550,7 @@ class Planning:
             result_ids.append(r_ind[0])  # X
             result_ids.append(r_ind[1])  # Y
             print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
+            print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
 
             # # Reinverts again the throughput, that was modified for minimization by addying a constant
             # pop_main.objectives_raw[:, 0] = self.inversion_val_throughput - pop_main.objectives_raw[:, 0]
