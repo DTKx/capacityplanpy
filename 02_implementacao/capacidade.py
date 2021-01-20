@@ -20,7 +20,7 @@ import pandas as pd
 from dateutil import relativedelta
 from dateutil.relativedelta import *
 from numba import jit
-from pygmo import *
+from pygmo import hypervolume
 from scipy import stats
 
 # Local Modules
@@ -193,44 +193,6 @@ class Population:
 
         return metrics
 
-    def metrics_inversion_minimization(
-        self, ref_point, volume_max, inversion_val_throughput, num_fronts, num_exec, name_var,
-    ):
-        """Extract the metrics only from the pareto front, inverts the inversion made to convert form maximization to minimization, organizes metrics and data for visualization.
-
-        Returns:
-            list: Array with metrics:
-                "Hypervolume"
-                Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]" 
-                Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" Pareto Front
-        """
-        # Pareto Fronts
-        ix_pareto = np.where(self.fronts == 0)[0]
-
-        # Calculates hypervolume
-        try:
-            hv = hypervolume(points=self.objectives_raw[ix_pareto])
-            hv_vol_norma = hv.compute(ref_point) / volume_max
-        except ValueError:
-            hv_vol_norma = 0
-        metrics_exec = [num_exec, name_var, hv_vol_norma]
-        # data_plot=[]
-
-        # Reinverts again the throughput, that was modified for minimization by addying a constant
-        self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
-        # Metrics
-        ix_best_min = np.argmin(self.objectives_raw[:, 0][ix_pareto])
-        ix_best_max = np.argmax(self.objectives_raw[:, 0][ix_pareto])
-        # self.objectives_raw[ix_best_min]
-        # self.objectives_raw[ix_best_max]
-
-        metrics_id = [self.extract_metrics(ix_best_min, num_fronts, num_exec, "X", name_var, ix_pareto)]
-        metrics_id.append(self.extract_metrics(ix_best_max, num_fronts, num_exec, "Y", name_var, ix_pareto))
-
-        # Plot Data
-        metrics_exec.append(self.objectives_raw[ix_pareto])
-        return metrics_exec, metrics_id
-
     def metrics_inversion_violations(
         self, ref_point, volume_max, inversion_val_throughput, num_fronts, num_exec, name_var, violations,
     ):
@@ -245,9 +207,8 @@ class Population:
         # Indexes
         try:
             ix_vio = np.where(violations == 0)[0]
-            ix_par = np.where(pop.fronts == 0)[0]
+            ix_par = np.where(self.fronts == 0)[0]
             ix_pareto = np.intersect(ix_vio, ix_par)
-            a = ix_pareto[0]
         except:
             ix_pareto = np.where(self.fronts == 0)[0]
 
@@ -300,7 +261,7 @@ class Planning:
     # date_stock = list_months[0]
 
     # Number of Monte Carlo executions Article ==1000
-    num_monte = 100
+    num_monte = 1000
     input_path = (
         "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
     )
@@ -627,7 +588,7 @@ class Planning:
         return deficit_strat_i
 
     @staticmethod
-    # @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
     def calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, num_months):
         """Calculates Stock per month along (over num_months) Stock=Available-Demand if any<0 Stock=0 & Back<0 = else.
 
@@ -668,16 +629,17 @@ class Planning:
         Returns:
             float: Median of objective deficit
         """
-        deficit_distribution = np.zeros(shape=(self.num_monte,))  # Stores deficit
-        backlog_distribution = np.zeros(shape=(self.num_monte,))  # Stores backlog
         dict_demand_values_simulations = {}  # Stores values of each demand value, coming from the tuple.
 
         n_tr_distributions = len(
             self.tr_demand
         )  # number of different simulations needed to calculate one deficit
 
+        row, col = self.demand_distribution.shape
+
+        demand_j = np.zeros(shape=(row, col, self.num_monte), dtype=float)
         for k in np.arange(0, n_tr_distributions):  # Loop per triangular distributions to simulate
-            dict_demand_values_simulations[k] = self.calc_triangular_dist(
+            demand_j[self.ix_not0[0][k], self.ix_not0[1][k]] = self.calc_triangular_dist(
                 self.demand_distribution[self.ix_not0][k], self.num_monte
             )
 
@@ -695,20 +657,16 @@ class Planning:
         # count_backlog_violations_j = (
         #     0  # Stores the count of backlog violations (Median backlog >) per simulation
         # )
+        produced = pop.dicts_batches_month_kg[i]  # Produced Month 0 is the first month of inventory batches
+
         for j in range(0, self.num_monte):  # Loop per number of monte carlo simulations
-            demand_j = np.zeros(shape=self.demand_distribution.shape, dtype=float)
-            produced_j = pop.dicts_batches_month_kg[
-                i
-            ].copy()  # Produced Month 0 is the first month of inventory batches
+            produced_j = produced.copy()  # Produced Month 0 is the first month of inventory batches
             available_j = available.copy()
             stock_j = np.zeros(shape=(self.num_months, self.num_products))
             backlog_j = np.zeros(shape=(self.num_months, self.num_products))
-            for k in range(0, n_tr_distributions):  # loop per values to simulate
-                demand_j[self.ix_not0[0][k], self.ix_not0[1][k]] = dict_demand_values_simulations[k][
-                    j
-                ]  # Populates all simulated values from simulations in each 1000 demand array.
+
             stock_j[0, :] = (
-                available_j[0, :] - demand_j[0, :]
+                available_j[0, :] - demand_j[0, :, j]
             )  # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
 
             if any(stock_j[0, :] < 0):  # Corrects negative values
@@ -726,7 +684,7 @@ class Planning:
             # print(backlog_j)
             # print("Produced",produced_j)
             stock_j, backlog_j = self.calc_stock(
-                available_j, stock_j, produced_j, demand_j, backlog_j, self.num_months
+                available_j, stock_j, produced_j, demand_j[:, :, j], backlog_j, self.num_months
             )  # Evaluates Stock over all months(Values already in kg)
             # print("Produced",produced_j)
             # print("ouStock")
@@ -1439,7 +1397,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 1
+        n_exec = 2
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1488,7 +1446,7 @@ class Planning:
 
             t0 = time.perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
                 for pop_exec in executor.map(
                     Planning().main,
                     n_exec_ite,
@@ -1591,7 +1549,7 @@ class Planning:
         """
         num_exec = 1
         num_chromossomes = 100
-        num_geracoes = 5
+        num_geracoes = 1
         n_tour = 2
         pcross = 0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
@@ -1626,7 +1584,7 @@ class Planning:
 
 
 if __name__ == "__main__":
-    # Planning.run_cprofile()
-    Planning().run_parallel()
+    Planning.run_cprofile()
+    # Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)
