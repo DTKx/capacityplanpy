@@ -110,8 +110,10 @@ class Population:
         # Initializes genes per chromossome (Number of active campaigns per solution)
         self.genes_per_chromo = np.sum(self.masks, axis=1, dtype=int)
 
-        # Initialize list of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
-        self.dicts_batches_month_kg = []
+        # Initialize 3d array with produced (month,product,individual)
+        self.produced_month_product_individual = np.zeros(
+            shape=(num_months, num_products, num_genes)
+        )
 
         # NSGA2
         # Creates an array of fronts and crowding distance
@@ -272,7 +274,7 @@ class Planning:
     # date_stock = list_months[0]
 
     # Number of Monte Carlo executions Article ==1000
-    num_monte = 100
+    num_monte = 1000
     input_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
 
     # Process Data
@@ -365,17 +367,24 @@ class Planning:
         # # Initialize by addying the first date
         pop_obj.start_raw[:, 0] = self.start_date
 
-        pop_obj.dicts_batches_month_kg = []  # Starts a new list of dicts, overwrites old one
+        produced_i = np.zeros(
+            shape=(
+                self.num_months + self.qc_max_months,
+                self.num_products,
+                pop_obj.num_chromossomes,
+            ),
+            dtype=int,
+        )  # Produced Month 0 is the first month of inventory batches
 
-        for i in range(0, len(pop_obj.start_raw)):  # Loop per chromossome i
+        for i in range(0, pop_obj.num_chromossomes):  # Loop per chromossome i
             # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
             #     raise Exception("Invalid bool after number of active genes.")
             # if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
             #     raise Exception("Invalid number of batches (0).")
 
-            produced_i = np.zeros(
-                shape=(self.num_months + self.qc_max_months, self.num_products), dtype=int
-            )  # Produced Month 0 is the first month of inventory batches
+            # produced_i = np.zeros(
+            #     shape=(self.num_months + self.qc_max_months, self.num_products), dtype=int
+            # )  # Produced Month 0 is the first month of inventory batches
 
             # batches_month_kg = defaultdict(list)
 
@@ -391,7 +400,7 @@ class Planning:
                 release_date.month - self.start_date.month
             )
             produced_i[
-                m, pop_obj.products_raw[i][j]
+                m, pop_obj.products_raw[i][j], i
             ] += 1  # Updates the month with the number of batches produced
 
             for n_b in range(0, pop_obj.batches_raw[i][j]):  # loop in number of batches per gene
@@ -405,7 +414,7 @@ class Planning:
                     release_date.month - self.start_date.month
                 )
                 produced_i[
-                    m, pop_obj.products_raw[i][j]
+                    m, pop_obj.products_raw[i][j], i
                 ] += 1  # Updates the month with the number of batches produced
 
             pop_obj.end_raw[i][j] = end_date  # Add end date of DSP for the first gene
@@ -458,7 +467,7 @@ class Planning:
                         release_date.month - self.start_date.month
                     )
                     produced_i[
-                        m, pop_obj.products_raw[i][j]
+                        m, pop_obj.products_raw[i][j], i
                     ] += 1  # Updates the month with the number of batches produced
                     for n_b in range(
                         1, pop_obj.batches_raw[i][j]
@@ -515,27 +524,30 @@ class Planning:
                                 release_date.month - self.start_date.month
                             )
                             produced_i[
-                                m, pop_obj.products_raw[i][j]
+                                m, pop_obj.products_raw[i][j], i
                             ] += 1  # Updates the month with the number of batches produced
                     pop_obj.end_raw[i][j] = end_date  # Add end date of first gene
 
                     j += 1
-            if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i] :]) > 0:
-                raise Exception("Invalid bool after number of active genes.")
-            produced_i = produced_i * self.yield_kg_batch_ar  # Conversion batches to kg
-            pop_obj.dicts_batches_month_kg.append(produced_i)  # Appends to dict
+            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i] :]) > 0:
+            #     raise Exception("Invalid bool after number of active genes.")
+            produced_i[:, :, i] = (
+                produced_i[:, :, i] * self.yield_kg_batch_ar
+            )  # Conversion batches to kg
+
+        pop_obj.produced_month_product_individual = produced_i  # Overwrites the old array
 
         pop_obj.update_genes_per_chromo()  # Updates Genes per Chromo
 
     @staticmethod
-    @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_triangular_dist(demand_distribution, num_monte):
         return np.random.triangular(
             demand_distribution[0], demand_distribution[1], demand_distribution[2], size=num_monte,
         )
 
     @staticmethod
-    @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_median_triangular_dist(demand_distribution, num_monte):
         n = len(demand_distribution)
         demand_i = np.zeros(shape=(n,))
@@ -588,7 +600,7 @@ class Planning:
         return demand_i
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, num_months):
         """Calculates Stock per month along (over num_months) Stock=Available-Demand if any<0 Stock=0 & Back<0 = else.
 
@@ -620,25 +632,29 @@ class Planning:
         return stock_i, backlog_i
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_distributions_monte_carlo(
-        produced, available, demand_j, num_monte, num_months, num_products, target_stock
+        produced, demand_j, num_monte, num_months, num_products, target_stock, initial_stock
     ):
         """Calculates the Deficit and Backlog distributions using Monte Carlo Simulation.
         Each monte Carlo Simulation generates a total backlog (sum of all backlogs month and product of the simulation) and total deficit(sum of all deficits=Target Stock-Actual Stock month and product of the simulation), which is stored in an array.
 
         Args:
             produced (array of floats): Produced values per month (rows) and products (columns)
-            available (Array of floats): Available = Stock(t-1)+produced(t)
             demand_j (Array of floats): num_monte demand scenarios are created using Monte Carlo, some values of demand are not simulated, are static instead.
             num_monte (Array of floats): Number of Monte Carlo Simulations
             num_months (int): Number of months to be simulated (rows)
             num_products (int): Number of products (columns)
             target_stock (Array of floats): Target stock strategically defined. (Available should be similar to target stock)
+            initial_stock (Array of floats): Stock(Month 0)
 
         Returns:
             [array of floats]: Returns distribution of deficit and backlog.
         """
+        available = np.zeros(shape=(num_months, num_products), dtype=np.float64)
+        available[0, :] = (
+            initial_stock + produced[0, :]
+        )  # Evaluates stock for Initial Month (0) Available=Previous Stock+Produced this month
         distribution_sums_deficit = np.zeros(
             num_monte, dtype=np.float64
         )  # Stores deficit distributions
@@ -673,9 +689,13 @@ class Planning:
                 # print("stock_i", stock_j)
 
             for k in prange(1, num_months):  # Calculates Stock Loop per Months starting through 1
-                available_j[k] = stock_j[k - 1] + produced_j[k]# Available=Previous Stock+Produced this month
+                available_j[k] = (
+                    stock_j[k - 1] + produced_j[k]
+                )  # Available=Previous Stock+Produced this month
 
-                stock_j[k] = available_j[k] - demand_j[k, :, j]# Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+                stock_j[k] = (
+                    available_j[k] - demand_j[k, :, j]
+                )  # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
 
                 ix_neg = np.where(stock_j[k] < 0)
                 num_neg = len(ix_neg[0])
@@ -726,37 +746,29 @@ class Planning:
                 self.demand_distribution[self.ix_not0][k], self.num_monte
             )
 
-        available = np.zeros(shape=(self.num_months, self.num_products))
-        available[0, :] = (
-            self.initial_stock + pop.dicts_batches_month_kg[i].copy()[0, :]
-        )  # Evaluates stock for Initial Month (0) Available=Previous Stock+Produced this month
-
-        # count_backlog_violations_j = (
-        #     0  # Stores the count of backlog violations (Median backlog >) per simulation
-        # )
-        produced = pop.dicts_batches_month_kg[
-            i
-        ]  # Produced Month 0 is the first month of inventory batches
-
         distribution_sums_backlog, distribution_sums_deficit = self.calc_distributions_monte_carlo(
-            produced,
-            available,
+            pop.produced_month_product_individual[
+                :, :, i
+            ],  # Produced Month 0 is the first month of inventory batches
             demand_j,
             self.num_monte,
             self.num_months,
             self.num_products,
             self.target_stock,
+            self.initial_stock,
         )
 
         pop.backlogs[i] = self.metrics_dist_backlog(
             distribution_sums_backlog, self.num_monte
         )  # Stores backlogs and metrics
-        pop.deficit[i] = self.metrics_dist_deficit(distribution_sums_deficit)# Stores deficit metrics
+        pop.deficit[i] = self.metrics_dist_deficit(
+            distribution_sums_deficit
+        )  # Stores deficit metrics
 
-        return pop.deficit[i][3].copy()  # MedianDeficit
+        return pop.deficit[i][3]  # MedianDeficit
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def metrics_dist_deficit(distribution_sums_deficit):
         metrics = np.array(
             [
@@ -771,7 +783,7 @@ class Planning:
         return metrics
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def metrics_dist_backlog(distribution_sums_backlog, num_monte):
         metrics = np.array(
             [
@@ -800,8 +812,8 @@ class Planning:
 
         # Loop per Chromossome
         for i in range(0, len(pop.products_raw)):
-            if any(pop.batches_raw[i][pop.masks[i]] == 0):
-                raise Exception("Invalid number of batches (0).")
+            # if any(pop.batches_raw[i][pop.masks[i]] == 0):
+            #     raise Exception("Invalid number of batches (0).")
             pop.objectives_raw[i, 0] = self.inversion_val_throughput - np.dot(
                 pop.batches_raw[i][pop.masks[i]], pop_yield[i][pop.masks[i]]
             )  # Inversion of the Throughput by a fixed value to generate a minimization problem
@@ -1034,9 +1046,8 @@ class Planning:
         #     raise Exception("Error in labels of products, labels superior than maximum defined.")
         # return new_product,new_batches,new_mask
 
-    # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def agg_product_batch(products, batches, masks, genes_per_chromo):
         """Aggregates product batches in case of neighbours products.
         Fix process constraints of batch min, max and multiple.
@@ -1142,39 +1153,31 @@ class Planning:
             pop (class object): Current Population object
             pop_new (class object): Offspring population object
         """
-        # Batches
-        pop.batches_raw = np.vstack((pop.batches_raw, pop_new.batches_raw))
+
+        pop.batches_raw = np.vstack((pop.batches_raw, pop_new.batches_raw))  # Batches
         pop.num_chromossomes = len(pop.batches_raw)
-
-        # Products
-        pop.products_raw = np.vstack((pop.products_raw, pop_new.products_raw))
-
-        # Masks
-        pop.masks = np.vstack((pop.masks, pop_new.masks))
-
-        # Time vector Start (Start of USP) and end (end of DSP) of manufacturing campaign Starting with the first date
-        pop.start_raw = np.vstack((pop.start_raw, pop_new.start_raw))
+        pop.products_raw = np.vstack((pop.products_raw, pop_new.products_raw))  # Products
+        pop.masks = np.vstack((pop.masks, pop_new.masks))  # Masks
+        pop.start_raw = np.vstack(
+            (pop.start_raw, pop_new.start_raw)
+        )  # Time vector Start (Start of USP) and end (end of DSP) of manufacturing campaign Starting with the first date
         pop.end_raw = np.vstack((pop.end_raw, pop_new.end_raw))
+        pop.backlogs = np.vstack((pop.backlogs, pop_new.backlogs))  # Stock backlog_i
+        pop.deficit = np.vstack((pop.deficit, pop_new.deficit))  # Stock Deficit_i
+        pop.objectives_raw = np.vstack(
+            (pop.objectives_raw, pop_new.objectives_raw)
+        )  # Objectives throughput_i,deficit_strat_i
+        pop.genes_per_chromo = np.sum(
+            pop.masks, axis=1, dtype=int
+        )  # Genes per chromossome (Number of active campaigns per solution)
+        pop.produced_month_product_individual = np.concatenate(
+            (pop.produced_month_product_individual, pop_new.produced_month_product_individual),
+            axis=2,
+        )
 
-        # Stock backlog_i
-        pop.backlogs = np.vstack((pop.backlogs, pop_new.backlogs))
-
-        # Stock Deficit_i
-        pop.deficit = np.vstack((pop.deficit, pop_new.deficit))
-
-        # Objectives throughput_i,deficit_strat_i
-        pop.objectives_raw = np.vstack((pop.objectives_raw, pop_new.objectives_raw))
-
-        # Genes per chromossome (Number of active campaigns per solution)
-        pop.genes_per_chromo = np.sum(pop.masks, axis=1, dtype=int)
-
-        # List of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
-        for i in range(0, len(pop_new.dicts_batches_month_kg)):
-            pop.dicts_batches_month_kg.append(pop_new.dicts_batches_month_kg[i])
-
-        # NSGA2
-        # Creates an array of fronts and crowding distance
-        pop.fronts = np.empty(shape=(pop.num_chromossomes, 1), dtype=int)
+        pop.fronts = np.empty(
+            shape=(pop.num_chromossomes, 1), dtype=int
+        )  # NSGA 2 Creates an array of fronts and crowding distance
         pop.crowding_dist = np.empty(shape=(pop.num_chromossomes, 1), dtype=int)
 
     def select_pop_by_index(self, pop, ix_reinsert):
@@ -1212,9 +1215,9 @@ class Planning:
         pop.genes_per_chromo = np.sum(pop.masks, axis=1, dtype=int)
 
         # List of dictionaries with the index of list equal to the chromossome, keys of dictionry with the number of the product and the value as the number of batches produced
-        pop.dicts_batches_month_kg = list(
-            map(pop.dicts_batches_month_kg.__getitem__, list(ix_reinsert))
-        )
+        pop.produced_month_product_individual = pop.produced_month_product_individual[
+            :, :, ix_reinsert
+        ]
 
         # NSGA2
         # Creates an array of fronts and crowding distance
@@ -1429,6 +1432,9 @@ class Planning:
             # Calculates number of violated constraints
             # violations=self.calc_violations(pop)
             # violations=self.calc_violation_unit_backlog(pop)
+            pop.backlogs[:, 6].copy(),
+            pop.crowding_dist.copy(),
+            pop.fronts.copy(),
             ix_reinsert = AlgNsga2._index_linear_reinsertion_nsga_constraints(
                 pop.backlogs[:, 6].copy(),
                 pop.crowding_dist.copy(),
@@ -1447,7 +1453,6 @@ class Planning:
         # print("In",pop.objectives_raw)
         # pop.objectives_raw[:, 0] = self.inversion_val_throughput - pop.objectives_raw[:, 0]
         # print("Out",pop.objectives_raw)
-
         return pop
 
     def export_obj(self, obj, path):
@@ -1507,7 +1512,6 @@ class Planning:
                 self.num_months,
             )
             pop_main.name_variation = name_var
-            pop_main.dicts_batches_month_kg.append([0])
 
             t0 = time.perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -1614,7 +1618,7 @@ class Planning:
         """
         num_exec = 1
         num_chromossomes = 100
-        num_geracoes = 10
+        num_geracoes = 1000
         n_tour = 2
         pcross = 0.11
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
