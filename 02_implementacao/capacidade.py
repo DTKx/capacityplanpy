@@ -528,16 +528,14 @@ class Planning:
         pop_obj.update_genes_per_chromo()  # Updates Genes per Chromo
 
     @staticmethod
-    # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     def calc_triangular_dist(demand_distribution, num_monte):
         return np.random.triangular(
             demand_distribution[0], demand_distribution[1], demand_distribution[2], size=num_monte,
         )
 
     @staticmethod
-    # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     def calc_median_triangular_dist(demand_distribution, num_monte):
         n = len(demand_distribution)
         demand_i = np.zeros(shape=(n,))
@@ -590,24 +588,7 @@ class Planning:
         return demand_i
 
     @staticmethod
-    # @jit(nopython=True,nogil=True,fastmath=True)
-    def calc_objective_deficit_strat(target_stock_i, stock_i):
-        deficit_strat_i = target_stock_i - stock_i
-        # Corrects negative values
-        ix_neg = np.where(deficit_strat_i < 0.0)
-        # ix_neg=np.where(deficit_strat_i<np.float64(0.0))
-        # ix_neg=np.where(deficit_strat_i<np.float64(0.0))[0]
-        if len(ix_neg) > int(0):
-            # print(deficit_strat_i)
-            deficit_strat_i[ix_neg] = 0.0
-            # print(deficit_strat_i)
-        # Sum of all product deficit per month
-        # return np.sum(deficit_strat_i,axis=1)
-        # return deficit_strat_i
-        return deficit_strat_i
-
-    @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
     def calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, num_months):
         """Calculates Stock per month along (over num_months) Stock=Available-Demand if any<0 Stock=0 & Back<0 = else.
 
@@ -639,21 +620,31 @@ class Planning:
         return stock_i, backlog_i
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
     def calc_distributions_monte_carlo(
         produced, available, demand_j, num_monte, num_months, num_products, target_stock
     ):
+        """Calculates the Deficit and Backlog distributions using Monte Carlo Simulation.
+        Each monte Carlo Simulation generates a total backlog (sum of all backlogs month and product of the simulation) and total deficit(sum of all deficits=Target Stock-Actual Stock month and product of the simulation), which is stored in an array.
+
+        Args:
+            produced (array of floats): Produced values per month (rows) and products (columns)
+            available (Array of floats): Available = Stock(t-1)+produced(t)
+            demand_j (Array of floats): num_monte demand scenarios are created using Monte Carlo, some values of demand are not simulated, are static instead.
+            num_monte (Array of floats): Number of Monte Carlo Simulations
+            num_months (int): Number of months to be simulated (rows)
+            num_products (int): Number of products (columns)
+            target_stock (Array of floats): Target stock strategically defined. (Available should be similar to target stock)
+
+        Returns:
+            [array of floats]: Returns distribution of deficit and backlog.
+        """
         distribution_sums_deficit = np.zeros(
             num_monte, dtype=np.float64
         )  # Stores deficit distributions
         distribution_sums_backlog = np.zeros(
             num_monte, dtype=np.float64
         )  # Stores backlog distributions
-
-        # distribution_sums_deficit = np.zeros(
-        #     shape=(num_monte,0))  # Stores deficit distributions
-        # distribution_sums_backlog = np.zeros(
-        #     shape=(num_monte,0))  # Stores backlog distributions
 
         for j in prange(num_monte):  # Loop per number of monte carlo simulations
             produced_j = produced.copy()  # Produced Month 0 is the first month of inventory batches
@@ -681,22 +672,11 @@ class Planning:
                 # print("backlog", backlog_j)
                 # print("stock_i", stock_j)
 
-            # print("inStock")
-            # print(stock_j)
-            # print("inBack")
-            # print(backlog_j)
-            # print("Produced",produced_j)
-            # stock_j, backlog_j = calc_stock(
-            #     available_j, stock_j, produced_j, demand_j[:, :, j], backlog_j, num_months
-            # )  # Evaluates Stock over all months(Values already in kg)
-
             for k in prange(1, num_months):  # Calculates Stock Loop per Months starting through 1
-                # Available=Previous Stock+Produced this month
-                available_j[k] = stock_j[k - 1] + produced_j[k]
+                available_j[k] = stock_j[k - 1] + produced_j[k]# Available=Previous Stock+Produced this month
 
-                # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
-                stock_j[k] = available_j[k] - demand_j[k, :, j]
-                # Corrects negative values
+                stock_j[k] = available_j[k] - demand_j[k, :, j]# Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
+
                 ix_neg = np.where(stock_j[k] < 0)
                 num_neg = len(ix_neg[0])
                 if num_neg > 0:  # Corrects negative values
@@ -734,10 +714,6 @@ class Planning:
         Returns:
             float: Median of objective deficit
         """
-        dict_demand_values_simulations = (
-            {}
-        )  # Stores values of each demand value, coming from the tuple.
-
         n_tr_distributions = len(
             self.tr_demand
         )  # number of different simulations needed to calculate one deficit
@@ -780,7 +756,7 @@ class Planning:
         return pop.deficit[i][3].copy()  # MedianDeficit
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
     def metrics_dist_deficit(distribution_sums_deficit):
         metrics = np.array(
             [
@@ -795,7 +771,7 @@ class Planning:
         return metrics
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
     def metrics_dist_backlog(distribution_sums_backlog, num_monte):
         metrics = np.array(
             [
@@ -1060,7 +1036,7 @@ class Planning:
 
     # @jit(nopython=True,nogil=True,fastmath=True,parallel=True)
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True,parallel=True)
     def agg_product_batch(products, batches, masks, genes_per_chromo):
         """Aggregates product batches in case of neighbours products.
         Fix process constraints of batch min, max and multiple.
@@ -1638,7 +1614,7 @@ class Planning:
         """
         num_exec = 1
         num_chromossomes = 100
-        num_geracoes = 1000
+        num_geracoes = 10
         n_tour = 2
         pcross = 0.11
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
