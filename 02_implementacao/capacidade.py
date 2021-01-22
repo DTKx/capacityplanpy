@@ -52,7 +52,7 @@ class Population:
         num_products,
         num_objectives,
         start_date,
-        initial_stock,
+        qc_max_months,
         num_months,
     ):
         """Initiates the current population, with a batch population,product population and a mask.
@@ -66,7 +66,7 @@ class Population:
             num_products (int): Number of products available to compose the product propulation
             num_objectives (int): Number of objectives being evaluated
             start_date (datetime): Start Date of planning
-            initial_stock (array): Initial Stock of products
+            qc_max_months (array): Additional number of months to finish quality control.
             num_months (int): Number of months of planning
         """
         self.name_variation = "-"
@@ -112,7 +112,7 @@ class Population:
 
         # Initialize 3d array with produced (month,product,individual)
         self.produced_month_product_individual = np.zeros(
-            shape=(num_months, num_products, num_genes)
+            shape=(num_months+qc_max_months,num_products, num_genes)
         )
 
         # NSGA2
@@ -125,7 +125,7 @@ class Population:
         """
         self.genes_per_chromo = np.sum(self.masks, axis=1, dtype=int)
 
-    def create_new_population(self, new_products, new_batches, new_mask):
+    def update_new_population(self, new_products, new_batches, new_mask):
         """Updates the values of the new offspring population in the class object.
 
         Args:
@@ -354,15 +354,9 @@ class Planning:
         """
         # # For testing produced_i can delete
         # Creates a vector for batch/kg por the products
-        pop_yield = np.vectorize(self.yield_kg_batch.__getitem__)(
-            pop_obj.products_raw
-        )  # Equivalentt to         # pop_yield=np.array(list(map(self.yield_kg_batch.__getitem__,pop_products)))
-
         # Extracts the population informations
-        inoc_usp_raw = np.vectorize(self.inoculation_days.__getitem__)(pop_obj.products_raw)
         dsp_raw = np.vectorize(self.dsp_days.__getitem__)(pop_obj.products_raw)
         usp_raw = np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)
-        usp_plus_dsp_raw = usp_raw.copy() + dsp_raw.copy()
 
         # # Initialize by addying the first date
         pop_obj.start_raw[:, 0] = self.start_date
@@ -538,6 +532,7 @@ class Planning:
         pop_obj.produced_month_product_individual = produced_i  # Overwrites the old array
 
         pop_obj.update_genes_per_chromo()  # Updates Genes per Chromo
+        return pop_obj
 
     @staticmethod
     @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
@@ -624,7 +619,7 @@ class Planning:
             if len(ix_neg) > 0:
                 # Adds negative values to backlog
                 # print(f"backlog in {backlog_i[j]}")
-                backlog_i[j][ix_neg] = (stock_i[j][ix_neg].copy()) * (int(-1))
+                backlog_i[j][ix_neg] = stock_i[j][ix_neg] * (int(-1))
                 # print(f"backlog out {backlog_i[j]}")
                 # Corrects if Stock is negative
                 stock_i[j][ix_neg] = int(0)
@@ -651,6 +646,7 @@ class Planning:
         Returns:
             [array of floats]: Returns distribution of deficit and backlog.
         """
+        target_stock_copy=target_stock.copy()
         available = np.zeros(shape=(num_months, num_products), dtype=np.float64)
         available[0, :] = (
             initial_stock + produced[0, :]
@@ -678,7 +674,7 @@ class Planning:
             ix_neg = np.where(stock_j[0, :] < 0)
             num_neg = len(ix_neg[0])
             if num_neg > 0:  # Corrects negative values
-                backlog_j[0, :][ix_neg] = (stock_j[0, :][ix_neg]).copy() * (
+                backlog_j[0, :][ix_neg] = (stock_j[0, :][ix_neg]) * (
                     -1
                 )  # Adds negative values to backlog
                 # print("backlog", backlog_j)
@@ -703,7 +699,7 @@ class Planning:
                     # Adds negative values to backlog
                     # print("backlog in",backlog_j[k])
                     # print("STOCK in",stock_j[k])
-                    backlog_j[k][ix_neg] = (stock_j[k][ix_neg].copy()) * (int(-1))
+                    backlog_j[k][ix_neg] = (stock_j[k][ix_neg]) * (int(-1))
                     # Corrects if Stock is negative
                     for n in prange(num_neg):
                         stock_j[k][ix_neg[0][n]] = 0.0
@@ -711,7 +707,7 @@ class Planning:
                     # print("STOCK out",stock_j[k])
 
             deficit_strat_j = np.subtract(
-                target_stock.copy(), stock_j.copy()
+                target_stock_copy, stock_j
             )  # Minimise the median total inventory deicit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
             # print("deficit in",deficit_strat_j)
             # ix_def_strat_neg = np.where(deficit_strat_j < 0.0)
@@ -823,6 +819,7 @@ class Planning:
             # a=np.sum(produced_i)
             # if pop.objectives_raw[i,0]-a>1:
             #     raise Exception("Error in Objective 1")
+        return pop
 
     def calc_violations(self, pop):
         """Calculates number of violations of constraints, each type of violation is type any, ie if any campaign violates it counts as one.
@@ -861,60 +858,6 @@ class Planning:
                 )
                 != 0
             ).any()
-            num_violations[i] += v_min + v_max + v_mult
-        return num_violations
-
-    def calc_violation_unit_backlog(self, pop):
-        """Calculates number of violations of constraints, each violation counts one.
-        Considers 1)Median Backlog>0
-
-        Args:
-            pop (class object): Class object to evaluate 
-
-        Returns:
-            array: Array with number of violations per individual
-        """
-        # 1)Backlog Violations
-        num_violations = pop.backlogs[:, 6].copy()
-        return num_violations
-
-    def calc_violations_unit(self, pop):
-        """Calculates number of violations of constraints, each violation counts one.
-        Considers 1)Median Backlog>0, 2)Minimum number of batches, 3)Maximum number of batches, 4)Multiples of number of batches
-
-        Args:
-            pop (class object): Class object to evaluate 
-
-        Returns:
-            array: Array with number of violations per individual
-        """
-        # 1)Backlog Violations
-        num_violations = pop.backlogs[:, 6].copy()
-
-        min_batch_raw = np.vectorize(self.min_batch.__getitem__)(pop.products_raw)
-        max_batch_raw = np.vectorize(self.max_batch.__getitem__)(pop.products_raw)
-        batch_multiples_raw = np.vectorize(self.batch_multiples.__getitem__)(pop.products_raw)
-        # Loop per chromossome
-        for i in range(0, pop.num_chromossomes):
-            # Counter for num of violations
-            # # 2)Minimum number of batches,
-            v_min = np.sum(
-                pop.batches_raw[i, : pop.genes_per_chromo[i]]
-                < min_batch_raw[i, : pop.genes_per_chromo[i]]
-            )
-            # # 3)Maximum number of batches,
-            v_max = np.sum(
-                pop.batches_raw[i, : pop.genes_per_chromo[i]]
-                > max_batch_raw[i, : pop.genes_per_chromo[i]]
-            )
-            # # 4)Multiples of number of batches
-            v_mult = np.sum(
-                np.remainder(
-                    pop.batches_raw[i, : pop.genes_per_chromo[i]],
-                    batch_multiples_raw[i, : pop.genes_per_chromo[i]],
-                )
-                != 0
-            )
             num_violations[i] += v_min + v_max + v_mult
         return num_violations
 
@@ -1044,7 +987,7 @@ class Planning:
 
         # if (new_product>=self.num_products).any():
         #     raise Exception("Error in labels of products, labels superior than maximum defined.")
-        # return new_product,new_batches,new_mask
+        return new_product, new_batches, new_mask
 
     @staticmethod
     @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
@@ -1094,7 +1037,7 @@ class Planning:
                             i += 1
         return products, batches, masks
 
-    def fix_batch_violations(self, products, batches, masks, genes_per_chromo):
+    def fix_batch_violations(self, products, batches):
         """Aggregates product batches in case of neighbours products.
         Fix process constraints of batch min, max and multiple.
             If Batch<Min then Batch=Min, 
@@ -1104,8 +1047,6 @@ class Planning:
         Args:
             products (array): Array of products
             batches (array): Array of batches
-            masks (array): Array of masks
-            genes_per_chromo (array): Array with number of active chromossomes
         """
         min_batch_raw = np.vectorize(self.min_batch.__getitem__)(products)
         max_batch_raw = np.vectorize(self.max_batch.__getitem__)(products)
@@ -1120,10 +1061,10 @@ class Planning:
         # # 3)Multiples of number of batches
         remainder = np.remainder(batches, batch_multiples_raw)
         mask_remainder = (remainder != 0).copy()
-        multiple = remainder + batches.copy()
+        multiple = remainder + batches
         batches[mask_remainder] = multiple[mask_remainder].copy()
         # Max always respects the remainder, therefore no need to correct again
-        return products, batches, masks
+        return products, batches
 
     def fix_aggregation_batches(self, products, batches, masks):
         """Fixes Aggregation of products and maximum, minimum and multiples of batches.
@@ -1142,11 +1083,12 @@ class Planning:
             products, batches, masks, genes_per_chromo
         )  # Fix Aggregation of products
 
-        products, batches, masks = self.fix_batch_violations(
-            products, batches, masks, genes_per_chromo
-        )  # Fix number of batches
+        products, batches= self.fix_batch_violations(
+            products, batches)  # Fix number of batches
+        return products, batches,masks
 
-    def merge_pop_with_offspring(self, pop, pop_new):
+    @staticmethod
+    def merge_pop_with_offspring(pop, pop_new):
         """Appends the offspring population to the Current population.
 
         Args:
@@ -1179,6 +1121,7 @@ class Planning:
             shape=(pop.num_chromossomes, 1), dtype=int
         )  # NSGA 2 Creates an array of fronts and crowding distance
         pop.crowding_dist = np.empty(shape=(pop.num_chromossomes, 1), dtype=int)
+        return pop
 
     def select_pop_by_index(self, pop, ix_reinsert):
         """Selects chromossomes to maintain in pop class object, updating the class atributes given the index.
@@ -1233,7 +1176,7 @@ class Planning:
             self.num_products,
             self.num_objectives,
             self.start_date,
-            self.initial_stock,
+            self.qc_max_months,
             self.num_months,
         )
         # 1.1) Initializes class object for Offspring Population
@@ -1247,22 +1190,23 @@ class Planning:
             self.num_products,
             self.num_objectives,
             self.start_date,
-            self.initial_stock,
+            self.qc_max_months,
             self.num_months,
         )
         # 1.2) Creates start and end date from schedule assures only batches with End date<Last day of manufacturing
 
         # 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
-        self.calc_start_end(pop)
+        pop=self.calc_start_end(pop)
 
         # 3)Calculate inventory levels and objectives
-        self.calc_inventory_objectives(pop)
+        pop=self.calc_inventory_objectives(pop)
         # if (pop.objectives_raw<0).any():
         #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-        pop.fronts = AlgNsga2._fronts(pop.objectives_raw, self.num_fronts)
+        objectives_raw_copy=pop.objectives_raw.copy()
+        pop.fronts = AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
         # violations=self.calc_violations(pop)
         # violations=self.calc_violation_unit_backlog(pop)
         # pop.fronts=AlgNsga2._fronts_violations(pop.objectives_raw.copy(),self.num_fronts,pop.backlogs[:,6].copy())
@@ -1276,9 +1220,9 @@ class Planning:
         # 5) Crowding Distance
         # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
         # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
-        pop.crowding_dist = AlgNsga2._crowding_distance(
-            pop.objectives_raw.copy(), pop.fronts.copy(), self.big_dummy
-        )
+        objectives_raw_copy=pop.objectives_raw.copy()
+        fronts_copy=pop.fronts.copy()
+        pop.crowding_dist = AlgNsga2._crowding_distance(objectives_raw_copy,fronts_copy,self.big_dummy)
         # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
         # if ((a1-a0)!=0)|((b1-b0)!=0):
         #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
@@ -1297,16 +1241,18 @@ class Planning:
             # ix_to_crossover=self.tournament_restrictions_binary(pop,n_parents,n_tour,violations)
             # violations=self.calc_violations(pop)
             # violations=self.calc_violation_unit_backlog(pop)
+            backlogs_copy=pop.backlogs[:, 6].copy()
             ix_to_crossover = self.tournament_restrictions_binary(
-                pop, n_parents, n_tour, pop.backlogs[:, 6].copy()
+                pop, n_parents, n_tour, backlogs_copy
             )
             # selected_num_genes=copy.deepcopy(pop.genes_per_chromo)[ix_to_crossover]
             # sorted_ix=np.argsort(selected_num_genes)
             # ix_to_crossover=ix_to_crossover[sorted_ix]
             # 7)Crossover
             # 7.1 Sorts Selected by number of genes
+            genes_per_chromo_copy=pop.genes_per_chromo.copy()
             ix_to_crossover = ix_to_crossover[
-                np.argsort(pop.genes_per_chromo.copy()[ix_to_crossover])
+                np.argsort(genes_per_chromo_copy[ix_to_crossover])
             ]
             # 7.2 Creates a new population for offspring population crossover and calls uniform crossover
             # new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
@@ -1315,11 +1261,13 @@ class Planning:
             #         raise Exception("Invalid number of batches (0).")
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
-
+            products_raw_copy=pop.products_raw[ix_to_crossover].copy()
+            batches_raw_copy=pop.batches_raw[ix_to_crossover].copy()
+            masks_copy=pop.masks[ix_to_crossover].copy()
             new_products, new_batches, new_mask = Crossovers._crossover_uniform(
-                pop.products_raw[ix_to_crossover].copy(),
-                pop.batches_raw[ix_to_crossover].copy(),
-                pop.masks[ix_to_crossover].copy(),
+                products_raw_copy,
+                batches_raw_copy,
+                masks_copy,
                 perc_crossover,
             )
 
@@ -1331,8 +1279,7 @@ class Planning:
 
             # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
             # 8)Mutation
-            # new_products,new_batches,new_mask=self.mutation_processes(new_products,new_batches,new_mask,pmut)
-            self.mutation_processes(new_products, new_batches, new_mask, pmut)
+            new_products, new_batches, new_mask=self.mutation_processes(new_products, new_batches, new_mask, pmut)
 
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
@@ -1343,8 +1290,7 @@ class Planning:
             # 9)Aggregate batches with same product neighbours
             # if i_gen>10:
             #     print("Hey")
-            # new_products,new_batches,new_mask=self.fix_aggregation_batches(new_products,new_batches,new_mask,genes_per_chromo)
-            self.fix_aggregation_batches(new_products, new_batches, new_mask)
+            new_products, new_batches, new_mask=self.fix_aggregation_batches(new_products, new_batches, new_mask)
 
             # for i in range(0,len(new_products)):
             #     if any(new_batches[i][new_mask[i]]==0):
@@ -1353,8 +1299,7 @@ class Planning:
             #         raise Exception("Invalid bool after number of active genes.")
 
             # 10) Merge populations Current and Offspring
-            # pop.append_offspring(new_products,new_batches,new_mask)
-            pop_offspring.create_new_population(new_products, new_batches, new_mask)
+            pop_offspring.update_new_population(new_products, new_batches, new_mask)
             # for i in range(0,len(pop_offspring.products_raw)):
             #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
@@ -1362,7 +1307,7 @@ class Planning:
             #         raise Exception("Invalid bool after number of active genes.")
 
             # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
-            self.calc_start_end(pop_offspring)
+            pop_offspring=self.calc_start_end(pop_offspring)
             # for i in range(0,len(pop_offspring.products_raw)):
             #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
@@ -1371,7 +1316,7 @@ class Planning:
             # print("Backlog before calc_inventory offspring",pop.backlogs[:,6])
 
             # 12) 3)Calculate inventory levels and objectives
-            self.calc_inventory_objectives(pop_offspring)
+            pop_offspring=self.calc_inventory_objectives(pop_offspring)
             # for i in range(0,len(pop_offspring.products_raw)):
             #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
@@ -1382,7 +1327,7 @@ class Planning:
             #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
             # 13) Merge Current Pop with Offspring
             # pop_offspring_copy=copy.deepcopy(pop_offspring)
-            self.merge_pop_with_offspring(pop, pop_offspring)
+            pop=self.merge_pop_with_offspring(pop, pop_offspring)
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
@@ -1413,9 +1358,10 @@ class Planning:
             # 15) 5) Crowding Distance
             # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
             # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
+            objectives_copy=pop.objectives_raw.copy()
+            fronts_copy=pop.fronts.copy()
             pop.crowding_dist = AlgNsga2._crowding_distance(
-                pop.objectives_raw.copy(), pop.fronts.copy(), self.big_dummy
-            )
+                objectives_copy,fronts_copy, self.big_dummy)
             # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
             # if ((a1-a0)!=0)|((b1-b0)!=0):
             #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
@@ -1432,13 +1378,13 @@ class Planning:
             # Calculates number of violated constraints
             # violations=self.calc_violations(pop)
             # violations=self.calc_violation_unit_backlog(pop)
-            pop.backlogs[:, 6].copy(),
-            pop.crowding_dist.copy(),
-            pop.fronts.copy(),
+            backlogs_copy=np.copy(pop.backlogs[:, 6])
+            crowding_dist_copy=np.copy(pop.crowding_dist)
+            fronts_copy=np.copy(pop.fronts)
             ix_reinsert = AlgNsga2._index_linear_reinsertion_nsga_constraints(
-                pop.backlogs[:, 6].copy(),
-                pop.crowding_dist.copy(),
-                pop.fronts.copy(),
+                backlogs_copy,
+                crowding_dist_copy,
+                fronts_copy,
                 num_chromossomes,
             )
             # 16.2) Remove non reinserted chromossomes from pop
@@ -1447,7 +1393,7 @@ class Planning:
             #         raise Exception("Invalid number of batches (0).")
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
-            ix_reinsert_copy = ix_reinsert.copy()
+            ix_reinsert_copy = np.copy(ix_reinsert)
             # violations=violations[ix_reinsert_copy]
             self.select_pop_by_index(pop, ix_reinsert_copy)
         # print("In",pop.objectives_raw)
@@ -1469,7 +1415,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 20
+        n_exec = 10
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1508,7 +1454,7 @@ class Planning:
                 self.num_products,
                 self.num_objectives,
                 self.start_date,
-                self.initial_stock,
+                self.qc_max_months,
                 self.num_months,
             )
             pop_main.name_variation = name_var
@@ -1529,7 +1475,7 @@ class Planning:
                     print("Backlog In merge", pop_exec.backlogs[:, 6])
 
                     print("In merge pop main", pop_main.fronts)
-                    self.merge_pop_with_offspring(pop_main, pop_exec)
+                    pop_main=self.merge_pop_with_offspring(pop_main, pop_exec)
                     print("Out merge pop main", pop_main.fronts)
                     print("Backlog Out merge", pop_main.backlogs[:, 6])
 
@@ -1618,7 +1564,7 @@ class Planning:
         """
         num_exec = 1
         num_chromossomes = 100
-        num_geracoes = 1000
+        num_geracoes = 2
         n_tour = 2
         pcross = 0.11
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
@@ -1651,7 +1597,7 @@ class Planning:
 
 
 if __name__ == "__main__":
-    Planning.run_cprofile()
-    # Planning().run_parallel()
+    # Planning.run_cprofile()
+    Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)

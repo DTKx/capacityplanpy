@@ -1228,20 +1228,18 @@ class AlgNsga2():
         criteria_array=criteria_array[sort_vio]
         # 1)Violations
         # Verify if there is a draw in the last number of violations
-        last_vio=criteria_array[:,0][n_ind]
+        last_vio=criteria_array[:,0][n_ind-1]
         dup_vio=np.sum(criteria_array[:,0]==last_vio)
-        # No draw at Violations
-        if dup_vio==1:
+        if dup_vio==1:# No draw at Violations
             ix_selected=criteria_array[:,3][np.where(criteria_array[:,0]<=last_vio)]
-        # Draw, goes to fronts
-        else:
-            # Removes selected values
+            # print(ix_selected.shape)
+        else:# Draw, goes to fronts
             # print(criteria_array.shape)
-            ix_vio=np.where(criteria_array[:,0]<=last_vio-1)
+            ix_vio=np.where(criteria_array[:,0]<=last_vio)# Removes selected values
             ix_selected=criteria_array[:,3][ix_vio]
+            # print(ix_selected.shape)
             criteria_array=np.delete(criteria_array,ix_vio, 0)
-            # print(criteria_array.shape)
-            remain=n_ind-len(ix_vio[0])
+            remain=(n_ind-1)-len(ix_vio[0])#n_ind-1 because counter starts at 0
 
             sort_front=np.argsort(criteria_array[:,1])
             criteria_array=criteria_array[sort_front]
@@ -1253,6 +1251,7 @@ class AlgNsga2():
             # No draw at Fronts
             if dup_fro==1:
                 ix_selected=np.append(ix_selected,criteria_array[:,3][np.where(criteria_array[:,0]<=last_fro)])
+                # print(ix_selected.shape)
             # Draw, goes to Crowding
             else:
                 # Removes selected values
@@ -1266,6 +1265,9 @@ class AlgNsga2():
 
                 # Appends Solution
                 ix_selected=np.append(ix_selected,criteria_array[:remain,3])
+                # print(ix_selected.shape)
+        if len(ix_selected)>n_ind:
+            print("Error in ix selection, number of selected index:",ix_selected)
         return ix_selected
 
 
