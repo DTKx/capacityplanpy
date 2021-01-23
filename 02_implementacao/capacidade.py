@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from dateutil import relativedelta
 from dateutil.relativedelta import *
-from numba import jit, prange
+from numba import jit, prange,typeof
 from pygmo import hypervolume
 from scipy import stats
 
@@ -687,7 +687,7 @@ class Planning:
                 # print("backlog", backlog_j)
                 # print("stock_i", stock_j)
 
-            for k in prange(1, num_months):  # Calculates Stock Loop per Months starting through 1
+            for k in prange(1, num_months):  # Calculates for the rest of months Stock Loop per Months starting through 1
                 available_j[k] = (
                     stock_j[k - 1] + produced_j[k]
                 )  # Available=Previous Stock+Produced this month
@@ -708,19 +708,24 @@ class Planning:
                         stock_j[k][ix_neg[0][n]] = 0.0
                     # print("backlog out",backlog_j[k])
                     # print("STOCK out",stock_j[k])
-
             deficit_strat_j = (
-                target_stock_copy - stock_j
+                stock_j - target_stock_copy
             )  # Minimise the median total inventory deicit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
+            # Cumulative sum of the differences be- tween the product inventory levels and the corresponding strategic monthly targets whenever the latter are greater than the former.
+            distribution_sums_backlog[j] = np.sum(backlog_j)
             ix_neg = np.where(deficit_strat_j < 0)
             num_neg = len(ix_neg[0])
-            if num_neg > 0:  # Corrects negative values
-                for ix in prange(num_neg):
-                    deficit_strat_j[
-                        ix_neg[0][ix], ix_neg[1][ix]
-                    ] = 0.0  # Corrects negative values, cumulative sum of the differences be- tween the product inventory levels and the corresponding strategic monthly targets whenever the latter are greater than the former.
-            distribution_sums_backlog[j] = np.sum(backlog_j)
-            distribution_sums_deficit[j] = np.sum(deficit_strat_j)
+            sum_deficit = 0.0
+            if num_neg > 0:  # Sums negative numbers
+                for n in prange(num_neg):
+                    sum_deficit += deficit_strat_j[ix_neg[0][n], ix_neg[1][n]]
+                # print("backlog out",backlog_j[k])
+                # print("STOCK out",stock_j[k])
+            distribution_sums_deficit[j] = sum_deficit*(-1)
+            # distribution_sums_deficit[j] = -1.0 * np.sum(
+            #     deficit_strat_j[np.where(deficit_strat_j < 0.0)]
+            # )
+
         return distribution_sums_backlog, distribution_sums_deficit
 
     def calc_median_deficit_backlog(self, pop, i):
@@ -825,7 +830,7 @@ class Planning:
         return pop
 
     @staticmethod
-    def tournament_restrictions_binary(fronts,crowding_dist, n_parents, n_tour, violations):
+    def tournament_restrictions_binary(fronts, crowding_dist, n_parents, n_tour, violations):
         """Tournament with replacement for selection to crossover, considering those criteria:       
         1)Lowest number of constraints: 1)Lowest median Total BacklogIf draw then: 
         2)Best pareto front, if draw then:
@@ -840,34 +845,40 @@ class Planning:
             array: Array with indexes of selected individuals
         """
         # # Calculates number of violated constraints
-        num_chromossomes=len(violations)
+        num_chromossomes = len(violations)
 
         # Arrays representing the indexes
-        idx_population = np.arange(0,num_chromossomes)
+        idx_population = np.arange(0, num_chromossomes)
         # Indexes of winners
         idx_winners = np.empty(shape=(n_parents,), dtype=int)
 
         # Selection all participants
         idx_for_tournament = np.random.choice(idx_population, size=n_tour * n_parents, replace=True)
         j = 0
-        violations_tour=violations[idx_for_tournament].reshape(-1,n_tour)
-        violations_min=np.amin(violations_tour,axis=1)
-        fronts_tour=fronts[idx_for_tournament].reshape(-1,n_tour)
-        fronts_min=np.amin(fronts_tour,axis=1)
-        crowding_dist_tour=crowding_dist[idx_for_tournament].reshape(-1,n_tour)
-        idx_for_tournament=idx_for_tournament.reshape(-1,n_tour)
+        violations_tour = violations[idx_for_tournament].reshape(-1, n_tour)
+        violations_min = np.amin(violations_tour, axis=1)
+        fronts_tour = fronts[idx_for_tournament].reshape(-1, n_tour)
+        fronts_min = np.amin(fronts_tour, axis=1)
+        crowding_dist_tour = crowding_dist[idx_for_tournament].reshape(-1, n_tour)
+        idx_for_tournament = idx_for_tournament.reshape(-1, n_tour)
         for j in range(0, n_parents):
             # Criteria
-            ix_lowest_vio=np.where(violations_tour[j,:]==violations_min[j])# 1) Lowest Restrictions
-            if len(ix_lowest_vio[0])==1:
+            ix_lowest_vio = np.where(
+                violations_tour[j, :] == violations_min[j]
+            )  # 1) Lowest Restrictions
+            if len(ix_lowest_vio[0]) == 1:
                 idx_winners[j] = idx_for_tournament[j][ix_lowest_vio][0]
             else:
-                ix_lowest_fronts=np.where(fronts_tour[j,:]==fronts_min[j])# 2)Lowest Pareto Front
-                if len(ix_lowest_fronts[0])==1:
+                ix_lowest_fronts = np.where(
+                    fronts_tour[j, :] == fronts_min[j]
+                )  # 2)Lowest Pareto Front
+                if len(ix_lowest_fronts[0]) == 1:
                     idx_winners[j] = idx_for_tournament[j][ix_lowest_fronts][0]
-                else:# 3)Highest Crowding Distance
-                    ix_lowest_crowd=np.argmin(crowding_dist_tour[j,:])
-                    idx_winners[j] = idx_for_tournament[j][ix_lowest_crowd]# In case of equal selects the first
+                else:  # 3)Highest Crowding Distance
+                    ix_lowest_crowd = np.argmin(crowding_dist_tour[j, :])
+                    idx_winners[j] = idx_for_tournament[j][
+                        ix_lowest_crowd
+                    ]  # In case of equal selects the first
         return idx_winners
 
     def mutation_processes(self, new_product, new_batches, new_mask, pmut):
@@ -1160,18 +1171,18 @@ class Planning:
         # if (pop.objectives_raw<0).any():
         #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
-        print(
-            "Metrics backlog all population: amax",
-            np.amax(pop.backlogs[:, 0]),  # 0)Max total backlog months and products
-            " mean",
-            np.mean(pop.backlogs[:, 1]),  # 1)Mean total backlog months and products
-            " median",
-            np.median(pop.backlogs[:, 3]),  # 3)Median total backlog months and products
-            " min",
-            np.amin(pop.backlogs[:, 4]),  # 4)Min total backlog months and products
-            " median",
-            np.median(pop.backlogs[:, 6]),  # 6)Backlog violations
-        )
+        # print(
+        #     "Metrics backlog all population: amax",
+        #     np.amax(pop.backlogs[:, 0]),  # 0)Max total backlog months and products
+        #     " mean",
+        #     np.mean(pop.backlogs[:, 1]),  # 1)Mean total backlog months and products
+        #     " median",
+        #     np.median(pop.backlogs[:, 3]),  # 3)Median total backlog months and products
+        #     " min",
+        #     np.amin(pop.backlogs[:, 4]),  # 4)Min total backlog months and products
+        #     " median",
+        #     np.median(pop.backlogs[:, 6]),  # 6)Backlog violations
+        # )
 
         # 4)Front Classification
         # a0=np.sum(copy.deepcopy(pop.objectives_raw))
@@ -1208,8 +1219,9 @@ class Planning:
             backlogs_copy = pop.backlogs[:, 6].copy()
             fronts_copy = pop.fronts.copy()
             crowding_dist_copy = pop.crowding_dist.copy()
-            ix_to_crossover = self.tournament_restrictions_binary(fronts_copy,crowding_dist_copy,
-            n_parents, n_tour, backlogs_copy)
+            ix_to_crossover = self.tournament_restrictions_binary(
+                fronts_copy, crowding_dist_copy, n_parents, n_tour, backlogs_copy
+            )
 
             # 7)Crossover
             # 7.1 Sorts Selected by number of genes
@@ -1283,20 +1295,20 @@ class Planning:
             # 12) 3)Calculate inventory levels and objectives
             pop_offspring = self.calc_inventory_objectives(pop_offspring)
 
-            print(
-                "Metrics backlog all population offspring: amax",
-                np.amax(pop_offspring.backlogs[:, 0]),  # 0)Max total backlog months and products
-                " mean",
-                np.mean(pop_offspring.backlogs[:, 1]),  # 1)Mean total backlog months and products
-                " median",
-                np.median(
-                    pop_offspring.backlogs[:, 3]
-                ),  # 3)Median total backlog months and products
-                " min",
-                np.amin(pop_offspring.backlogs[:, 4]),  # 4)Min total backlog months and products
-                " median",
-                np.median(pop_offspring.backlogs[:, 6]),  # 6)Backlog violations
-            )
+            # print(
+            #     "Metrics backlog all population offspring: amax",
+            #     np.amax(pop_offspring.backlogs[:, 0]),  # 0)Max total backlog months and products
+            #     " mean",
+            #     np.mean(pop_offspring.backlogs[:, 1]),  # 1)Mean total backlog months and products
+            #     " median",
+            #     np.median(
+            #         pop_offspring.backlogs[:, 3]
+            #     ),  # 3)Median total backlog months and products
+            #     " min",
+            #     np.amin(pop_offspring.backlogs[:, 4]),  # 4)Min total backlog months and products
+            #     " median",
+            #     np.median(pop_offspring.backlogs[:, 6]),  # 6)Backlog violations
+            # )
 
             # for i in range(0,len(pop_offspring.products_raw)):
             #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
@@ -1318,18 +1330,18 @@ class Planning:
             #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
             # print("Backlog after merging offspring",pop.backlogs[:,6])
 
-            print(
-                "Metrics backlog all population after merge : amax",
-                np.amax(pop.backlogs[:, 0]),  # 0)Max total backlog months and products
-                " mean",
-                np.mean(pop.backlogs[:, 1]),  # 1)Mean total backlog months and products
-                " median",
-                np.median(pop.backlogs[:, 3]),  # 3)Median total backlog months and products
-                " min",
-                np.amin(pop.backlogs[:, 4]),  # 4)Min total backlog months and products
-                " median",
-                np.median(pop.backlogs[:, 6]),  # 6)Backlog violations
-            )
+            # print(
+            #     "Metrics backlog all population after merge : amax",
+            #     np.amax(pop.backlogs[:, 0]),  # 0)Max total backlog months and products
+            #     " mean",
+            #     np.mean(pop.backlogs[:, 1]),  # 1)Mean total backlog months and products
+            #     " median",
+            #     np.median(pop.backlogs[:, 3]),  # 3)Median total backlog months and products
+            #     " min",
+            #     np.amin(pop.backlogs[:, 4]),  # 4)Min total backlog months and products
+            #     " median",
+            #     np.median(pop.backlogs[:, 6]),  # 6)Backlog violations
+            # )
 
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
@@ -1401,7 +1413,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 1
+        n_exec = 2
         n_exec_ite = range(0, n_exec)
 
         # Variables
