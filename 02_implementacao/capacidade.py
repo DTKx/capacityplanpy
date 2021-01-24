@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from dateutil import relativedelta
 from dateutil.relativedelta import *
-from numba import jit, prange,typeof
+from numba import jit, prange, typeof
 from pygmo import hypervolume
 from scipy import stats
 
@@ -352,13 +352,7 @@ class Planning:
         Args:
             pop_obj (Class object): Class Object of the population to be analized
         """
-        # # For testing produced_i can delete
-        # Creates a vector for batch/kg por the products
-        # Extracts the population informations
-        dsp_raw = np.vectorize(self.dsp_days.__getitem__)(pop_obj.products_raw)
-        usp_raw = np.vectorize(self.usp_days.__getitem__)(pop_obj.products_raw)
-
-        # # Initialize by addying the first date
+        # Initialize by addying the first date
         pop_obj.start_raw[:, 0] = self.start_date
 
         produced_i = np.zeros(
@@ -371,24 +365,14 @@ class Planning:
         )  # Produced Month 0 is the first month of inventory batches
 
         for i in range(0, pop_obj.num_chromossomes):  # Loop per chromossome i
-            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i]:])>0:
-            #     raise Exception("Invalid bool after number of active genes.")
-            # if any(pop_obj.batches_raw[i][pop_obj.masks[i]]==0):
-            #     raise Exception("Invalid number of batches (0).")
-
-            # produced_i = np.zeros(
-            #     shape=(self.num_months + self.qc_max_months, self.num_products), dtype=int
-            # )  # Produced Month 0 is the first month of inventory batches
-
-            # batches_month_kg = defaultdict(list)
-
             j = 0  # Evaluates gene/Campaign zero
             qa_days = self.qc_days[pop_obj.products_raw[i][j]]
             end_date = self.start_date + timedelta(
-                days=int(usp_raw[i][j] + dsp_raw[i][j])
+                days=self.usp_days[pop_obj.products_raw[i, j]]
+                + self.dsp_days[pop_obj.products_raw[i, j]]
             )  # End first batch=USP+DSP
             release_date = end_date + timedelta(
-                days=int(qa_days)
+                days=qa_days
             )  # Release date from QA batch=USP+DSP+QA
             m = (release_date.year - self.start_date.year) * 12 + (
                 release_date.month - self.start_date.month
@@ -399,10 +383,10 @@ class Planning:
 
             for n_b in range(0, pop_obj.batches_raw[i][j]):  # loop in number of batches per gene
                 end_date = end_date + timedelta(
-                    days=int(dsp_raw[i][j])
+                    days=self.dsp_days[pop_obj.products_raw[i, j]]
                 )  # end_date=previous_end+DSP
                 release_date = end_date + timedelta(
-                    days=int(qa_days)
+                    days=qa_days
                 )  # Release date from QA batch=USP+DSP+QA
                 m = (release_date.year - self.start_date.year) * 12 + (
                     release_date.month - self.start_date.month
@@ -412,7 +396,6 @@ class Planning:
                 ] += 1  # Updates the month with the number of batches produced
 
             pop_obj.end_raw[i][j] = end_date  # Add end date of DSP for the first gene
-            # batches_month_kg[j].append(end_dates)  # Appends to the dictionary
 
             j += 1  # Evaluates further genes
             while j < pop_obj.genes_per_chromo[i]:  # Loop per gene j starting from second gene
@@ -420,38 +403,27 @@ class Planning:
                 previous_end_date = end_date  # Updates end date
                 pop_obj.start_raw[i, j] = previous_end_date
                 +timedelta(
-                    days=int(
-                        self.setup_key_to_subkey[pop_obj.products_raw[i, j]][
-                            pop_obj.products_raw[i, j - 1]
-                        ]
-                    )
+                    days=self.setup_key_to_subkey[pop_obj.products_raw[i, j]][
+                        pop_obj.products_raw[i, j - 1]
+                    ]
                 )
                 -timedelta(
-                    days=int(usp_raw[i][j])
+                    days=self.usp_days[pop_obj.products_raw[i, j]]
                 )  # Add a Start Date=Previous End Date + Change Over Time - USP
 
                 qa_days = self.qc_days[pop_obj.products_raw[i][j]]
                 end_date = previous_end_date + timedelta(
-                    days=int(usp_raw[i][j] + dsp_raw[i][j])
+                    days=self.usp_days[pop_obj.products_raw[i, j]]
+                    + self.dsp_days[pop_obj.products_raw[i, j]]
                 )  # End first batch=Previous enddate+USP+DSP
 
                 if (
                     end_date > self.last_date
                 ):  # Verifies if End day<Last Day ok else delete, Fix and inactivates current gene and next ones
                     end_date = previous_end_date  # Return end date to the previous for breaking
-                    # print("Number of Batches before removal: ", pop_obj.batches_raw[i])
-                    # print(
-                    #     "Number of Batches before removal: ", pop_obj.batches_raw[i][pop_obj.masks[i]],
-                    # )
                     pop_obj.masks[i][j : pop_obj.genes_per_chromo[i]] = False
                     pop_obj.batches_raw[i][j : pop_obj.genes_per_chromo[i]] = 0
                     pop_obj.genes_per_chromo[i] = np.sum(pop_obj.masks[i])
-                    # print("Number of Batches after removal: ", pop_obj.batches_raw[i])
-                    # print(
-                    #     "Number of Batches after removal: ", pop_obj.batches_raw[i][pop_obj.masks[i]],
-                    # )
-                    if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i] :]) > 0:
-                        raise Exception("Invalid bool after number of active genes.")
                     break  # Break the while loop, goes to produced_i = produced_i * self.yield_kg_batch_ar
                 else:  # Continues
                     release_date = end_date + timedelta(
@@ -468,7 +440,7 @@ class Planning:
                     ):  # loop in subsequent batches per gene
                         previous_end_date = end_date  # Updates value of previous end date
                         end_date = previous_end_date + timedelta(
-                            days=int(dsp_raw[i][j])
+                            days=self.dsp_days[pop_obj.products_raw[i, j]]
                         )  # end_date=previous_end+DSP
                         if end_date > self.last_date:  # Verifies if End day<Last Day ok else delete
                             pop_obj.batches_raw[i][j] = (
@@ -480,35 +452,15 @@ class Planning:
                             if (
                                 pop_obj.batches_raw[i][j] == 0
                             ):  # Fix and inactivates current gene and next ones
-                                # print("Number of Batches before removal: ", pop_obj.batches_raw[i])
-                                # print(
-                                #     "Number of Batches before removal: ", pop_obj.batches_raw[i][pop_obj.masks[i]],
-                                # )
                                 pop_obj.masks[i][j : pop_obj.genes_per_chromo[i]] = False
                                 pop_obj.batches_raw[i][j : pop_obj.genes_per_chromo[i]] = 0
                                 pop_obj.genes_per_chromo[i] = np.sum(pop_obj.masks[i])
-                                # print("Number of Batches after removal: ", pop_obj.batches_raw[i])
-                                # print(
-                                #     "Number of Batches after removal: ", pop_obj.batches_raw[i][pop_obj.masks[i]],
-                                # )
-                                if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i] :]) > 0:
-                                    raise Exception("Invalid bool after number of active genes.")
                             elif (
                                 pop_obj.masks[i][j + 1] == True
                             ):  # Next gene j+1 is active, must be inactivated
-                                # print("Number of Batches before removal: ", pop_obj.batches_raw[i])
-                                # print(
-                                #     "Number of Batches before removal: ", pop_obj.batches_raw[i][pop_obj.masks[i]],
-                                # )
                                 pop_obj.masks[i][j + 1 : pop_obj.genes_per_chromo[i]] = False
                                 pop_obj.batches_raw[i][j + 1 : pop_obj.genes_per_chromo[i]] = 0
                                 pop_obj.genes_per_chromo[i] = np.sum(pop_obj.masks[i])
-                                # print("Number of Batches after removal: ", pop_obj.batches_raw[i])
-                                # print(
-                                #     "Number of Batches after removal: ", pop_obj.batches_raw[i][pop_obj.masks[i]],
-                                # )
-                                if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i] :]) > 0:
-                                    raise Exception("Invalid bool after number of active genes.")
                             break  # Break the for loop, goes to pop_obj.end_raw[i][j] = end_date
                         else:
                             release_date = end_date + timedelta(
@@ -523,14 +475,11 @@ class Planning:
                     pop_obj.end_raw[i][j] = end_date  # Add end date of first gene
 
                     j += 1
-            # if np.sum(pop_obj.masks[i][pop_obj.genes_per_chromo[i] :]) > 0:
-            #     raise Exception("Invalid bool after number of active genes.")
             produced_i[:, :, i] = (
                 produced_i[:, :, i] * self.yield_kg_batch_ar
             )  # Conversion batches to kg
 
         pop_obj.produced_month_product_individual = produced_i  # Overwrites the old array
-
         pop_obj.update_genes_per_chromo()  # Updates Genes per Chromo
         return pop_obj
 
@@ -687,7 +636,9 @@ class Planning:
                 # print("backlog", backlog_j)
                 # print("stock_i", stock_j)
 
-            for k in prange(1, num_months):  # Calculates for the rest of months Stock Loop per Months starting through 1
+            for k in prange(
+                1, num_months
+            ):  # Calculates for the rest of months Stock Loop per Months starting through 1
                 available_j[k] = (
                     stock_j[k - 1] + produced_j[k]
                 )  # Available=Previous Stock+Produced this month
@@ -721,7 +672,7 @@ class Planning:
                     sum_deficit += deficit_strat_j[ix_neg[0][n], ix_neg[1][n]]
                 # print("backlog out",backlog_j[k])
                 # print("STOCK out",stock_j[k])
-            distribution_sums_deficit[j] = sum_deficit*(-1)
+            distribution_sums_deficit[j] = sum_deficit * (-1)
             # distribution_sums_deficit[j] = -1.0 * np.sum(
             #     deficit_strat_j[np.where(deficit_strat_j < 0.0)]
             # )
@@ -1413,7 +1364,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 2
+        n_exec = 1
         n_exec_ite = range(0, n_exec)
 
         # Variables
