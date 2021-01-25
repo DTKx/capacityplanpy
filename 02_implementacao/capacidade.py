@@ -19,7 +19,8 @@ import numpy as np
 import pandas as pd
 from dateutil import relativedelta
 from dateutil.relativedelta import *
-from numba import jit, prange, typeof
+import numba as nb
+# from numba import jit, prange, typeof
 from pygmo import hypervolume
 from scipy import stats
 
@@ -28,9 +29,10 @@ from scipy import stats
 # # insert at 1, 0 is the script path (or '' in REPL)
 # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
 # import genetico_permutacao as genetico
-from genetic import AlgNsga2, Crossovers, Mutations
+import genetic as gn
+# from genetic import gn.AlgNsga2, gn.Crossovers, gn.Mutations
 
-# AlgNsga2._crossover_uniform,AlgNsga2._fronts,_crowding_distance
+# gn.AlgNsga2._crossover_uniform,gn.AlgNsga2._fronts,_crowding_distance
 
 
 class Population:
@@ -484,14 +486,14 @@ class Planning:
         return pop_obj
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_triangular_dist(demand_distribution, num_monte):
         return np.random.triangular(
             demand_distribution[0], demand_distribution[1], demand_distribution[2], size=num_monte,
         )
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_median_triangular_dist(demand_distribution, num_monte):
         n = len(demand_distribution)
         demand_i = np.zeros(shape=(n,))
@@ -544,7 +546,7 @@ class Planning:
         return demand_i
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, num_months):
         """Calculates Stock per month along (over num_months) Stock=Available-Demand if any<0 Stock=0 & Back<0 = else.
 
@@ -576,7 +578,7 @@ class Planning:
         return stock_i, backlog_i
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_distributions_monte_carlo(
         produced, demand_j, num_monte, num_months, num_products, target_stock, initial_stock
     ):
@@ -607,7 +609,7 @@ class Planning:
             num_monte, dtype=np.float64
         )  # Stores backlog distributions
 
-        for j in prange(num_monte):  # Loop per number of monte carlo simulations
+        for j in nb.prange(num_monte):  # Loop per number of monte carlo simulations
             produced_j = produced.copy()  # Produced Month 0 is the first month of inventory batches
             available_j = available.copy()
             stock_j = np.zeros(
@@ -631,12 +633,12 @@ class Planning:
                 )  # Adds negative values to backlog
                 # print("backlog", backlog_j)
                 # print("stock_i", stock_j)
-                for ix in prange(num_neg):
+                for ix in nb.prange(num_neg):
                     stock_j[0, ix_neg[0][ix]] = 0.0  # Corrects if Stock is negative
                 # print("backlog", backlog_j)
                 # print("stock_i", stock_j)
 
-            for k in prange(
+            for k in nb.prange(
                 1, num_months
             ):  # Calculates for the rest of months Stock Loop per Months starting through 1
                 available_j[k] = (
@@ -655,7 +657,7 @@ class Planning:
                     # print("STOCK in",stock_j[k])
                     backlog_j[k][ix_neg] = (stock_j[k][ix_neg]) * (int(-1))
                     # Corrects if Stock is negative
-                    for n in prange(num_neg):
+                    for n in nb.prange(num_neg):
                         stock_j[k][ix_neg[0][n]] = 0.0
                     # print("backlog out",backlog_j[k])
                     # print("STOCK out",stock_j[k])
@@ -668,7 +670,7 @@ class Planning:
             num_neg = len(ix_neg[0])
             sum_deficit = 0.0
             if num_neg > 0:  # Sums negative numbers
-                for n in prange(num_neg):
+                for n in nb.prange(num_neg):
                     sum_deficit += deficit_strat_j[ix_neg[0][n], ix_neg[1][n]]
                 # print("backlog out",backlog_j[k])
                 # print("STOCK out",stock_j[k])
@@ -676,7 +678,6 @@ class Planning:
             # distribution_sums_deficit[j] = -1.0 * np.sum(
             #     deficit_strat_j[np.where(deficit_strat_j < 0.0)]
             # )
-
         return distribution_sums_backlog, distribution_sums_deficit
 
     def calc_median_deficit_backlog(self, pop, i):
@@ -723,7 +724,7 @@ class Planning:
         return pop.deficit[i][3]  # MedianDeficit
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def metrics_dist_deficit(distribution_sums_deficit):
         metrics = np.array(
             [
@@ -738,7 +739,7 @@ class Planning:
         return metrics
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def metrics_dist_backlog(distribution_sums_backlog, num_monte):
         metrics = np.array(
             [
@@ -862,7 +863,7 @@ class Planning:
             #     raise Exception("Invalid number of batches (0).")
             # 1. To mutate a product label with a rate of pMutP.
             # print("In label",new_product[i])
-            new_product[i, 0 : genes_per_chromo[i]] = Mutations._label_mutation(
+            new_product[i, 0 : genes_per_chromo[i]] = gn.Mutations._label_mutation(
                 new_product[i, 0 : genes_per_chromo[i]], self.num_products, pmut[0]
             )
             # if any(new_batches[i][new_mask[i]]==0):
@@ -870,7 +871,7 @@ class Planning:
             # print(new_product[i])
             # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
             # print("In add_subtract",new_batches[i])
-            new_batches[i, 0 : genes_per_chromo[i]] = Mutations._add_subtract_mutation(
+            new_batches[i, 0 : genes_per_chromo[i]] = gn.Mutations._add_subtract_mutation(
                 new_batches[i, 0 : genes_per_chromo[i]], pmut[1], pmut[2]
             )
             # print(new_batches[i])
@@ -894,7 +895,7 @@ class Planning:
             (
                 new_product[i, 0 : genes_per_chromo[i]],
                 new_batches[i, 0 : genes_per_chromo[i]],
-            ) = Mutations._swap_mutation(
+            ) = gn.Mutations._swap_mutation(
                 new_product[i, 0 : genes_per_chromo[i]],
                 new_batches[i, 0 : genes_per_chromo[i]],
                 pmut[3],
@@ -910,7 +911,7 @@ class Planning:
         return new_product, new_batches, new_mask
 
     @staticmethod
-    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def agg_product_batch(products, batches, masks, genes_per_chromo):
         """Aggregates product batches in case of neighbours products.
         Fix process constraints of batch min, max and multiple.
@@ -1136,28 +1137,15 @@ class Planning:
         # )
 
         # 4)Front Classification
-        # a0=np.sum(copy.deepcopy(pop.objectives_raw))
         objectives_raw_copy = pop.objectives_raw.copy()
-        pop.fronts = AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
-        # a1=np.sum(pop.objectives_raw)
-        # if (a1-a0)!=0:
-        #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
-        # if (pop.objectives_raw<0).any():
-        #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
-
+        pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
+        
         # 5) Crowding Distance
-        # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
-        # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
         objectives_raw_copy = pop.objectives_raw.copy()
         fronts_copy = pop.fronts.copy()
-        pop.crowding_dist = AlgNsga2._crowding_distance(
+        pop.crowding_dist = gn.AlgNsga2._crowding_distance(
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
-        # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-        # if ((a1-a0)!=0)|((b1-b0)!=0):
-        #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
-        # if (pop.objectives_raw<0).any():
-        #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
         for i_gen in range(0, num_geracoes):
             print("Generation ", i_gen)
 
@@ -1179,7 +1167,7 @@ class Planning:
             genes_per_chromo_copy = pop.genes_per_chromo.copy()
             ix_to_crossover = ix_to_crossover[np.argsort(genes_per_chromo_copy[ix_to_crossover])]
             # 7.2 Creates a new population for offspring population crossover and calls uniform crossover
-            # new_products,new_batches,new_mask=Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
+            # new_products,new_batches,new_mask=gn.Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
             #         raise Exception("Invalid number of batches (0).")
@@ -1188,7 +1176,7 @@ class Planning:
             products_raw_copy = pop.products_raw.copy()
             batches_raw_copy = pop.batches_raw.copy()
             masks_copy = pop.masks.copy()
-            new_products, new_batches, new_mask = Crossovers._crossover_uniform(
+            new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
                 products_raw_copy[ix_to_crossover],
                 batches_raw_copy[ix_to_crossover],
                 masks_copy[ix_to_crossover],
@@ -1201,7 +1189,7 @@ class Planning:
             #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
             #         raise Exception("Invalid bool after number of active genes.")
 
-            # pop_produto,pop_batches,pop_mask=AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
+            # pop_produto,pop_batches,pop_mask=gn.AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
             # 8)Mutation
             new_products, new_batches, new_mask = self.mutation_processes(
                 new_products, new_batches, new_mask, pmut
@@ -1296,7 +1284,19 @@ class Planning:
 
             # 14) 4)Front Classification
             # a0=np.sum(copy.deepcopy(pop.objectives_raw))
-            pop.fronts = AlgNsga2._fronts(pop.objectives_raw, self.num_fronts)
+            objectives_raw_copy = pop.objectives_raw.copy()
+            # t0=time.perf_counter()
+            pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
+            # t1=time.perf_counter()
+            # print(t1-t0)
+            # objectives_raw_copy = pop.objectives_raw.copy()
+            # t0=time.perf_counter()
+            # b= gn.AlgNsga2._fronts_numba(objectives_raw_copy, self.num_fronts)
+            # t1=time.perf_counter()
+            # print(t1-t0)
+            # if np.equal(pop.fronts,b).all():
+            #     print("ok")
+
 
             # a1=np.sum(pop.objectives_raw)
             # if (a1-a0)!=0:
@@ -1313,7 +1313,7 @@ class Planning:
             # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
             objectives_copy = pop.objectives_raw.copy()
             fronts_copy = pop.fronts.copy()
-            pop.crowding_dist = AlgNsga2._crowding_distance(
+            pop.crowding_dist = gn.AlgNsga2._crowding_distance(
                 objectives_copy, fronts_copy, self.big_dummy
             )
             # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
@@ -1333,7 +1333,7 @@ class Planning:
             backlogs_copy = np.copy(pop.backlogs[:, 6])
             crowding_dist_copy = np.copy(pop.crowding_dist)
             fronts_copy = np.copy(pop.fronts)
-            ix_reinsert = AlgNsga2._index_linear_reinsertion_nsga_constraints(
+            ix_reinsert = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
                 backlogs_copy, crowding_dist_copy, fronts_copy, num_chromossomes,
             )
             # 16.2) Remove non reinserted chromossomes from pop
@@ -1364,7 +1364,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 1
+        n_exec = 2
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1435,7 +1435,7 @@ class Planning:
             self.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
             print("fronts in", pop_main.fronts)
             # Front Classification
-            pop_main.fronts = AlgNsga2._fronts(pop_main.objectives_raw, self.num_fronts)
+            pop_main.fronts = gn.AlgNsga2._fronts(pop_main.objectives_raw, self.num_fronts)
             print("fronts out", pop_main.fronts)
             # Select only front 0 with no violations or front 0
             try:
@@ -1546,7 +1546,7 @@ class Planning:
 
 
 if __name__ == "__main__":
-    Planning.run_cprofile()
-    # Planning().run_parallel()
+    # Planning.run_cprofile()
+    Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # Planning().calc_demand_montecarlo_to_external_file(5000)
