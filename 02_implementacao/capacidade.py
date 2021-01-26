@@ -827,7 +827,7 @@ class Planning:
                 if len(ix_lowest_fronts[0]) == 1:
                     idx_winners[j] = idx_for_tournament[j][ix_lowest_fronts][0]
                 else:  # 3)Highest Crowding Distance
-                    ix_lowest_crowd = np.argmin(crowding_dist_tour[j, :])
+                    ix_lowest_crowd = np.argmax(crowding_dist_tour[j, :])
                     idx_winners[j] = idx_for_tournament[j][
                         ix_lowest_crowd
                     ]  # In case of equal selects the first
@@ -1543,7 +1543,6 @@ class Planning:
         tf = time.perf_counter()
         delta_t = tf - t0
         print("Total time ", delta_t)
-
 
 if __name__ == "__main__":
     # Planning.run_cprofile()

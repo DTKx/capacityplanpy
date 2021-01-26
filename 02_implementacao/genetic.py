@@ -3,12 +3,14 @@ import random
 import copy
 
 import numba as nb
+
 # from numba import jit,prange
 import time
 from sklearn.cluster import KMeans
 import math
 from itertools import combinations
 from scipy.stats import rankdata
+import numpy.testing as npt
 
 
 class Helpers:
@@ -328,50 +330,64 @@ class AlgNsga2:
             int: Array shape (n,) with the pareto fronts classification for each individual.
         """
         row, col = objectives_fn.shape
-        ix_falta_classificar = np.arange(0, row)# Indexes to classify
-        fronts = np.zeros(row, dtype=np.int64)# Initializes Fronts
+        ix_falta_classificar = np.arange(0, row)  # Indexes to classify
+        fronts = np.zeros(row, dtype=np.int64)  # Initializes Fronts
         j = 0
-        existe_dominados = True #Bool if exists dominated points, or I reached a stage with only non dominated (e.g. same objectives)
-        while (j < num_fronts - 1) & (existe_dominados):#Loop per fronts, except last one which will be added in last front and exists dominated points
+        existe_dominados = True  # Bool if exists dominated points, or I reached a stage with only non dominated (e.g. same objectives)
+        while (j < num_fronts - 1) & (
+            existe_dominados
+        ):  # Loop per fronts, except last one which will be added in last front and exists dominated points
             dominado = np.ones(shape=(row,))
             resultado_fn = objectives_fn[ix_falta_classificar].copy()
 
             p = len(ix_falta_classificar)
             dominado_fn = np.ones(p)
-            for i in np.arange(0, p):#Loop per point to compare, till classify point as dominated(finds at least one that dominates) or non dominated(compares all points)
-                k = 0#Counter for all other points
-                dominado_sum = int(0)#Minimization problem. dominado_sum=1(Dominated),dominado_sum=0(Non Dominated)
-                while (k < p) & (dominado_sum == int(0)):#1)May loop all points,2)Remains non dominated
-                    if i == k:#If same point, continues.
+            for i in np.arange(
+                0, p
+            ):  # Loop per point to compare, till classify point as dominated(finds at least one that dominates) or non dominated(compares all points)
+                k = 0  # Counter for all other points
+                dominado_sum = int(
+                    0
+                )  # Minimization problem. dominado_sum=1(Dominated),dominado_sum=0(Non Dominated)
+                while (k < p) & (
+                    dominado_sum == int(0)
+                ):  # 1)May loop all points,2)Remains non dominated
+                    if i == k:  # If same point, continues.
                         k += int(1)
                         continue
                     ar_distintos = np.where(resultado_fn[k] != resultado_fn[i])
-                    if len(ar_distintos) == 0:# If arrays are totally equal, the two points are non dominated.
+                    if (
+                        len(ar_distintos) == 0
+                    ):  # If arrays are totally equal, the two points are non dominated.
                         dominado_count = 0
-                    else:#Dominated if all the objectives are lower than the p0 (evaluated), else non dominated
+                    else:  # Dominated if all the objectives are lower than the p0 (evaluated), else non dominated
                         dominado_count = int(
                             np.all(resultado_fn[k][ar_distintos] < resultado_fn[i][ar_distintos])
                         )
                     dominado_sum += dominado_count
                     k += int(1)
-                if dominado_sum == 0:#Non Dominated
+                if dominado_sum == 0:  # Non Dominated
                     dominado_fn[i] = 0
                 else:
-                    dominado_fn[i] = 1 #Dominated
+                    dominado_fn[i] = 1  # Dominated
 
             dominado[ix_falta_classificar] = dominado_fn.copy()
 
             # dominado[ix_falta_classificar]=_ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
-            ix_nao_dominados = np.where(dominado == 0)[0] #Absolute Index of non dominated points
-            if len(ix_nao_dominados) == 0:#Did not found non dominated e.g. only have points with same obejctives
+            ix_nao_dominados = np.where(dominado == 0)[0]  # Absolute Index of non dominated points
+            if (
+                len(ix_nao_dominados) == 0
+            ):  # Did not found non dominated e.g. only have points with same obejctives
                 existe_dominados = False
-                continue #Break the while loop
-            fronts[ix_nao_dominados] = j#Adds non dominated to current front
-            ix_falta_classificar = np.delete(ix_falta_classificar, ix_nao_dominados)# Removes classified non dominated points by index
+                continue  # Break the while loop
+            fronts[ix_nao_dominados] = j  # Adds non dominated to current front
+            ix_falta_classificar = np.delete(
+                ix_falta_classificar, ix_nao_dominados
+            )  # Removes classified non dominated points by index
 
             j += 1
 
-        fronts[ix_falta_classificar] = j#Adds all remaining points in last front
+        fronts[ix_falta_classificar] = j  # Adds all remaining points in last front
 
         return fronts
 
@@ -388,8 +404,8 @@ class AlgNsga2:
             int: Array shape (n,) with the pareto fronts classification for each individual.
         """
 
-        # @nb.jit(nopython=True, nogil=True)#Fast_math must be disabled for Unit Testing
-        @nb.jit(nopython=True, nogil=True,fast_math=True)
+        @nb.jit(nopython=True, nogil=True)  # Fast_math must be disabled for Unit Testing
+        # @nb.jit(nopython=True, nogil=True,fast_math=True)
         def _ponto_dominado_minimizacao(resultado_fn):
             """Defines dominated points, from n objectives (columns)
 
@@ -433,7 +449,7 @@ class AlgNsga2:
         # Definição de fronteiras
         ix_falta_classificar = np.arange(0, row)
         fronts = np.empty(dtype=int, shape=(row,))
-        list_classified_non_dominated=[]
+        list_classified_non_dominated = []
         # Loop por fronts exceto a ultima pois os valores remanescentes serão adicionados na ultima fronteira
         j = 0
         existe_dominados = True
@@ -450,11 +466,11 @@ class AlgNsga2:
             fronts[ix_nao_dominados] = j
             ix_falta_classificar = np.setdiff1d(ix_falta_classificar, ix_nao_dominados)
             j += 1
-        fronts[ix_falta_classificar] = j# Adiciona todos os outros pontos na última fronteira
+        fronts[ix_falta_classificar] = j  # Adiciona todos os outros pontos na última fronteira
         return fronts
 
     def _crowding_distance(objectives_fn, fronts, big_dummy):
-        """Calcula o shared fitness para o algoritmo NSGA para cada individuo
+        """Calculates share crowding distance for each individual.
 
         Args:
             objectives_fn (float): Array de floats shape(m,n) com a solução dos valores de individuos avaliados em n funções Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
@@ -464,51 +480,33 @@ class AlgNsga2:
             float: Array com shared fitness shape (n,1)
         """
         num_ind, num_obj = objectives_fn.shape
-
-        # A primeira coluna é dummy repleta de 0s
-        crowd_dist = np.zeros(shape=(num_ind, num_obj + 1), dtype=float)
-        crowd_dist[:, 0] = 0
+        ranks=np.zeros(shape=(num_ind,num_obj),dtype=int)
+        crowd_dist = np.zeros(shape=(num_ind,), dtype=float)# Last Column will remain dummy (0)
         num_fronts = np.unique(fronts)
+        fit_obj_max_delta = np.zeros(num_obj,dtype=float)#stores max and min for normalization
+        #Populates ranks per objectives and add high values to min and max of fronts and objectives
+        for j in range(num_obj):#Objectives
+            fit_obj_max_delta[j] = np.max(objectives_fn[:,j]) - np.min(objectives_fn[:,j])# Stores Max and minimum for each objective
+            if fit_obj_max_delta[j] == 0.0:#Fix in case only one value
+                fit_obj_max_delta[j] = 1.0
+            for m in num_fronts:#Fronts
+                ix_i_front = np.where(fronts == m)[0]
+                ranks[ix_i_front,j]=rankdata(objectives_fn[ix_i_front,j],method="dense")
+                mask_borders=(ranks[ix_i_front,j]==1)|(ranks[ix_i_front,j]==np.max(ranks[ix_i_front,j]))
+                crowd_dist[ix_i_front[mask_borders]]=big_dummy #Adds a large value to the borders
 
-        # Loop por fronts i
-        for i in num_fronts:
-            # Mask de index de individuos na fronteira
-            ix_ind_front_i = np.where(fronts == i)[0]
-
-            # Loop por objetivos j
-            # A primeira coluna é dummy repleta de 0s
-            for j in range(1, num_obj + 1):
-                fit_obj_max_delta = np.max(objectives_fn[ix_ind_front_i, j - 1]) - np.min(
-                    objectives_fn[ix_ind_front_i, j - 1]
-                )
-                if fit_obj_max_delta == 0:
-                    fit_obj_max_delta = 1
-                ix_rank_asc = np.argsort(objectives_fn[ix_ind_front_i, j - 1])
-                ix_max_cd = np.where(
-                    crowd_dist[:, j][ix_ind_front_i] == np.max(crowd_dist[:, j][ix_ind_front_i])
-                )
-                ix_min_cd = np.where(
-                    crowd_dist[:, j][ix_ind_front_i] == np.min(crowd_dist[:, j][ix_ind_front_i])
-                )
-                if len(ix_max_cd) > 1:
-                    raise ValueError("Mais de um máx")
-
-                crowd_dist[:, j][ix_ind_front_i[ix_rank_asc[ix_max_cd]]] = big_dummy
-                crowd_dist[:, j][ix_ind_front_i[ix_rank_asc[ix_min_cd]]] = big_dummy
-
-                # Loop por individuo exceto extremos
-                for k in np.arange(len(ix_min_cd), len(ix_rank_asc) - len(ix_min_cd)):
-                    # index absoluto
-                    ix_abs = ix_ind_front_i[ix_rank_asc[k]]
-                    crowd_obj_anterior = crowd_dist[:, j - 1][ix_abs]
-                    fit_next = objectives_fn[:, j - 1][ix_ind_front_i[ix_rank_asc[k + 1]]]
-                    fit_anterior = objectives_fn[:, j - 1][ix_ind_front_i[ix_rank_asc[k - 1]]]
-                    crowd_dist[:, j][ix_abs] = (
-                        crowd_obj_anterior + (fit_next - fit_anterior) / fit_obj_max_delta
-                    )
-                    if np.isnan(crowd_dist[:, j][ix_abs]):
-                        raise ValueError("Nan")
-        return crowd_dist[:, -1]
+        for k in range(num_ind):#loop per individual
+            crowd_val=0
+            for j in range(0, num_obj):#Loop objectives
+                if crowd_dist[k]==big_dummy:#If contains any border maintains the high value
+                    crowd_val=big_dummy
+                    break
+                else:
+                    ix_rank_before=np.where((ranks[:,j]==ranks[k,j]-1)&(fronts==fronts[k]))[0][0]#Select the first one
+                    ix_rank_after=np.where((ranks[:,j]==ranks[k,j]+1)&(fronts==fronts[k]))[0][0]#Select the first one
+                    crowd_val+=(objectives_fn[ix_rank_after,j]-objectives_fn[ix_rank_before,j])/fit_obj_max_delta[j]
+            crowd_dist[k]=crowd_val
+        return crowd_dist
 
     def _torneio_simples_nsga2(
         pop_tarefa, pop_processador, crowd_dist, fronts, n_ind_selecionar, n_tour
