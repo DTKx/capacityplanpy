@@ -1336,6 +1336,7 @@ class Planning:
             ix_reinsert = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
                 backlogs_copy, crowding_dist_copy, fronts_copy, num_chromossomes,
             )
+
             # 16.2) Remove non reinserted chromossomes from pop
             # for i in range(0,len(pop.products_raw)):
             #     if any(pop.batches_raw[i][pop.masks[i]]==0):
