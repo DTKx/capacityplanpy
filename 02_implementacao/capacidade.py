@@ -1283,48 +1283,15 @@ class Planning:
             # )
 
             # 14) 4)Front Classification
-            # a0=np.sum(copy.deepcopy(pop.objectives_raw))
             objectives_raw_copy = pop.objectives_raw.copy()
-            # t0=time.perf_counter()
             pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
-            # t1=time.perf_counter()
-            # print(t1-t0)
-            # objectives_raw_copy = pop.objectives_raw.copy()
-            # t0=time.perf_counter()
-            # b= gn.AlgNsga2._fronts_numba(objectives_raw_copy, self.num_fronts)
-            # t1=time.perf_counter()
-            # print(t1-t0)
-            # if np.equal(pop.fronts,b).all():
-            #     print("ok")
-
-
-            # a1=np.sum(pop.objectives_raw)
-            # if (a1-a0)!=0:
-            #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
-
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
 
             # 15) 5) Crowding Distance
-            # print(f"before after objectives {np.sum(pop.objectives_raw)}, fronts {np.sum(pop.fronts)}, check mutation")
-            # a0,b0=np.sum(copy.deepcopy(pop.objectives_raw)),np.sum(copy.deepcopy(pop.fronts))
             objectives_copy = pop.objectives_raw.copy()
             fronts_copy = pop.fronts.copy()
             pop.crowding_dist = gn.AlgNsga2._crowding_distance(
                 objectives_copy, fronts_copy, self.big_dummy
             )
-            # a1,b1=np.sum(pop.objectives_raw),np.sum(pop.fronts)
-            # if ((a1-a0)!=0)|((b1-b0)!=0):
-            #     raise Exception('Mutation is affecting values, consider making a deepcopy.')
-
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
 
             # 16) Linear Reinsertion
 
@@ -1338,17 +1305,8 @@ class Planning:
             )
 
             # 16.2) Remove non reinserted chromossomes from pop
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
             ix_reinsert_copy = np.copy(ix_reinsert)
-            # violations=violations[ix_reinsert_copy]
             self.select_pop_by_index(pop, ix_reinsert_copy)
-        # print("In",pop.objectives_raw)
-        # pop.objectives_raw[:, 0] = self.inversion_val_throughput - pop.objectives_raw[:, 0]
-        # print("Out",pop.objectives_raw)
         return pop
 
     def export_obj(self, obj, path):
