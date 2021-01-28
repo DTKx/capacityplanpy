@@ -800,7 +800,7 @@ class Planning:
         return pop
 
     @staticmethod
-    def tournament_restrictions_binary(fronts, crowding_dist, n_parents, n_tour, violations):
+    def tournament_restrictions(fronts, crowding_dist, n_parents, n_tour, violations):
         """Tournament with replacement for selection to crossover, considering those criteria:       
         1)Lowest number of constraints: 1)Lowest median Total BacklogIf draw then: 
         2)Best pareto front, if draw then:
@@ -1155,12 +1155,8 @@ class Planning:
         # )
 
         # 4)Front Classification
-        if isinstance(pop.products_raw[0][0], np.int32) == False:
-            raise ValueError("Not int")
         objectives_raw_copy = pop.objectives_raw.copy()
         pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
-        if isinstance(pop.products_raw[0][0], np.int32) == False:
-            raise ValueError("Not int")
 
         # 5) Crowding Distance
         objectives_raw_copy = pop.objectives_raw.copy()
@@ -1168,8 +1164,6 @@ class Planning:
         pop.crowding_dist = gn.AlgNsga2._crowding_distance(
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
-        if isinstance(pop.products_raw[0][0], np.int32) == False:
-            raise ValueError("Not int")
         for i_gen in range(0, num_geracoes):
             print("Generation ", i_gen)
 
@@ -1182,7 +1176,7 @@ class Planning:
             backlogs_copy = pop.backlogs[:, 6].copy()
             fronts_copy = pop.fronts.copy()
             crowding_dist_copy = pop.crowding_dist.copy()
-            ix_to_crossover = self.tournament_restrictions_binary(
+            ix_to_crossover = self.tournament_restrictions(
                 fronts_copy, crowding_dist_copy, n_parents, n_tour, backlogs_copy
             )
 

@@ -61,12 +61,6 @@ class Crossovers:
             pop_mask (Array of booleans): Masks with active cromossomes
             perc_crossover (float): Probability of crossover, ranging from 0 to 1.
 
-        Raises:
-            Exception: [description]
-            Exception: [description]
-            Exception: [description]
-            Exception: [description]
-
         Returns:
             Arrays: Returns the offspring of the product, batches and mask.
         """

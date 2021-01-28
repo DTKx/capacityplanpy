@@ -56,6 +56,45 @@ class TestGenetic(unittest.TestCase):
         self.assertAlmostEqual(crowding_dist.all(), objectives_fn[:, 5].all(), None, message, delta)
         # npt.assert_almost_equal(crowding_dist, objectives_fn[:, 5], decimal=3)
 
+    def test_tournament_restrictions(self):
+        """Tests the tournament function to evaluate if the mean of the violations is decreasing after the tournament. In other words, verify if the lowest violations individuals are indeed being selected.
+        """   
+        print("tournament_restrictions")
+        violations = np.loadtxt(
+            open(
+                self.path_data + "tournament_restrictions_violations.txt", "rb"
+            ),
+            delimiter=",",
+        )
+        crowd_dist = np.loadtxt(
+            open(
+                self.path_data
+                + "tournament_restrictions_crowding_dist_copy.txt",
+                "rb",
+            ),
+            delimiter=",",
+        )
+        fronts = np.loadtxt(
+            open(
+                self.path_data + "tournament_restrictions_fronts_copy.txt", "rb"
+            ),
+            delimiter=",",
+        )
+        n_tests = 10  # Number of tests
+        n_parents=len(fronts)//2
+        n_tour=2
+        mean_violations = np.mean(violations)
+
+        for i in range(n_tests):
+            violations_copy = violations.copy()
+            crowding_dist_copy = crowd_dist.copy()
+            fronts_copy = fronts.copy()
+            ix_to_crossover = ca.Planning().tournament_restrictions(
+                fronts_copy, crowding_dist_copy, n_parents, n_tour, violations_copy
+            )
+            self.assertLess(np.mean(violations[ix_to_crossover]), mean_violations)
+
+
     def test__index_linear_reinsertion_nsga_constraints(self):
         """Tests the selection of individuals for crossover to verify whether the mean of the number of violations is t1<=t0. If the lowest violations individuals are indeed being selected.
         """
@@ -136,7 +175,6 @@ class TestGenetic(unittest.TestCase):
         data_pop = ["_crossover_uniform_pop.pkl", "_crossover_uniform_pop2.pkl"]
         for pop_name in data_pop:
             for perc_crossover in cross_probabilities:
-                print(pop_name,perc_crossover)
                 pop = load_obj(self.path_data + pop_name)
                 num_ind = len(pop.products_raw)
 
