@@ -20,6 +20,7 @@ import pandas as pd
 from dateutil import relativedelta
 from dateutil.relativedelta import *
 import numba as nb
+
 # from numba import jit, prange, typeof
 from pygmo import hypervolume
 from scipy import stats
@@ -30,6 +31,7 @@ from scipy import stats
 # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
 # import genetico_permutacao as genetico
 import genetic as gn
+
 # from genetic import gn.AlgNsga2, gn.Crossovers, gn.Mutations
 
 # gn.AlgNsga2._crossover_uniform,gn.AlgNsga2._fronts,_crowding_distance
@@ -139,7 +141,13 @@ class Population:
         self.batches_raw = copy.deepcopy(new_batches)
 
         # Updates new Products
+        if isinstance(self.products_raw[0][0], np.int32) == False:
+            raise ValueError("Not int")
+
         self.products_raw = copy.deepcopy(new_products)
+
+        if isinstance(self.products_raw[0][0], np.int32) == False:
+            raise ValueError("Not int")
 
         # Updates Mask of active items with only one gene
         self.masks = copy.deepcopy(new_mask)
@@ -354,6 +362,8 @@ class Planning:
         Args:
             pop_obj (Class object): Class Object of the population to be analized
         """
+        if isinstance(pop_obj.products_raw[0][0], np.int32) == False:
+            raise ValueError("Not int")
         # Initialize by addying the first date
         pop_obj.start_raw[:, 0] = self.start_date
 
@@ -367,6 +377,8 @@ class Planning:
         )  # Produced Month 0 is the first month of inventory batches
 
         for i in range(0, pop_obj.num_chromossomes):  # Loop per chromossome i
+            if isinstance(pop_obj.products_raw[0][0], np.int32) == False:
+                raise ValueError("Not int")
             j = 0  # Evaluates gene/Campaign zero
             qa_days = self.qc_days[pop_obj.products_raw[i][j]]
             end_date = self.start_date + timedelta(
@@ -384,6 +396,8 @@ class Planning:
             ] += 1  # Updates the month with the number of batches produced
 
             for n_b in range(0, pop_obj.batches_raw[i][j]):  # loop in number of batches per gene
+                if isinstance(pop_obj.products_raw[0][0], np.int32) == False:
+                    raise ValueError("Not int")
                 end_date = end_date + timedelta(
                     days=self.dsp_days[pop_obj.products_raw[i, j]]
                 )  # end_date=previous_end+DSP
@@ -401,6 +415,8 @@ class Planning:
 
             j += 1  # Evaluates further genes
             while j < pop_obj.genes_per_chromo[i]:  # Loop per gene j starting from second gene
+                if isinstance(pop_obj.products_raw[0][0], np.int32) == False:
+                    raise ValueError("Not int")
                 # Eval First batch
                 previous_end_date = end_date  # Updates end date
                 pop_obj.start_raw[i, j] = previous_end_date
@@ -480,6 +496,8 @@ class Planning:
             produced_i[:, :, i] = (
                 produced_i[:, :, i] * self.yield_kg_batch_ar
             )  # Conversion batches to kg
+            if isinstance(pop_obj.products_raw[0][0], np.int32) == False:
+                raise ValueError("Not int")
 
         pop_obj.produced_month_product_individual = produced_i  # Overwrites the old array
         pop_obj.update_genes_per_chromo()  # Updates Genes per Chromo
@@ -1137,15 +1155,21 @@ class Planning:
         # )
 
         # 4)Front Classification
+        if isinstance(pop.products_raw[0][0], np.int32) == False:
+            raise ValueError("Not int")
         objectives_raw_copy = pop.objectives_raw.copy()
         pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
-        
+        if isinstance(pop.products_raw[0][0], np.int32) == False:
+            raise ValueError("Not int")
+
         # 5) Crowding Distance
         objectives_raw_copy = pop.objectives_raw.copy()
         fronts_copy = pop.fronts.copy()
         pop.crowding_dist = gn.AlgNsga2._crowding_distance(
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
+        if isinstance(pop.products_raw[0][0], np.int32) == False:
+            raise ValueError("Not int")
         for i_gen in range(0, num_geracoes):
             print("Generation ", i_gen)
 
@@ -1162,6 +1186,8 @@ class Planning:
                 fronts_copy, crowding_dist_copy, n_parents, n_tour, backlogs_copy
             )
 
+            if isinstance(pop.products_raw[0][0], np.int32) == False:
+                raise ValueError("Not int")
             # 7)Crossover
             # 7.1 Sorts Selected by number of genes
             genes_per_chromo_copy = pop.genes_per_chromo.copy()
@@ -1176,6 +1202,8 @@ class Planning:
             products_raw_copy = pop.products_raw.copy()
             batches_raw_copy = pop.batches_raw.copy()
             masks_copy = pop.masks.copy()
+            if isinstance(products_raw_copy[0][0], np.int32) == False:
+                raise ValueError("Not int")
             new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
                 products_raw_copy[ix_to_crossover],
                 batches_raw_copy[ix_to_crossover],
@@ -1183,36 +1211,28 @@ class Planning:
                 perc_crossover,
             )
 
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
-
-            # pop_produto,pop_batches,pop_mask=gn.AlgNsga2._crossover_uniform(pop_produto,pop_batches,pop_mask,genes_per_chromo)
             # 8)Mutation
+            if isinstance(pop.products_raw[0][0], np.int32) == False:
+                raise ValueError("Not int")
+            if isinstance(new_products[0][0], np.int32) == False:
+                raise ValueError("Not int")
             new_products, new_batches, new_mask = self.mutation_processes(
                 new_products, new_batches, new_mask, pmut
             )
-
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
+            if isinstance(new_products[0][0], np.int32) == False:
+                raise ValueError("Not int")
+            if isinstance(pop.products_raw[0][0], np.int32) == False:
+                raise ValueError("Not int")
 
             # 9)Aggregate batches with same product neighbours
-            # if i_gen>10:
-            #     print("Hey")
             new_products, new_batches, new_mask = self.fix_aggregation_batches(
                 new_products, new_batches, new_mask
             )
-
-            # for i in range(0,len(new_products)):
-            #     if any(new_batches[i][new_mask[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(new_mask[i][genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
+            for i in range(0, len(new_products)):
+                if any(new_batches[i][new_mask[i]] == 0):
+                    raise Exception("Invalid number of batches (0).")
+                if np.sum(new_mask[i][~new_mask[i]]) > 0:
+                    raise Exception("Invalid bool after number of active genes.")
 
             # 10) Merge populations Current and Offspring
             pop_offspring.update_new_population(new_products, new_batches, new_mask)
@@ -1502,6 +1522,7 @@ class Planning:
         tf = time.perf_counter()
         delta_t = tf - t0
         print("Total time ", delta_t)
+
 
 if __name__ == "__main__":
     # Planning.run_cprofile()

@@ -70,75 +70,44 @@ class Crossovers:
         Returns:
             Arrays: Returns the offspring of the product, batches and mask.
         """
-        new_product, new_batches, new_mask = (
-            copy.deepcopy(pop_product),
-            copy.deepcopy(pop_batches),
-            copy.deepcopy(pop_mask),
-        )
-        genes_per_chromo = np.sum(new_mask, axis=1, dtype=int)
+        new_product=copy.deepcopy(pop_product)
+        new_batches=copy.deepcopy(pop_batches)
+        new_mask=copy.deepcopy(pop_mask)
+        genes_per_chromo = np.sum(pop_mask, axis=1, dtype=int)
         if any(genes_per_chromo >= 3):  # Check if any fullfills crossover
             for i in range(0, len(new_product), 2):
-                # # print("In ",new_batches[i],new_batches[i+1])
-                # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-                #     raise Exception("Invalid bool after number of active genes.")
-                # if np.sum(new_mask[i+1,genes_per_chromo[i+1]:])>0:
-                #     raise Exception("Invalid bool after number of active genes.")
-                # if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
-                #     raise Exception("Invalid number of batches (0).")
-
                 if genes_per_chromo[i] >= 3:  # Condition for crossover
                     # Masks
                     mask = np.random.randint(100, size=(1, genes_per_chromo[i]))
-                    mask[mask <= perc_crossover * 100] = 1
+                    mask[mask <= perc_crossover * 100] = 1#1==crossover activated
                     mask[mask > perc_crossover * 100] = 0
                     mask_invert = mask ^ 1
                     # Offspring1=
                     new_product[i, 0 : genes_per_chromo[i]] = (
-                        pop_product[i, 0 : genes_per_chromo[i]] * mask
-                        + pop_product[i + 1, 0 : genes_per_chromo[i]] * mask_invert
+                        pop_product[i, 0 : genes_per_chromo[i]] * mask_invert
+                        + pop_product[i + 1, 0 : genes_per_chromo[i]] * mask
                     )
                     new_product[i + 1, 0 : genes_per_chromo[i]] = (
                         pop_product[i + 1, 0 : genes_per_chromo[i]] * mask_invert
                         + pop_product[i, 0 : genes_per_chromo[i]] * mask
                     )
 
-                    # print("Parents",new_batches[i],new_batches[i+1])
-                    new_batches[i, 0 : genes_per_chromo[i]] = (
-                        new_batches[i, 0 : genes_per_chromo[i]] * mask
-                        + new_batches[i + 1, 0 : genes_per_chromo[i]] * mask_invert
-                    )
-                    new_batches[i + 1, 0 : genes_per_chromo[i]] = (
-                        new_batches[i + 1, 0 : genes_per_chromo[i]] * mask_invert
-                        + new_batches[i, 0 : genes_per_chromo[i]] * mask
-                    )
-                    # print("Offspring",new_batches[i],new_batches[i+1])
+                    new_batches[i, 0 : genes_per_chromo[i]] = (pop_batches[i, 0 : genes_per_chromo[i]] * mask_invert+ pop_batches[i + 1, 0 : genes_per_chromo[i]] * mask)
+                    new_batches[i + 1, 0 : genes_per_chromo[i]] = (pop_batches[i + 1, 0 : genes_per_chromo[i]] * mask_invert+ pop_batches[i, 0 : genes_per_chromo[i]] * mask)
 
                     len_dif = genes_per_chromo[i + 1] - genes_per_chromo[i]
                     if (
                         len_dif > 0
                     ):  # length difference, if true uses the probability to decide whether to add
-                        proba = np.random.rand(1, len_dif)[0]  # [0, 1) 0<=x<1
+
                         k = genes_per_chromo[i]
+                        proba = np.random.rand(1, len_dif)[0]  # [0, 1) 0<=x<1
                         for j in range(0, len_dif):
                             if proba[j] <= perc_crossover:
-                                # print("Parents to add",new_batches[i][new_mask[i]],new_batches[i+1][new_mask[i+1]])
-                                new_product[i, genes_per_chromo[i]] = new_product[i + 1, k + j]
-                                new_batches[i, genes_per_chromo[i]] = new_batches[i + 1, k + j]
+                                new_product[i, genes_per_chromo[i]] = pop_product[i + 1, k + j]
+                                new_batches[i, genes_per_chromo[i]] = pop_batches[i + 1, k + j]
                                 new_mask[i, genes_per_chromo[i]] = True
                                 genes_per_chromo[i] = genes_per_chromo[i] + 1
-                                # print("Offspring added",new_batches[i][new_mask[i]],new_batches[i+1][new_mask[i+1]])
-                                # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-                                #     raise Exception("Invalid bool after number of active genes.")
-                                # if any(new_batches[i][new_mask[i]]==0)|any(new_batches[i+1][new_mask[i+1]]==0):
-                                #     raise Exception("Invalid number of batches (0).")
-
-                    if np.sum(new_mask[i, genes_per_chromo[i] :]) > 0:
-                        raise Exception("Invalid bool after number of active genes.")
-
-                    if any(new_batches[i][new_mask[i]] == 0) | any(
-                        new_batches[i + 1][new_mask[i + 1]] == 0
-                    ):
-                        raise Exception("Invalid number of batches (0).")
 
         return new_product, new_batches, new_mask
 

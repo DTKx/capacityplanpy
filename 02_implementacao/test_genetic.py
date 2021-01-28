@@ -6,6 +6,7 @@ import pickle
 import capacidade as ca
 from capacidade import Population
 import genetic as gn
+import random
 
 # import numpy.testing as npt
 
@@ -115,9 +116,95 @@ class TestGenetic(unittest.TestCase):
             self.assertLess(
                 np.mean(pop.backlogs[:, 6]), mean_violations
             )  # Verifies if selected individuals indeed reduce violations mean
-            for i in range(0,len(pop.products_raw)):
-                self.assertFalse(any(pop.batches_raw[i][pop.masks[i]]==0))#Verify invalid number of batches (0)
-                self.assertFalse(np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0)#Verify invalid value of active genes (If true Invalid bool after number of active genes.)
+            for i in range(0, len(pop.products_raw)):
+                self.assertFalse(
+                    any(pop.batches_raw[i][pop.masks[i]] == 0)
+                )  # Verify invalid number of batches (0)
+                self.assertFalse(
+                    np.sum(pop.masks[i][pop.genes_per_chromo[i] :]) > 0
+                )  # Verify invalid value of active genes (If true Invalid bool after number of active genes.)
+
+    def test__crossover_uniform(self):
+        """Test Crossover with 3 distinct probabilities (1,0,random)
+        1) Probabilities 1 and 0:
+            - Tests manual calculated solutions.
+            - Tests for invalid inumber of batches 0
+        2) For Probability random
+            - Tests for invalid inumber of batches 0
+        """
+        cross_probabilities = [1, 0, random.random()]
+        data_pop = ["_crossover_uniform_pop.pkl", "_crossover_uniform_pop2.pkl"]
+        for pop_name in data_pop:
+            for perc_crossover in cross_probabilities:
+                print(pop_name,perc_crossover)
+                pop = load_obj(self.path_data + pop_name)
+                num_ind = len(pop.products_raw)
+
+                n_parents = num_ind // 2
+
+                genes_per_chromo_copy = pop.genes_per_chromo.copy()
+                ix_to_crossover = np.random.randint(0, num_ind, size=n_parents)
+                ix_to_crossover = ix_to_crossover[
+                    np.argsort(genes_per_chromo_copy[ix_to_crossover])
+                ]
+                products_raw_copy = pop.products_raw[ix_to_crossover].copy()
+                batches_raw_copy = pop.batches_raw[ix_to_crossover].copy()
+                masks_copy = pop.masks[ix_to_crossover].copy()
+                genes_per_chromo_copy = pop.genes_per_chromo[ix_to_crossover].copy()
+
+                new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
+                    pop.products_raw[ix_to_crossover],
+                    pop.batches_raw[ix_to_crossover],
+                    pop.masks[ix_to_crossover],
+                    perc_crossover,
+                )
+                if perc_crossover == 1:
+                    swap_ix = np.arange(n_parents)  # Creates the solutions index
+                    ix_higher_three = np.where((genes_per_chromo_copy >= 3) & (swap_ix % 2 == 0))[0] # First index higher than 3 and pair genes_per_chromo[i] >= 3:  # Condition for crossover
+                    if len(ix_higher_three)>0:
+                        ix_higher_three=ix_higher_three[0]
+                        swap_ix[ix_higher_three] = ix_higher_three + 1
+                        swap_ix[ix_higher_three + 1] = ix_higher_three
+                        for i in range(ix_higher_three + 2, n_parents):
+                            swap_ix[i] = swap_ix[i - 2] + 2
+
+                        delta = 0.0001
+                        message = "First and second are not almost equal, for probability:" + str(
+                            perc_crossover
+                        )  # error message in case if test case got failed
+                        self.assertAlmostEqual(
+                            new_products.all(), products_raw_copy[swap_ix].all(), None, message, delta
+                        )
+                        self.assertAlmostEqual(
+                            new_batches.all(), batches_raw_copy[swap_ix].all(), None, message, delta
+                        )
+                        self.assertAlmostEqual(
+                            new_mask.all(), masks_copy[swap_ix].all(), None, message, delta
+                        )
+                    else:
+                        pass
+                elif perc_crossover == 0:
+                    delta = 0.0001
+                    message = "First and second are not almost equal, for probability:" + str(
+                        perc_crossover
+                    )  # error message in case if test case got failed
+                    self.assertAlmostEqual(
+                        new_products.all(), products_raw_copy.all(), None, message, delta
+                    )
+                    self.assertAlmostEqual(
+                        new_batches.all(), batches_raw_copy.all(), None, message, delta
+                    )
+                    self.assertAlmostEqual(new_mask.all(), masks_copy.all(), None, message, delta)
+                else:
+                    pass
+                for i in range(0, n_parents):
+                    self.assertFalse(
+                        any(new_batches[i][new_mask[i]] == 0)
+                    )  # Verify invalid number of batches (0)
+                    self.assertFalse(
+                        np.sum(new_mask[i][~new_mask[i]]) > 0
+                    )  # Verify invalid number of batches (0)
+
 
 if __name__ == "__main__":
     unittest.main()
