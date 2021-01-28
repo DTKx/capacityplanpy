@@ -24,9 +24,34 @@ class TestGenetic(unittest.TestCase):
     def setUpClass(cls):
         print("setupClass")
 
-    @classmethod
-    def tearDownClass(cls):
-        print("teardownClass")
+    def setUp(self):
+        print("setUp")
+
+    def test_Population__init__(self):
+        """Tests generation of random values __init__ of Population class.
+        """
+        num_chromossomes = 1000
+        num_products = 4
+        num_tests = 1000
+        count_products = {x: 0 for x in range(4)}
+        for i in range(num_tests):
+            pop = ca.Population(1, num_chromossomes, num_products, 1, 1, 2, 2)
+            for j in range(num_products):
+                count_products[j] += np.sum(pop.products_raw[:, 0] == j)
+            del pop  # Deletes object
+        total = sum(count_products.values(), 0.0)
+        count_products = {key: val / total for key, val in count_products.items()}
+        # print(count_products.values())
+        delta = 0.1
+        message = "First and second are not almost equal."  # error message in case if test case got failed
+        for prob in count_products.values():
+            self.assertAlmostEqual(prob, 1.0 / float(num_products), None, message, delta)
+
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
 
     def test__fronts(self):
         """Tests _fronts, that classifies solutions(Each row is a solution with different objectives values) into pareto fronts.
@@ -35,10 +60,16 @@ class TestGenetic(unittest.TestCase):
         print("_fronts")
         num_fronts = 3
         objectives_fn = np.loadtxt(
-            open(self.path_data + "_fronts.csv", "rb"), delimiter=",", skiprows=1
+            self.path_data + "_fronts.csv", delimiter=",", skiprows=1
         )  # Index(['f0', 'f1', 'f2', 'f3', 'front'], dtype='object')
         front_calc = gn.AlgNsga2._fronts(objectives_fn[:, 0:3], num_fronts)
         self.assertEqual(front_calc.all(), objectives_fn[:, 4].all())
+
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
 
     def test__crowding_distance(self):
         """Tests evaluation of crowding distance for a manually calculated crowding distance.
@@ -46,7 +77,7 @@ class TestGenetic(unittest.TestCase):
         print("_crowding_distance")
         big_dummy = 10 ** 5
         objectives_fn = np.loadtxt(
-            open(self.path_data + "_crowding_distance.csv", "rb"), delimiter=",", skiprows=1
+            self.path_data + "_crowding_distance.csv", delimiter=",", skiprows=1
         )  # Index(['f0', 'f1', 'f2', 'f3', 'front','dcrowd'], dtype='object')
         crowding_dist = gn.AlgNsga2._crowding_distance(
             objectives_fn[:, 0:4], objectives_fn[:, 4], big_dummy
@@ -56,33 +87,28 @@ class TestGenetic(unittest.TestCase):
         self.assertAlmostEqual(crowding_dist.all(), objectives_fn[:, 5].all(), None, message, delta)
         # npt.assert_almost_equal(crowding_dist, objectives_fn[:, 5], decimal=3)
 
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
+
     def test_tournament_restrictions(self):
         """Tests the tournament function to evaluate if the mean of the violations is decreasing after the tournament. In other words, verify if the lowest violations individuals are indeed being selected.
-        """   
+        """
         print("tournament_restrictions")
         violations = np.loadtxt(
-            open(
-                self.path_data + "tournament_restrictions_violations.txt", "rb"
-            ),
-            delimiter=",",
+            self.path_data + "tournament_restrictions_violations.txt", delimiter=","
         )
         crowd_dist = np.loadtxt(
-            open(
-                self.path_data
-                + "tournament_restrictions_crowding_dist_copy.txt",
-                "rb",
-            ),
-            delimiter=",",
+            self.path_data + "tournament_restrictions_crowding_dist_copy.txt", delimiter=","
         )
         fronts = np.loadtxt(
-            open(
-                self.path_data + "tournament_restrictions_fronts_copy.txt", "rb"
-            ),
-            delimiter=",",
+            self.path_data + "tournament_restrictions_fronts_copy.txt", delimiter=","
         )
         n_tests = 10  # Number of tests
-        n_parents=len(fronts)//2
-        n_tour=2
+        n_parents = len(fronts) // 2
+        n_tour = 2
         mean_violations = np.mean(violations)
 
         for i in range(n_tests):
@@ -94,29 +120,26 @@ class TestGenetic(unittest.TestCase):
             )
             self.assertLess(np.mean(violations[ix_to_crossover]), mean_violations)
 
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
 
     def test__index_linear_reinsertion_nsga_constraints(self):
         """Tests the selection of individuals for crossover to verify whether the mean of the number of violations is t1<=t0. If the lowest violations individuals are indeed being selected.
         """
         print("_index_linear_reinsertion_nsga_constraints")
         violations = np.loadtxt(
-            open(
-                self.path_data + "_index_linear_reinsertion_nsga_constraints_violations.txt", "rb"
-            ),
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_violations.txt",
             delimiter=",",
         )
         crowd_dist = np.loadtxt(
-            open(
-                self.path_data
-                + "_index_linear_reinsertion_nsga_constraints_crowding_dist_copy.txt",
-                "rb",
-            ),
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_crowding_dist_copy.txt",
             delimiter=",",
         )
         fronts = np.loadtxt(
-            open(
-                self.path_data + "_index_linear_reinsertion_nsga_constraints_fronts_copy.txt", "rb"
-            ),
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_fronts_copy.txt",
             delimiter=",",
         )
         n_tests = 10  # Number of tests
@@ -129,6 +152,12 @@ class TestGenetic(unittest.TestCase):
                 violations_copy, crowd_dist_copy, fronts_copy, len(fronts_copy) // 2
             )
             self.assertLess(np.mean(violations[ix_sel]), mean_violations)
+
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
 
     def test_select_pop_by_index(self):
         """Tests if:
@@ -162,6 +191,12 @@ class TestGenetic(unittest.TestCase):
                 self.assertFalse(
                     np.sum(pop.masks[i][pop.genes_per_chromo[i] :]) > 0
                 )  # Verify invalid value of active genes (If true Invalid bool after number of active genes.)
+
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
 
     def test__crossover_uniform(self):
         """Test Crossover with 3 distinct probabilities (1,0,random)
@@ -198,9 +233,11 @@ class TestGenetic(unittest.TestCase):
                 )
                 if perc_crossover == 1:
                     swap_ix = np.arange(n_parents)  # Creates the solutions index
-                    ix_higher_three = np.where((genes_per_chromo_copy >= 3) & (swap_ix % 2 == 0))[0] # First index higher than 3 and pair genes_per_chromo[i] >= 3:  # Condition for crossover
-                    if len(ix_higher_three)>0:
-                        ix_higher_three=ix_higher_three[0]
+                    ix_higher_three = np.where((genes_per_chromo_copy >= 3) & (swap_ix % 2 == 0))[
+                        0
+                    ]  # First index higher than 3 and pair genes_per_chromo[i] >= 3:  # Condition for crossover
+                    if len(ix_higher_three) > 0:
+                        ix_higher_three = ix_higher_three[0]
                         swap_ix[ix_higher_three] = ix_higher_three + 1
                         swap_ix[ix_higher_three + 1] = ix_higher_three
                         for i in range(ix_higher_three + 2, n_parents):
@@ -211,7 +248,11 @@ class TestGenetic(unittest.TestCase):
                             perc_crossover
                         )  # error message in case if test case got failed
                         self.assertAlmostEqual(
-                            new_products.all(), products_raw_copy[swap_ix].all(), None, message, delta
+                            new_products.all(),
+                            products_raw_copy[swap_ix].all(),
+                            None,
+                            message,
+                            delta,
                         )
                         self.assertAlmostEqual(
                             new_batches.all(), batches_raw_copy[swap_ix].all(), None, message, delta
@@ -243,6 +284,13 @@ class TestGenetic(unittest.TestCase):
                         np.sum(new_mask[i][~new_mask[i]]) > 0
                     )  # Verify invalid number of batches (0)
 
+    def tearDown(self):
+        print("tearDown")
+
+    @classmethod
+    def tearDownClass(cls):
+        print("teardownClass")
+
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

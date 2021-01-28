@@ -308,9 +308,7 @@ class Planning:
     max_batch = dict(zip(products, [50, 50, 50, 30]))
     batch_multiples = dict(zip(products, [1, 1, 1, 3]))
 
-    target_stock = np.loadtxt(
-        open(input_path + "target_stock.csv", "rb"), delimiter=",", skiprows=1
-    )  # Target Stock
+    target_stock = np.loadtxt(input_path + "target_stock.csv", delimiter=",", skiprows=1)  # Target Stock
 
     s0 = [0, 10, 16, 20]  # Setup Time
     s1 = [16, 0, 16, 20]
@@ -327,9 +325,7 @@ class Planning:
     # Monte Carlo
 
     ix_not0 = np.where(demand_distribution != 0)  # Index of values that are not zeros
-    tr_demand = np.loadtxt(
-        open(input_path + "triangular_demand.txt", "rb"), delimiter=","
-    )  # 1D array with only not zeros demand_distribution
+    tr_demand = np.loadtxt(input_path + "triangular_demand.txt", delimiter=",")  # 1D array with only not zeros demand_distribution
 
     with open(input_path + "demand_montecarlo.pkl", "rb") as reader:
         demand_montecarlo = pickle.load(reader)  # Pre Calculated Monte Carlo Simulations option
