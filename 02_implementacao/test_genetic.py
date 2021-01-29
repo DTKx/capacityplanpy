@@ -7,6 +7,8 @@ import capacidade as ca
 from capacidade import Population
 import genetic as gn
 import random
+import datetime
+from matplotlib.dates import strpdate2num
 
 # import numpy.testing as npt
 
@@ -30,6 +32,7 @@ class TestGenetic(unittest.TestCase):
     def test_Population__init__(self):
         """Tests generation of random values __init__ of Population class.
         """
+        print("Population__init__")
         num_chromossomes = 1000
         num_products = 4
         num_tests = 1000
@@ -46,6 +49,55 @@ class TestGenetic(unittest.TestCase):
         message = "First and second are not almost equal."  # error message in case if test case got failed
         for prob in count_products.values():
             self.assertAlmostEqual(prob, 1.0 / float(num_products), None, message, delta)
+
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
+
+    def test_calc_start_end(self):
+        """Tests start and end of production batches, by comparing with a calculated example.
+        """
+        print("calc_start_end")
+        num_genes=20
+        num_chromossomes=1
+        num_products=4
+        num_objectives=2
+        start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+        qc_max_months=4
+        num_months=36
+        def parser_calc_start_end(path):
+            with open(path) as f:
+                lines=f.readlines()
+                test=f.read().splitlines()
+                num_lines = len(lines)
+                data_input=np.zeros(shape=(num_lines-1,2))#-1 Given label
+                data_output=np.zeros(shape=(num_lines-1,2),dtype="datetime64[D]")#-1 Given label
+                for i in range(0,num_lines-1):
+                    batch,prod,start,end=lines[i+1].split(',')
+                    data_input[i,0]=int(batch)
+                    data_input[i,1]=int(prod)
+                    data_output[i,0]=datetime.date(int(start.split('/')[2]),int(start.split('/')[0]),int(start.split('/')[1]))# YYYY-MM-DD.
+                    data_output[i,1]=datetime.date(int(end.split('/')[2]),int(end.split('/')[0]),int(end.split('/')[1]))# YYYY-MM-DD. Avoids endlines
+            return data_input,data_output
+        data_input,data_output=parser_calc_start_end(self.path_data + "calc_start_end.csv")
+        num_data=len(data_input)
+
+        #Loads Solution to population
+        pop=Population(num_genes,num_chromossomes,num_products,num_objectives,start_date,qc_max_months,num_months)
+        pop.batches_raw[0,0:num_data]=data_input[:,0]
+        pop.products_raw[0,0:num_data]=data_input[:,1]
+        pop.masks[0,0:num_data]=True
+        pop.update_genes_per_chromo()
+
+        pop=ca.Planning().calc_start_end(pop)#Call function
+        pop.start_raw
+        pop.end_raw
+
+        self.assertTrue((pop.start_raw[0][0:num_data]==data_output[:,0]).all())#Start
+        self.assertTrue((pop.end_raw[0][0:num_data]==data_output[:,1]).all())#End
+
 
     def tearDown(self):
         print("tearDown")

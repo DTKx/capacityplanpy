@@ -1,16 +1,9 @@
 import numpy as np
 import random
 import copy
-
 import numba as nb
-
 # from numba import jit,prange
-import time
-from sklearn.cluster import KMeans
-import math
-from itertools import combinations
 from scipy.stats import rankdata
-import numpy.testing as npt
 
 
 class Helpers:
@@ -697,119 +690,3 @@ class AlgNsga2:
         if len(ix_selected) > n_ind:
             print("Error in ix selection, number of selected index:", ix_selected)
         return ix_selected
-
-
-class AlgSpea:
-    """Métodos para o algoritmo Spea. 
-    Ex para importação: 
-    import genetico as gn
-    Ex uso 
-    a=gn.AlgSpea._gerar_populacao(100)
-    """
-
-    def _cluster_knn(ext_objectives, num_clusters):
-        mask = range(0, len(ext_objectives))
-        kmeans = KMeans(n_clusters=num_clusters, random_state=0).fit(ext_objectives)
-        ix_duplicates, val = Helpers._find_idx_duplicates(np.array(kmeans.labels_))
-        dif = ext_objectives[ix_duplicates] - kmeans.cluster_centers_[val]
-        max_dist, max_ix = 0, 0
-        for i in range(0, len(ix_duplicates)):
-            dist = np.linalg.norm(dif[i])
-            if dist > max_dist:
-                max_ix, max_dist = i, dist
-        mask = np.delete(mask, ix_duplicates)
-        mask = np.append(mask, max_ix)
-        return ext_objectives[mask], mask
-
-    # @nb.jit(nopython=True,nogil=True)
-    def _ponto_dominado_minimizacao(resultado_fn):
-        # Loop por função
-        row = resultado_fn.shape[0]
-        dominado_fn = np.zeros(shape=(row,))
-        # Loop por ponto a verificar se é dominado
-        for i in np.arange(0, row):
-            # Concept of domination for minimization a dominates b if fia>fib and fja>=fjb
-            mask_better_or_equal = (resultado_fn[i] <= resultado_fn).all(axis=1)
-            mask_contains_any_dominant_value = (resultado_fn[i] < resultado_fn).any(axis=1)
-            mask_distinct = (resultado_fn[i] != resultado_fn).any(axis=1)
-            mask_values_dominated_by_i = (
-                mask_better_or_equal & mask_contains_any_dominant_value & mask_distinct
-            )
-            dominado_fn += mask_values_dominated_by_i
-        dominado_fn[dominado_fn > 0] = 1
-        return dominado_fn
-
-    def _fronteiras(resultado_fn, num_fronteiras):
-        """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população.
-
-        Args:
-            resultado_fn (float): Array de floats shape(m,n) com a solução dos valores de individuos avaliados em n funções Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
-            num_fronteiras (int): Número de fronteiras
-        Returns:
-            int: Array shape (n,1) com a classificação das fronteiras de pareto para cada individuo
-        """
-        row, col = resultado_fn.shape
-        # Definição de fronteiras
-        ix_falta_classificar = np.arange(0, row)
-        fronteiras = np.empty(dtype=int, shape=(row,))
-        # Loop por fronteiras exceto a ultima pois os valores remanescentes serão adicionados na ultima fronteira
-        j = 0
-        existe_n_dominados = True
-        while (j < num_fronteiras - 1) & (existe_n_dominados):
-            # for j in range(0,num_fronteiras-1):
-            dominado = np.ones(shape=(row,))
-            dominado[ix_falta_classificar] = AlgSpea._ponto_dominado_minimizacao(
-                resultado_fn[ix_falta_classificar]
-            )
-            ix_nao_dominados = np.where(dominado == 0)[0]
-            if len(ix_nao_dominados) == 0:
-                existe_n_dominados = False
-                continue
-            fronteiras[ix_nao_dominados] = j
-            ix_falta_classificar = np.delete(
-                ix_falta_classificar, np.where(np.isin(ix_falta_classificar, ix_nao_dominados))[0]
-            )
-            j += 1
-        # Adiciona todos os outros pontos na última fronteira
-        fronteiras[ix_falta_classificar] = j
-
-        return fronteiras
-
-    def _calc_fitness(resultado_fn, ext_resultado_fn):
-        """Calculates fitness according to Zitzler1999, note that the goal is to minimize the fitness, the smaller the fitness higher the better the individual
-
-        Args:
-            resultado_fn (float): Array de floats shape(m,n) com a solução dos valores de individuos avaliados em n funções Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
-            ext_resultado_fn (float): Array floats com os objetivos da população externa calculados
-
-        Returns:
-            [array]: Fitness of current population
-        """
-        num_ind, num_obj = resultado_fn.shape
-        # ext_population[:,0:num_obj+1]
-        num_ind_ext = len(ext_resultado_fn)
-
-        fitness = np.zeros(shape=(num_ind,), dtype=float)
-        ext_fitness = np.zeros(shape=(num_ind_ext,), dtype=float)
-
-        # Loop per individual i of the external population
-        for i in range(0, num_ind_ext):
-            # Concept of domination for minimization a dominates b if fia>fib and fja>=fjb
-            mask_better_or_equal = (ext_resultado_fn[i] <= resultado_fn).all(axis=1)
-            mask_contains_any_dominant_value = (ext_resultado_fn[i] < resultado_fn).any(axis=1)
-            mask_distinct = (ext_resultado_fn[i] != resultado_fn).any(axis=1)
-            mask_values_dominated_by_i = (
-                mask_better_or_equal & mask_contains_any_dominant_value & mask_distinct
-            )
-
-            n_dominates = float(
-                len(mask_values_dominated_by_i[mask_values_dominated_by_i == True])
-            ) / (num_ind + 1.0)
-            # Updates dominated sum for external Population
-            fitness = fitness + mask_values_dominated_by_i * n_dominates
-            # Updates n_dominated0
-            ext_fitness[i] = n_dominates
-
-        fitness += 1
-        return fitness, ext_fitness
-
