@@ -454,7 +454,7 @@ class Planning:
                 stock_j - target_stock_copy
             )  # Minimise the median total inventory deicit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
             # Cumulative sum of the differences be- tween the product inventory levels and the corresponding strategic monthly targets whenever the latter are greater than the former.
-            distribution_sums_backlog[j] = np.sum(backlog_j)
+            distribution_sums_backlog[j] = np.sum(backlog_j) #total backlog (amount of missed orders)
             ix_neg = np.where(deficit_strat_j < 0)
             num_neg = len(ix_neg[0])
             sum_deficit = 0.0
@@ -463,13 +463,15 @@ class Planning:
                     sum_deficit += deficit_strat_j[ix_neg[0][n], ix_neg[1][n]]
                 # print("backlog out",backlog_j[k])
                 # print("STOCK out",stock_j[k])
-            distribution_sums_deficit[j] = sum_deficit * (-1)
-            # distribution_sums_deficit[j] = -1.0 * np.sum(
-            #     deficit_strat_j[np.where(deficit_strat_j < 0.0)]
-            # )
+            distribution_sums_deficit[j] = sum_deficit * (-1.0)
         return distribution_sums_backlog, distribution_sums_deficit
 
     def create_demand_montecarlo(self):
+        """Create a demand array using triangular distribution.
+
+        Returns:
+            [type]: [description]
+        """
         n_tr_distributions = len(
             self.tr_demand
         )  # number of different simulations needed to calculate one deficit
@@ -493,7 +495,7 @@ class Planning:
         Returns:
             float: Median of objective deficit
         """
-        demand_j=self.create_demand_montecarlo()
+        demand_j = self.create_demand_montecarlo()
 
         distribution_sums_backlog, distribution_sums_deficit = self.calc_distributions_monte_carlo(
             pop.produced_month_product_individual[
@@ -504,7 +506,7 @@ class Planning:
             self.num_months,
             self.num_products,
             self.target_stock,
-            self.initial_stock
+            self.initial_stock,
         )
 
         pop.backlogs[i] = self.metrics_dist_backlog(
@@ -913,8 +915,6 @@ class Planning:
 
         # 3)Calculate inventory levels and objectives
         pop = self.calc_inventory_objectives(pop)
-        # if (pop.objectives_raw<0).any():
-        #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
 
         # 4)Front Classification
         objectives_raw_copy = pop.objectives_raw.copy()
@@ -942,17 +942,9 @@ class Planning:
             genes_per_chromo_copy = pop.genes_per_chromo.copy()
             ix_to_crossover = ix_to_crossover[np.argsort(genes_per_chromo_copy[ix_to_crossover])]
             # 7.2 Creates a new population for offspring population crossover and calls uniform crossover
-            # new_products,new_batches,new_mask=gn.Crossovers._crossover_uniform(copy.deepcopy(pop.products_raw[ix_to_crossover]),copy.deepcopy(pop.batches_raw[ix_to_crossover]),copy.deepcopy(pop.masks[ix_to_crossover]),copy.deepcopy(pop.genes_per_chromo),perc_crossover)
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
             products_raw_copy = pop.products_raw.copy()
             batches_raw_copy = pop.batches_raw.copy()
             masks_copy = pop.masks.copy()
-            if isinstance(products_raw_copy[0][0], np.int32) == False:
-                raise ValueError("Not int")
             new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
                 products_raw_copy[ix_to_crossover],
                 batches_raw_copy[ix_to_crossover],
@@ -961,17 +953,7 @@ class Planning:
             )
 
             # 8)Mutation
-            if isinstance(pop.products_raw[0][0], np.int32) == False:
-                raise ValueError("Not int")
-            if isinstance(new_products[0][0], np.int32) == False:
-                raise ValueError("Not int")
-            new_products, new_batches, new_mask = self.mutation_processes(
-                new_products, new_batches, new_mask, pmut
-            )
-            if isinstance(new_products[0][0], np.int32) == False:
-                raise ValueError("Not int")
-            if isinstance(pop.products_raw[0][0], np.int32) == False:
-                raise ValueError("Not int")
+            new_products, new_batches, new_mask = self.mutation_processes(new_products, new_batches, new_mask, pmut)
 
             # 9)Aggregate batches with same product neighbours
             new_products, new_batches, new_mask = self.fix_aggregation_batches(
@@ -993,39 +975,9 @@ class Planning:
 
             # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
             pop_offspring = self.calc_start_end(pop_offspring)
-            # for i in range(0,len(pop_offspring.products_raw)):
-            #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
-            # print("Backlog before calc_inventory offspring",pop.backlogs[:,6])
 
             # 12) 3)Calculate inventory levels and objectives
             pop_offspring = self.calc_inventory_objectives(pop_offspring)
-
-            # print(
-            #     "Metrics backlog all population offspring: amax",
-            #     np.amax(pop_offspring.backlogs[:, 0]),  # 0)Max total backlog months and products
-            #     " mean",
-            #     np.mean(pop_offspring.backlogs[:, 1]),  # 1)Mean total backlog months and products
-            #     " median",
-            #     np.median(
-            #         pop_offspring.backlogs[:, 3]
-            #     ),  # 3)Median total backlog months and products
-            #     " min",
-            #     np.amin(pop_offspring.backlogs[:, 4]),  # 4)Min total backlog months and products
-            #     " median",
-            #     np.median(pop_offspring.backlogs[:, 6]),  # 6)Backlog violations
-            # )
-
-            # for i in range(0,len(pop_offspring.products_raw)):
-            #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
-
-            # if (pop_offspring.objectives_raw<0).any():
-            #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
             # 13) Merge Current Pop with Offspring
             # pop_offspring_copy=copy.deepcopy(pop_offspring)
             pop = self.merge_pop_with_offspring(pop, pop_offspring)
@@ -1101,8 +1053,8 @@ class Planning:
 
         # Number of Chromossomes
         nc = [100]
+        ng = [1]
         # Number of Generations
-        ng = [1000]
         # Number of tour
         nt = [2]
         # Crossover Probability
@@ -1236,10 +1188,10 @@ class Planning:
 
         print("Finish")
 
-    def run_cprofile():
+    def run_cprofile(self):
         """Runs without multiprocessing.
         """
-        tracemalloc.start()
+        # tracemalloc.start()
         num_exec = 1
         num_chromossomes = 100
         num_geracoes = 10
@@ -1272,16 +1224,16 @@ class Planning:
         tf = perf_counter()
         delta_t = tf - t0
         print("Total time ", delta_t)
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics("lineno")
+        # snapshot = tracemalloc.take_snapshot()
+        # top_stats = snapshot.statistics("lineno")
 
-        print("[ Top 10 ]")
-        for stat in top_stats[:10]:
-            print(stat)
+        # print("[ Top 10 ]")
+        # for stat in top_stats[:10]:
+        #     print(stat)
 
 
 if __name__ == "__main__":
-    # Planning.run_cprofile()
+    # Planning().run_cprofile()
     Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # self.calc_demand_montecarlo_to_external_file(5000)
