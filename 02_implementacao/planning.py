@@ -454,7 +454,9 @@ class Planning:
                 stock_j - target_stock_copy
             )  # Minimise the median total inventory deicit, i.e. cumulative ◦ Maximise the total production throughput. differences between the monthly product inventory levels and the strategic inventory targets.
             # Cumulative sum of the differences be- tween the product inventory levels and the corresponding strategic monthly targets whenever the latter are greater than the former.
-            distribution_sums_backlog[j] = np.sum(backlog_j) #total backlog (amount of missed orders)
+            distribution_sums_backlog[j] = np.sum(
+                backlog_j
+            )  # total backlog (amount of missed orders)
             ix_neg = np.where(deficit_strat_j < 0)
             num_neg = len(ix_neg[0])
             sum_deficit = 0.0
@@ -645,33 +647,27 @@ class Planning:
             [type]: [description]
         """
 
-        # if (new_product>=self.num_products).any():
-        #     raise Exception("Error in labels of products, labels superior than maximum defined.")
         # Active genes per chromossome
         genes_per_chromo = np.sum(new_mask, axis=1, dtype=int)
         # Loop per chromossome
         for i in range(0, len(new_product)):
-            # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-            #     raise Exception("Invalid bool after number of active genes.")
-            # # print(new_batches[i])
-            # if any(new_batches[i][new_mask[i]]==0):
-            #     raise Exception("Invalid number of batches (0).")
             # 1. To mutate a product label with a rate of pMutP.
             # print("In label",new_product[i])
             new_product[i, 0 : genes_per_chromo[i]] = gn.Mutations._label_mutation(
                 new_product[i, 0 : genes_per_chromo[i]], self.num_products, pmut[0]
             )
-            # if any(new_batches[i][new_mask[i]]==0):
-            #     raise Exception("Invalid number of batches (0).")
             # print(new_product[i])
             # 2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
             # print("In add_subtract",new_batches[i])
-            new_batches[i, 0 : genes_per_chromo[i]] = gn.Mutations._add_subtract_mutation(
-                new_batches[i, 0 : genes_per_chromo[i]], pmut[1], pmut[2]
+            (
+                new_batches[i],
+                new_product[i],
+                new_mask[i],
+                genes_per_chromo[i],
+            ) = gn.Mutations._add_subtract_mutation(
+                new_batches[i], new_product[i], new_mask[i], genes_per_chromo[i], pmut[1], pmut[2]
             )
             # print(new_batches[i])
-            # if any(new_batches[i][new_mask[i]]==0):
-            #     raise Exception("Invalid number of batches (0).")
             # 3. To add a new random gene to the end of the chromosome (un- conditionally).
             # print(new_product[i])
             # print("In new gene",new_batches[i])
@@ -680,8 +676,6 @@ class Planning:
             new_batches[i, genes_per_chromo[i]] = 1
             new_mask[i, genes_per_chromo[i]] = True
             genes_per_chromo[i] = genes_per_chromo[i] + 1
-            # if any(new_batches[i][new_mask[i]]==0):
-            #     raise Exception("Invalid number of batches (0).")
             # print(new_product[i])
             # print(new_batches[i])
             # print(new_mask[i])
@@ -696,61 +690,48 @@ class Planning:
                 pmut[3],
             )
             # print(new_product[i])
-            # if any(new_batches[i][new_mask[i]]==0):
-            #     raise Exception("Invalid number of batches (0).")
-            # if np.sum(new_mask[i,genes_per_chromo[i]:])>0:
-            #     raise Exception("Invalid bool after number of active genes.")
 
-        # if (new_product>=self.num_products).any():
-        #     raise Exception("Error in labels of products, labels superior than maximum defined.")
         return new_product, new_batches, new_mask
 
     @staticmethod
     @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def agg_product_batch(products, batches, masks, genes_per_chromo):
         """Aggregates product batches in case of neighbours products.
-        Fix process constraints of batch min, max and multiple.
-            If Batch<Min then Batch=Min, 
-            If Batch>Max then Batch=Max, 
-            If Batch Multiple !=Multiple then Batch round to closest given not within Min and Max
 
         Args:
             products (array): Array of products
             batches (array): Array of batches
             masks (array): Array of masks
         """
-        # # Active genes per chromossome
-        # genes_per_chromo=np.sum(masks,axis=1,dtype=int)
-        if (genes_per_chromo > 1).any():
-            # Loop per chromossome in population
-            for j in np.arange(0, len(genes_per_chromo)):
-                # if np.sum(masks[j,genes_per_chromo[j]:])>0:
-                #     raise Exception("Invalid bool after number of active genes.")
-                if genes_per_chromo[j] > 1:
-                    # Loop per gene i in chromossome
-                    i = 0
-                    while i < genes_per_chromo[j] - 1:
-                        if products[j, i] == products[j, i + 1]:  # Requires aggregation
-                            # print(batches[j])
-                            batches[j, i] = batches[j, i] + batches[j, i + 1]
-                            # print(batches[j])
-                            # Brings the sequence forward and sets the last value as 0
-                            temp_ar = batches[j, i + 2 :].copy()
-                            batches[j, i + 1 : -1] = temp_ar
-                            batches[j, -1] = 0
-                            # print(batches[j])
-                            # print(products[j])
-                            # Brings the sequence forward and sets the last value as 0
-                            temp_ar = products[j, i + 2 :].copy()
-                            products[j, i + 1 : -1] = temp_ar
-                            products[j, -1] = 0
-                            # print(products[j])
-                            # print(masks[j])
-                            masks[j, genes_per_chromo[j] - 1] = False
-                            genes_per_chromo[j] = genes_per_chromo[j] - 1
-                            # print(masks[j])
-                        else:
-                            i += 1
+        # Loop per chromossome in population
+        for j in np.arange(0, len(genes_per_chromo)):
+            # if np.sum(masks[j,genes_per_chromo[j]:])>0:
+            #     raise Exception("Invalid bool after number of active genes.")
+            if genes_per_chromo[j] > 1:
+                # Loop per gene i in chromossome
+                i = 0
+                while i < genes_per_chromo[j] - 1:
+                    if products[j, i] == products[j, i + 1]:  # Requires aggregation
+                        # print(batches[j])
+                        batches[j, i] = batches[j, i] + batches[j, i + 1]
+                        # print(batches[j])
+                        # Brings the sequence forward and sets the last value as 0
+                        temp_ar = batches[j, i + 2 :].copy()
+                        batches[j, i + 1 : -1] = temp_ar
+                        batches[j, -1] = 0
+                        # print(batches[j])
+                        # print(products[j])
+                        # Brings the sequence forward and sets the last value as 0
+                        temp_ar = products[j, i + 2 :].copy()
+                        products[j, i + 1 : -1] = temp_ar
+                        products[j, -1] = 0
+                        # print(products[j])
+                        # print(masks[j])
+                        masks[j, genes_per_chromo[j] - 1] = False
+                        genes_per_chromo[j] = genes_per_chromo[j] - 1
+                        # print(masks[j])
+                    else:
+                        i += 1
         return products, batches, masks
 
     def fix_batch_violations(self, products, batches):
@@ -953,7 +934,9 @@ class Planning:
             )
 
             # 8)Mutation
-            new_products, new_batches, new_mask = self.mutation_processes(new_products, new_batches, new_mask, pmut)
+            new_products, new_batches, new_mask = self.mutation_processes(
+                new_products, new_batches, new_mask, pmut
+            )
 
             # 9)Aggregate batches with same product neighbours
             new_products, new_batches, new_mask = self.fix_aggregation_batches(
@@ -1044,7 +1027,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 2
+        n_exec = 5
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1053,8 +1036,8 @@ class Planning:
 
         # Number of Chromossomes
         nc = [100]
-        ng = [1]
-        # Number of Generations
+        ng = [1000]  # Number of Generations
+
         # Number of tour
         nt = [2]
         # Crossover Probability
@@ -1090,7 +1073,7 @@ class Planning:
 
             t0 = perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                 for pop_exec in executor.map(
                     self.main,
                     n_exec_ite,
@@ -1194,7 +1177,7 @@ class Planning:
         # tracemalloc.start()
         num_exec = 1
         num_chromossomes = 100
-        num_geracoes = 10
+        num_geracoes = 100
         n_tour = 2
         pcross = 0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)

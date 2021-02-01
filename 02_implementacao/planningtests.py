@@ -8,6 +8,7 @@ import datetime
 import genetic as gn
 import matplotlib.pyplot as plt
 from scipy.stats import mode
+import random
 
 
 def load_obj(path):
@@ -239,6 +240,68 @@ class PlanningTests(unittest.TestCase):
                 fronts_copy, crowding_dist_copy, n_parents, n_tour, violations_copy
             )
             self.assertLess(np.mean(violations[ix_to_crossover]), mean_violations)
+
+    def tearDown(self):
+        print("tearDown")
+
+    def setUp(self):
+        print("setUp")
+
+    def test_mutation_processes(self):
+        """Tests the mutation_processes.
+        """
+        print("mutation_processes")
+        num_tests = 3
+        num_products = 4
+        pmut_list = [
+            (random.random(), random.random(), random.random(), random.random())
+            for i in range(num_tests)
+        ]
+        pmut_list.append((0.0, 0.0, 0.0, 0.0))
+        pmut_list.append((1.0, 1.0, 1.0, 1.0))
+
+        for pmut in pmut_list:  # Loops for different mutation rates
+            num_genes = random.randint(2, 25)
+            num_chromossomes = random.randint(50, 100)
+            batches_raw = np.zeros(shape=(num_chromossomes, num_genes), dtype=int)
+            products_raw = np.zeros(shape=(num_chromossomes, num_genes), dtype=int)
+            masks = np.zeros(shape=(num_chromossomes, num_genes), dtype=bool)
+            genes_per_chromo = np.zeros(shape=(num_chromossomes,), dtype=int)
+            for i in range(num_chromossomes):  # Initializes random arrays
+                genes_per_chromo[i] = random.randint(
+                    0, num_genes - 1
+                )  # Number of active genes per chromo
+                batches_raw[i, 0 : genes_per_chromo[i]] = np.random.randint(
+                    1, 50, size=genes_per_chromo[i]
+                )
+                products_raw[:, 0 : genes_per_chromo[i]] = np.random.randint(
+                    low=0, high=num_products, size=genes_per_chromo[i]
+                )
+                masks[i, 0 : genes_per_chromo[i]] = True
+                self.assertFalse(
+                    (masks[i, genes_per_chromo[i] :] != False).any()
+                )  # If true Invalid bool after number of active genes.
+                self.assertFalse(
+                    (batches_raw[i, genes_per_chromo[i] :] > 0).any()
+                )  # If true Invalid number of batches (0).
+
+            products_raw, batches_raw, masks = Planning().mutation_processes(
+                products_raw, batches_raw, masks, pmut
+            )
+            genes_per_chromo = np.sum(masks, axis=1, dtype=int)
+
+            for i in range(
+                num_chromossomes
+            ):  # Verify if mutation is causing any unexpected behaviour
+                self.assertFalse(
+                    np.sum(masks[i, genes_per_chromo[i] :] != False) > 0
+                )  # If true Invalid bool after number of active genes.
+                self.assertFalse(
+                    np.sum(batches_raw[i, genes_per_chromo[i] :]) > 0
+                )  # If true Invalid number of batches (0).
+            self.assertFalse(
+                (products_raw >= num_products).any()
+            )  # If true Error in labels of products, labels superior than maximum defined.
 
     def tearDown(self):
         print("tearDown")

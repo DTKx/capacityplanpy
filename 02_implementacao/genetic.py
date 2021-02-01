@@ -125,31 +125,48 @@ class Mutations:
 
     @staticmethod
     @nb.jit(nopython=True, nogil=True, fastmath=True)
-    def _add_subtract_mutation(chromossome, pposb, pnegb):
+    def _add_subtract_mutation(batches,products,masks,num_genes, pposb, pnegb):
         """2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
            3. To add a new random gene to the end of the chromosome (un- conditionally).
         Args:
-            chromossome (array of int): Chromossome with labels within range_max
+            batches (array of int): batches with labels within range_max
+            products (array of int): products with labels within range_max
+            masks (array of bool): masks with labels within range_max
+            num_genes (int): Number of genes in the chromossome
             pposb (float): Probability of mutation to add per gene ranging from 0 to 1
             pnegb (float): Probability of mutation to subtract per gene ranging from 0 to 1
 
         Returns:
-            [array of int]: Mutated chromossome
+            [array of int]: Mutated batches
         """
         # Add
-        mask_add = np.random.randint(0, 100, size=chromossome.shape)
+        mask_add = np.random.randint(0, 100, size=num_genes)
         ix_mut_add = np.where(mask_add <= pposb * 100)[0]
         if len(ix_mut_add) > 0:
-            chromossome[ix_mut_add] = chromossome[ix_mut_add] + 1
-
-        mask_sub = np.random.randint(0, 100, size=chromossome.shape)
+            batches[0 : num_genes][ix_mut_add] = batches[0 : num_genes][ix_mut_add] + 1
+        mask_sub = np.random.randint(0, 100, size=num_genes)
         ix_mut_sub = np.where(mask_sub <= pnegb * 100)[0]
         if len(ix_mut_sub) > 0:
-            # Subtract only if higher than 2
-            for ix in ix_mut_sub:
-                if chromossome[ix] > 1:
-                    chromossome[ix] = chromossome[ix] - 1
-        return chromossome
+            for i in ix_mut_sub:
+                if batches[i] > 1:# Subtract only if > 1
+                    batches[i] = batches[i] - 1
+                elif (batches[i] == 1)&(num_genes>1):#Removes batch if there is more than 1 gene
+                    # print(batches)
+                    temp_ar = batches[ i + 1 :].copy()
+                    batches[i : -1] = temp_ar# Brings the sequence forward and sets the 
+                    batches[-1] = 0#last value as 0
+                    # print(batches)
+                    # print(products)
+                    temp_ar = products[i +1 :].copy()#Adjust Products
+                    products[i: -1] = temp_ar
+                    products[-1] = 0
+                    # print(products)
+                    # print(masks)
+                    masks[num_genes - 1] = False
+                    num_genes= num_genes- 1
+                    # print(masks)
+                    
+        return batches,products,masks,num_genes
 
     @staticmethod
     @nb.jit(nopython=True, nogil=True, fastmath=True)

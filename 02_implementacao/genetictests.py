@@ -187,6 +187,7 @@ class GeneticTests(unittest.TestCase):
     def tearDown(self):
         print("tearDown")
 
+
     @classmethod
     def tearDownClass(cls):
         print("teardownClass")
