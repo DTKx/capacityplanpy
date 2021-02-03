@@ -170,6 +170,52 @@ class PlanningTests(unittest.TestCase):
     def setUp(self):
         print("setUp")
 
+    def test_calc_distributions_monte_carlo_cuda(self):
+        """Tests function calc_distributions_monte_carlo_cuda, comparing to a manually calculated result.
+        """
+        print("calc_distributions_monte_carlo")
+        produced = np.loadtxt(
+            self.path_data + "distributions_monte_carlo_produced.csv", delimiter=",", skiprows=1
+        )
+        demand_val = np.loadtxt(
+            self.path_data + "distributions_monte_carlo_demand.csv", delimiter=","
+        )
+        demand = np.zeros(shape=(demand_val.shape[0], demand_val.shape[1], 2))
+        demand[:, :, 0] = demand_val.copy()
+        demand[:, :, 1] = demand_val
+        distribution_sums_backlog_solution = 0
+        distribution_sums_deficit_solution = 413.32
+
+        (
+            distribution_sums_backlog,
+            distribution_sums_deficit,
+        ) = Planning().calc_distributions_monte_carlo_cuda(
+            produced,  # Produced Month 0 is the first month of inventory batches
+            demand,
+            2,
+            Planning().num_months,
+            Planning().num_products,
+            Planning().target_stock,
+            Planning().initial_stock,
+        )
+        delta = 0.1
+        message = "First and second backlog are not almost equal."  # error message in case if test case got failed
+        self.assertAlmostEqual(
+            distribution_sums_backlog_solution, distribution_sums_backlog[0], None, message, delta
+        )
+        message = "First and second deficit values are not almost equal."  # error message in case if test case got failed
+        print(distribution_sums_deficit[0])
+        self.assertAlmostEqual(
+            distribution_sums_deficit_solution, distribution_sums_deficit[0], None, message, delta
+        )
+
+    def tearDown(self):
+        print("tearDown")
+
+
+    def setUp(self):
+        print("setUp")
+
     def test_calc_distributions_monte_carlo(self):
         """Tests function calc_distributions_monte_carlo, comparing to a manually calculated result.
         """
