@@ -233,7 +233,7 @@ class AlgNsga2:
             p = resultado_fn.shape[0]
             dominado_fn = np.ones(shape=(p, 1))
             # Loop por ponto a verificar se é dominado
-            for i in np.arange(0, p):
+            for i in nb.prange(0, p):
                 # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
                 k = 0
                 dominado_sum = int(0)
@@ -315,7 +315,7 @@ class AlgNsga2:
 
             p = len(ix_falta_classificar)
             dominado_fn = np.ones(p)
-            for i in np.arange(
+            for i in nb.prange(
                 0, p
             ):  # Loop per point to compare, till classify point as dominated(finds at least one that dominates) or non dominated(compares all points)
                 k = 0  # Counter for all other points
@@ -392,7 +392,7 @@ class AlgNsga2:
             row = resultado_fn.shape[0]
             dominado_fn = np.ones(shape=(row,))
             # Loop por ponto a verificar se é dominado
-            for i in np.arange(0, row):
+            for i in nb.prange(0, row):
                 # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
                 j = 0
                 dominado_sum = int(0)
