@@ -2,12 +2,18 @@ import numpy as np
 import random
 import copy
 import numba as nb
-# from numba import jit,prange
+from numba import jit,prange
 from scipy.stats import rankdata
+import logging
+import os
+from errors import CountError
 
+LOG_FILENAME = 'genetic.log'
+filepath= os.path.join(os.path.dirname(os.path.realpath(__file__)),LOG_FILENAME)
+logging.basicConfig(filename=filepath,filemode="w", level=logging.DEBUG)#Defines the path and level of log file
 
 class Helpers:
-    @nb.jit(nopython=True, nogil=True)
+    @jit(nopython=True, nogil=True)
     def _is_in(array_2d_to_search, array_1d_search):
         """Equivalent to np.isin
 
@@ -20,7 +26,7 @@ class Helpers:
         """
         return np.array([x in set(array_1d_search) for x in array_2d_to_search])
 
-    @nb.jit(nopython=True, nogil=True)
+    @jit(nopython=True, nogil=True)
     def _find_idx_duplicates(array_duplicates):
         """Returns indexes of first duplicate found 
 
@@ -104,7 +110,7 @@ class Mutations:
     """
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
     def _label_mutation(chromossome, range_max, pmutp):
         """Label Mutation considering a probability of label mutation of pmutp, considering a range of label from 0 to range_max.
 
@@ -124,7 +130,7 @@ class Mutations:
         return chromossome
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
     def _add_subtract_mutation(batches,products,masks,num_genes, pposb, pnegb):
         """2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
            3. To add a new random gene to the end of the chromosome (un- conditionally).
@@ -169,7 +175,7 @@ class Mutations:
         return batches,products,masks,num_genes
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
     def _swap_mutation(chromossome_atrib0, chromossome_atrib1, pswap):
         """Swaps in mutation two genes position, the cromossome received have two attribute, that means that if swapping occurs (given a pswap probability) both attributes are swapped.
 
@@ -205,7 +211,7 @@ class AlgNsga2:
     """ Methods for Algorithm NSGA 2 (1. Deb, K. et al.: A Fast and Elitist Multiobjective Genetic Algorithm: NSGA-II. (2002).)
     """
 
-    @nb.jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
     def _fronts_violations(objectives_fn, num_fronts, violations):
         """Avalia as fronteiras de pareto para alocação de cada valor do individuo da população. Modified criteria evaluates first the number of violations and then in case draw evaluates the objective functions.
 
@@ -233,7 +239,7 @@ class AlgNsga2:
             p = resultado_fn.shape[0]
             dominado_fn = np.ones(shape=(p, 1))
             # Loop por ponto a verificar se é dominado
-            for i in nb.prange(0, p):
+            for i in prange(0, p):
                 # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
                 k = 0
                 dominado_sum = int(0)
@@ -290,7 +296,7 @@ class AlgNsga2:
 
         return fronts
 
-    @nb.jit(nopython=True, nogil=True, fastmath=True)
+    @jit(nopython=True, nogil=True, fastmath=True)
     def _fronts_numba(objectives_fn, num_fronts):
         """ Calculates pareto fronts for each individual (each row) in population.
         Considers a minimization problem.
@@ -315,7 +321,7 @@ class AlgNsga2:
 
             p = len(ix_falta_classificar)
             dominado_fn = np.ones(p)
-            for i in nb.prange(
+            for i in prange(
                 0, p
             ):  # Loop per point to compare, till classify point as dominated(finds at least one that dominates) or non dominated(compares all points)
                 k = 0  # Counter for all other points
@@ -364,7 +370,7 @@ class AlgNsga2:
 
         return fronts
 
-    # @nb.jit(nopython=True, nogil=True)
+    # @jit(nopython=True, nogil=True)
     def _fronts(objectives_fn, num_fronts):
         """ Calculates pareto fronts for each individual (each row) in population.
         Considers a minimization problem.
@@ -377,8 +383,8 @@ class AlgNsga2:
             int: Array shape (n,) with the pareto fronts classification for each individual.
         """
 
-        @nb.jit(nopython=True, nogil=True)  # Fast_math must be disabled for Unit Testing
-        # @nb.jit(nopython=True, nogil=True,fast_math=True)
+        @jit(nopython=True, nogil=True)  # Fast_math must be disabled for Unit Testing
+        # @jit(nopython=True, nogil=True,fast_math=True)
         def _ponto_dominado_minimizacao(resultado_fn):
             """Defines dominated points, from n objectives (columns)
 
@@ -392,7 +398,7 @@ class AlgNsga2:
             row = resultado_fn.shape[0]
             dominado_fn = np.ones(shape=(row,))
             # Loop por ponto a verificar se é dominado
-            for i in nb.prange(0, row):
+            for i in prange(0, row):
                 # # Loop por ponto da população para comparar até verificar se há algum ponto que domina ou varrer todos
                 j = 0
                 dominado_sum = int(0)
@@ -586,8 +592,8 @@ class AlgNsga2:
                             )[0][-1]
                         )
                     except Exception as e:
-                        # print(e," Breaking.")
-                        break
+                        logging.error(e,exc_info=True)#Adds Exception to log file 
+                        raise #Raise
             idx_ganhadores.append(idx_ganhador)
         return idx_ganhadores
 
@@ -628,8 +634,12 @@ class AlgNsga2:
                 indice_nova_pop[k : k + len_val_front_i] = (val_front_i[:, 2]).astype(int)
                 k += len_val_front_i
 
-        # if (len(indice_nova_pop)<n_ind)|(len(indice_nova_pop[indice_nova_pop<0])>0):
-        #     raise Exception("ValueError")
+        if (len(indice_nova_pop)<n_ind)|(len(indice_nova_pop[indice_nova_pop<0])>0):
+            expression=f"({len(indice_nova_pop)}<{n_ind})|({len(indice_nova_pop[indice_nova_pop<0])}>0)"
+            e=f"Error in index selection, number of selected index vs. expected."
+            logging.error(CountError(expression,e),exc_info=True)#Adds Exception to log file
+            raise CountError(expression,e)#Raise
+
 
         return indice_nova_pop
 
@@ -705,5 +715,8 @@ class AlgNsga2:
                 ix_selected = np.append(ix_selected, criteria_array[:remain, 3])
                 # print(ix_selected.shape)
         if len(ix_selected) > n_ind:
-            print("Error in ix selection, number of selected index:", ix_selected)
+            expression=f"{len(ix_selected)} > {n_ind}"
+            e=f"Error in index selection, number of selected index:{len(ix_selected)}, Expected: {n_ind}"
+            logging.error(CountError(expression,e),exc_info=True)#Adds Exception to log file
+            raise CountError(expression,e)#Raise
         return ix_selected

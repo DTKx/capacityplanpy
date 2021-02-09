@@ -1,0 +1,2 @@
+ERROR:root:('any([False])', 'Invalid number of batches (0).\n Batches: [1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] \n Masks  [ True False False False False False False False False False False False\n False False False False False False False False False False False False\n False] \n Position 0)')
+NoneType: None

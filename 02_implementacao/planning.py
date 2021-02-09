@@ -12,14 +12,7 @@ from datetime import timedelta
 from itertools import product
 from pstats import SortKey
 import numpy as np
-
-# import pandas as pd
-
-# from dateutil import relativedelta
-# from dateutil.relativedelta import *
-import numba as nb
-
-# from numba import jit, prange, typeof
+from numba import jit, prange, typeof
 from pygmo import hypervolume
 
 # from scipy import stats
@@ -32,6 +25,15 @@ import tracemalloc
 # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
 import genetic as gn
 from population import Population
+import logging
+import os
+from errors import CountError, InvalidValuesError
+
+LOG_FILENAME = "planning.log"
+filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), LOG_FILENAME)
+logging.basicConfig(
+    filename=filepath, filemode="w", level=logging.DEBUG
+)  # Defines the path and level of log file
 
 
 class Planning:
@@ -271,19 +273,19 @@ class Planning:
         return pop_obj
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_triangular_dist(demand_distribution, num_monte):
         return np.random.triangular(
             demand_distribution[0], demand_distribution[1], demand_distribution[2], size=num_monte,
         )
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_median_triangular_dist(demand_distribution, num_monte):
         n = len(demand_distribution)
         demand_i = np.zeros(shape=(n,))
         # demand_i=np.median(np.random.triangular(demand_distribution[:][0],demand_distribution[:][1],demand_distribution[:][2],size=num_monte))
-        for i in nb.prange(0, n):  # Loop per month
+        for i in prange(0, n):  # Loop per month
             demand_i[i] = np.median(
                 np.random.triangular(
                     demand_distribution[i][0],
@@ -295,7 +297,7 @@ class Planning:
         return demand_i
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_stock(available_i, stock_i, produced_i, demand_i, backlog_i, num_months):
         """Calculates Stock per month along (over num_months) Stock=Available-Demand if any<0 Stock=0 & Back<0 = else.
 
@@ -308,7 +310,7 @@ class Planning:
             num_months (int): Number of months to evaluate each column represents a month
         """
         # Loop per Months starting through 1
-        for j in nb.prange(1, num_months):
+        for j in prange(1, num_months):
             # Available=Previous Stock+Produced this month
             available_i[j] = stock_i[j - 1] + produced_i[j]
 
@@ -327,7 +329,7 @@ class Planning:
         return stock_i, backlog_i
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_distributions_monte_carlo(
         produced, demand_j, num_monte, num_months, num_products, target_stock, initial_stock
     ):
@@ -358,7 +360,7 @@ class Planning:
             num_monte, dtype=np.float64
         )  # Stores backlog distributions
 
-        for j in nb.prange(num_monte):  # Loop per number of monte carlo simulations
+        for j in prange(num_monte):  # Loop per number of monte carlo simulations
             produced_j = produced.copy()  # Produced Month 0 is the first month of inventory batches
             available_j = available.copy()
             stock_j = np.zeros(
@@ -379,13 +381,13 @@ class Planning:
             )  # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
 
             # Corrects stock negative values and adds to backlog for month 0
-            for p in nb.prange(num_products):  # Loop per product
+            for p in prange(num_products):  # Loop per product
                 if stock_j[0, p] < 0:
                     backlog_j[0, p] = stock_j[0, p] * (-1.0)  # Adds negative values to backlog
                     sum_backlog_j += backlog_j[0, p]
                     stock_j[0, p] = 0.0  # Corrects if Stock is negative
 
-            for k in nb.prange(
+            for k in prange(
                 1, num_months
             ):  # Calculates for the rest of months Stock Loop per Months starting through 1
                 available_j[k] = (
@@ -397,7 +399,7 @@ class Planning:
                 )  # Stock=Available-Demand if any<0 Stock=0 & Back<0 = else
 
                 # Corrects stock negative values and adds to backlog
-                for p in nb.prange(num_products):  # Loop per product
+                for p in prange(num_products):  # Loop per product
                     if stock_j[k, p] < 0:
                         backlog_j[k, p] = stock_j[k, p] * (-1.0)  # Adds negative values to backlog
                         sum_backlog_j += backlog_j[k, p]
@@ -468,7 +470,7 @@ class Planning:
         return pop.deficit[i][3]  # MedianDeficit
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def metrics_dist_deficit(distribution_sums_deficit):
         metrics = np.array(
             [
@@ -483,7 +485,7 @@ class Planning:
         return metrics
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def metrics_dist_backlog(distribution_sums_backlog, num_monte):
         metrics = np.array(
             [
@@ -513,10 +515,13 @@ class Planning:
         # Loop per Chromossome
         for i in range(0, len(pop.products_raw)):
             if any(pop.batches_raw[i][pop.masks[i]] == 0):
-                print("Batches ", pop.batches_raw[i])
-                print("Masks ", pop.masks[i])
-                print("Position ", i)
-                raise Exception("Invalid number of batches (0).")
+                expression = f"any({pop.batches_raw[i][pop.masks[i]] == 0})"
+                e = f"Invalid number of batches (0).\n Batches: {pop.batches_raw[i]} \n Masks  {pop.masks[i]} \n Position {i})"
+                logging.error(
+                    InvalidValuesError(expression, e), exc_info=True
+                )  # Adds Exception to log file
+                raise InvalidValuesError(expression, e)  # Raise
+
             produced = np.dot(pop.batches_raw[i][pop.masks[i]], pop_yield[i][pop.masks[i]])
             pop.objectives_raw[i, 0] = (
                 self.inversion_val_throughput - produced
@@ -527,11 +532,13 @@ class Planning:
             )  # Adds median_deficit_i
 
             if pop.objectives_raw[i, 0] < 0:
-                print("Produced", produced)
-                print("Inversion", self.inversion_val_throughput)
-                print("Index", i)
-                print(pop.objectives_raw[i, 0])
-                raise Exception("Error in Objective 1")
+                expression = f"{pop.objectives_raw[i, 0] < 0}"
+                e = f"Invalid value of Objective 1.\n Produced: {produced} \n Inversion  {self.inversion_val_throughput} \n Index {i} \n objective {pop.objectives_raw[i, 0]})"
+                logging.error(
+                    InvalidValuesError(expression, e), exc_info=True
+                )  # Adds Exception to log file
+                raise InvalidValuesError(expression, e)  # Raise
+
         return pop
 
     @staticmethod
@@ -650,7 +657,7 @@ class Planning:
         return new_product, new_batches, new_mask
 
     @staticmethod
-    @nb.jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def agg_product_batch(products, batches, masks, genes_per_chromo):
         """Aggregates product batches in case of neighbours products.
 
@@ -898,19 +905,32 @@ class Planning:
             new_products, new_batches, new_mask = self.fix_aggregation_batches(
                 new_products, new_batches, new_mask
             )
-            for i in range(0, len(new_products)):
-                if any(new_batches[i][new_mask[i]] == 0):
-                    raise Exception("Invalid number of batches (0).")
-                if np.sum(new_mask[i][~new_mask[i]]) > 0:
-                    raise Exception("Invalid bool after number of active genes.")
+            # for i in range(0, len(new_products)):
+            #     if any(new_batches[i][new_mask[i]] == 0):
+            #         expression=f"any({new_batches[i][new_mask[i]] == 0})"
+            #         e=f"Invalid number of batches (0).\n Batches: {new_batches[i]} \n Masks  {new_mask[i]} \n Position {i})"
+            #         logging.error(InvalidValuesError(expression,e),exc_info=True)#Adds Exception to log file
+            #         raise InvalidValuesError(expression,e)#Raise
 
             # 10) Merge populations Current and Offspring
             pop_offspring.update_new_population(new_products, new_batches, new_mask)
-            # for i in range(0,len(pop_offspring.products_raw)):
-            #     if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
+            for i in range(0, len(pop_offspring.products_raw)):
+                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]] == 0):
+                    expression = f"any({pop_offspring.batches_raw[i][pop_offspring.masks[i]] == 0})"
+                    e = f"Invalid number of batches (0).\n Batches: {pop_offspring.batches_raw[i]} \n Masks  {pop_offspring.masks[i]} \n Position {i})"
+                    logging.error(
+                        InvalidValuesError(expression, e), exc_info=True
+                    )  # Adds Exception to log file
+                    raise InvalidValuesError(expression, e)  # Raise
+                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i] :]) > 0:
+                    expression = (
+                        f"np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0"
+                    )
+                    e = f"Invalid number of batches (0).\n Genes per chromo : {pop_offspring.genes_per_chromo[i]} \n Masks  {pop_offspring.masks[i]} \n Position {i})"
+                    logging.error(
+                        InvalidValuesError(expression, e), exc_info=True
+                    )  # Adds Exception to log file
+                    raise InvalidValuesError(expression, e)  # Raise
 
             # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
             pop_offspring = self.calc_start_end(pop_offspring)
@@ -920,14 +940,6 @@ class Planning:
             # 13) Merge Current Pop with Offspring
             # pop_offspring_copy=copy.deepcopy(pop_offspring)
             pop = self.merge_pop_with_offspring(pop, pop_offspring)
-            # for i in range(0,len(pop.products_raw)):
-            #     if any(pop.batches_raw[i][pop.masks[i]]==0):
-            #         raise Exception("Invalid number of batches (0).")
-            #     if np.sum(pop.masks[i][pop.genes_per_chromo[i]:])>0:
-            #         raise Exception("Invalid bool after number of active genes.")
-            # if (pop.objectives_raw<0).any():
-            #     raise Exception ("Negative value of objectives, consider modifying the inversion value.")
-            # print("Backlog after merging offspring",pop.backlogs[:,6])
 
             # 14) 4)Front Classification
             objectives_raw_copy = pop.objectives_raw.copy()
@@ -979,7 +991,7 @@ class Planning:
 
         # Number of Chromossomes
         nc = [100]
-        ng = [1000]  # Number of Generations
+        ng = [10]  # Number of Generations
 
         # Number of tour
         nt = [2]
@@ -1016,7 +1028,7 @@ class Planning:
 
             t0 = perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                 for pop_exec in executor.map(
                     self.main,
                     n_exec_ite,
@@ -1126,7 +1138,7 @@ class Planning:
         pcross = 0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut = (0.04, 0.61, 0.77, 0.47)
-        # pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
+        pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
 
         t0 = perf_counter()
 
@@ -1159,7 +1171,7 @@ class Planning:
 
 
 if __name__ == "__main__":
-    Planning().run_cprofile()
-    # Planning().run_parallel()
+    # Planning().run_cprofile()
+    Planning().run_parallel()
     # Saves Monte Carlo Simulations
     # self.calc_demand_montecarlo_to_external_file(5000)
