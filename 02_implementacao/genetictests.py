@@ -27,14 +27,37 @@ class GeneticTests(unittest.TestCase):
     def test__fronts(self):
         """Tests _fronts, that classifies solutions(Each row is a solution with different objectives values) into pareto fronts.
         1) Tests using data manually classified to 3 fronts.
+        2) Tests random values to verify if fronts are within expected range
         """
         print("_fronts")
+        # Test 1
         num_fronts = 3
         objectives_fn = np.loadtxt(
             self.path_data + "_fronts.csv", delimiter=",", skiprows=1
         )  # Index(['f0', 'f1', 'f2', 'f3', 'front'], dtype='object')
         front_calc = gn.AlgNsga2._fronts(objectives_fn[:, 0:3], num_fronts)
         self.assertEqual(front_calc.all(), objectives_fn[:, 4].all())
+        # Test 2
+        # Matrix of ones
+        objectives_fn = np.ones(shape=(100, 4))  # Index(['f0', 'f1', 'f2', 'f3'])
+        front_calc = gn.AlgNsga2._fronts(objectives_fn, num_fronts)
+        self.assertFalse((any(front_calc >= num_fronts)) | (any(front_calc < 0)))
+        self.assertEqual(np.unique(front_calc)[0], 0)
+
+        # Matrix of zeros
+        objectives_fn = np.zeros(shape=(100, 4))  # Index(['f0', 'f1', 'f2', 'f3'])
+        front_calc = gn.AlgNsga2._fronts(objectives_fn, num_fronts)
+        self.assertFalse((any(front_calc >= num_fronts)) | (any(front_calc < 0)))
+        self.assertEqual(np.unique(front_calc)[0], 0)
+
+        # Matrix of random
+        num_tests = 10
+        for i in range(num_tests):
+            objectives_fn = np.random.randint(0, 100, size=400).reshape(
+                -1, 4
+            )  # Index(['f0', 'f1', 'f2', 'f3'])
+            front_calc = gn.AlgNsga2._fronts(objectives_fn, num_fronts)
+            self.assertFalse((any(front_calc >= num_fronts)) | (any(front_calc < 0)))
 
     def tearDown(self):
         print("tearDown")

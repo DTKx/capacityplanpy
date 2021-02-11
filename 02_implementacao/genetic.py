@@ -6,7 +6,7 @@ from numba import jit,prange
 from scipy.stats import rankdata
 import logging
 import os
-from errors import CountError
+from errors import CountError, InvalidValuesError
 
 LOG_FILENAME = 'genetic.log'
 filepath= os.path.join(os.path.dirname(os.path.realpath(__file__)),LOG_FILENAME)
@@ -296,80 +296,6 @@ class AlgNsga2:
 
         return fronts
 
-    @jit(nopython=True, nogil=True, fastmath=True)
-    def _fronts_numba(objectives_fn, num_fronts):
-        """ Calculates pareto fronts for each individual (each row) in population.
-        Considers a minimization problem.
-        Deprecated.
-
-        Args:
-            resultado_fn (float): Array of floats shape(m,n) with the n fitnesses   Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
-            num_fronts (int): Number of Fronts to separate 
-        Returns:
-            int: Array shape (n,) with the pareto fronts classification for each individual.
-        """
-        row, col = objectives_fn.shape
-        ix_falta_classificar = np.arange(0, row)  # Indexes to classify
-        fronts = np.zeros(row, dtype=np.int64)  # Initializes Fronts
-        j = 0
-        existe_dominados = True  # Bool if exists dominated points, or I reached a stage with only non dominated (e.g. same objectives)
-        while (j < num_fronts - 1) & (
-            existe_dominados
-        ):  # Loop per fronts, except last one which will be added in last front and exists dominated points
-            dominado = np.ones(shape=(row,))
-            resultado_fn = objectives_fn[ix_falta_classificar].copy()
-
-            p = len(ix_falta_classificar)
-            dominado_fn = np.ones(p)
-            for i in prange(
-                0, p
-            ):  # Loop per point to compare, till classify point as dominated(finds at least one that dominates) or non dominated(compares all points)
-                k = 0  # Counter for all other points
-                dominado_sum = int(
-                    0
-                )  # Minimization problem. dominado_sum=1(Dominated),dominado_sum=0(Non Dominated)
-                while (k < p) & (
-                    dominado_sum == int(0)
-                ):  # 1)May loop all points,2)Remains non dominated
-                    if i == k:  # If same point, continues.
-                        k += int(1)
-                        continue
-                    ar_distintos = np.where(resultado_fn[k] != resultado_fn[i])
-                    if (
-                        len(ar_distintos) == 0
-                    ):  # If arrays are totally equal, the two points are non dominated.
-                        dominado_count = 0
-                    else:  # Dominated if all the objectives are lower than the p0 (evaluated), else non dominated
-                        dominado_count = int(
-                            np.all(resultado_fn[k][ar_distintos] < resultado_fn[i][ar_distintos])
-                        )
-                    dominado_sum += dominado_count
-                    k += int(1)
-                if dominado_sum == 0:  # Non Dominated
-                    dominado_fn[i] = 0
-                else:
-                    dominado_fn[i] = 1  # Dominated
-
-            dominado[ix_falta_classificar] = dominado_fn.copy()
-
-            # dominado[ix_falta_classificar]=_ponto_dominado_minimizacao(objectives_fn[ix_falta_classificar])
-            ix_nao_dominados = np.where(dominado == 0)[0]  # Absolute Index of non dominated points
-            if (
-                len(ix_nao_dominados) == 0
-            ):  # Did not found non dominated e.g. only have points with same obejctives
-                existe_dominados = False
-                continue  # Break the while loop
-            fronts[ix_nao_dominados] = j  # Adds non dominated to current front
-            ix_falta_classificar = np.delete(
-                ix_falta_classificar, ix_nao_dominados
-            )  # Removes classified non dominated points by index
-
-            j += 1
-
-        fronts[ix_falta_classificar] = j  # Adds all remaining points in last front
-
-        return fronts
-
     # @jit(nopython=True, nogil=True)
     def _fronts(objectives_fn, num_fronts):
         """ Calculates pareto fronts for each individual (each row) in population.
@@ -446,6 +372,16 @@ class AlgNsga2:
             ix_falta_classificar = np.setdiff1d(ix_falta_classificar, ix_nao_dominados)
             j += 1
         fronts[ix_falta_classificar] = j  # Adiciona todos os outros pontos na última fronteira
+
+        if (any(fronts>=num_fronts))|(any(fronts<0)):
+            expression=f"(any({fronts>num_fronts}))|(any({fronts<0}))"
+            e = "Invalid values of fronts."
+            logging.error(
+                InvalidValuesError(expression, e), exc_info=True
+            )  # Adds Exception to log file
+            raise InvalidValuesError(expression, e)  # Raise
+
+
         return fronts
 
     def _crowding_distance(objectives_fn, fronts, big_dummy):
