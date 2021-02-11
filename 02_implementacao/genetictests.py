@@ -5,6 +5,7 @@ import pickle
 from population import Population
 import genetic as gn
 import random
+from ast import literal_eval
 
 
 def load_obj(path):
@@ -19,7 +20,6 @@ class GeneticTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         print("setupClass")
-
 
     def setUp(self):
         print("setUp")
@@ -61,34 +61,60 @@ class GeneticTests(unittest.TestCase):
     def tearDown(self):
         print("tearDown")
 
-
     def setUp(self):
         print("setUp")
 
     def test__index_linear_reinsertion_nsga_constraints(self):
-        """Tests the selection of individuals for crossover to verify whether the mean of the number of violations is t1<=t0. If the lowest violations individuals are indeed being selected.
+        """
+        1) Compares selection to a manually calculated solution.
+        2) Tests the selection of individuals for crossover to verify whether the mean of the number of violations is t1<=t0. If the lowest violations individuals are indeed being selected.
         """
         print("_index_linear_reinsertion_nsga_constraints")
-        violations = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_violations.txt",
+
+        data = np.loadtxt(
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_data.csv",
             delimiter=",",
-        )
-        crowd_dist = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_crowding_dist_copy.txt",
+            skiprows=1,
+        )  # violations	crowd_dist	fronts
+        index = np.loadtxt(
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_index.csv",
             delimiter=",",
+            skiprows=1,
+            dtype=np.int32,
         )
-        fronts = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_fronts_copy.txt",
+        ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+            data[:, 0], data[:, 1], data[:, 2], 100
+        )
+        self.assertTrue(len(set(ix_sel) - set(index)) == 0)
+
+        # Test with second data
+        data = np.loadtxt(
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_data_2.csv",
             delimiter=",",
+            skiprows=1,
+        )  # violations	crowd_dist	fronts
+        index = np.loadtxt(
+            self.path_data + "_index_linear_reinsertion_nsga_constraints_index_2.csv",
+            delimiter=",",
+            skiprows=1,
+            dtype=np.int32,
+        )  # All indexes in the array are acceptable
+        ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+            data[:, 0], data[:, 1], data[:, 2], 100
         )
-        n_tests = 10  # Number of tests
-        mean_violations = np.mean(violations)
+        self.assertTrue(len(set(ix_sel) - set(index)) == 0)
+
+        # Test 2 Verify if median is decreasing
+
+        n_tests = 2000  # Number of tests
+        n_ind = 200
         for i in range(n_tests):
-            violations_copy = violations.copy()
-            crowd_dist_copy = crowd_dist.copy()
-            fronts_copy = fronts.copy()
+            violations = np.random.randint(0, n_ind / 20, size=n_ind)
+            mean_violations = np.mean(violations)
+            crowd_dist = np.random.randint(0, 100, size=n_ind)
+            fronts = np.random.randint(0, 3, size=n_ind)
             ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
-                violations_copy, crowd_dist_copy, fronts_copy, len(fronts_copy) // 2
+                violations, crowd_dist, fronts, len(fronts) // 2
             )
             self.assertLess(np.mean(violations[ix_sel]), mean_violations)
 
@@ -186,7 +212,6 @@ class GeneticTests(unittest.TestCase):
 
     def tearDown(self):
         print("tearDown")
-
 
     @classmethod
     def tearDownClass(cls):

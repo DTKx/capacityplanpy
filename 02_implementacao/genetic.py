@@ -639,8 +639,6 @@ class AlgNsga2:
             e=f"Error in index selection, number of selected index vs. expected."
             logging.error(CountError(expression,e),exc_info=True)#Adds Exception to log file
             raise CountError(expression,e)#Raise
-
-
         return indice_nova_pop
 
     def _index_linear_reinsertion_nsga_constraints(violations, crowd_dist, fronts, n_ind):
@@ -658,65 +656,60 @@ class AlgNsga2:
         Returns:
             [array]: Array with selected indexes for next generation.
         """
-        # Value for inversion of crowding distance, to create a minimization
-        val_inversion_crowd = np.amax(crowd_dist)
-        crowd_dist = val_inversion_crowd - crowd_dist
-        ix = np.arange(0, len(fronts))
+        ix_selected=np.zeros(shape=(n_ind,),dtype=np.int32)
+        ix = np.arange(0, len(fronts),dtype=np.int32)
+        remain=n_ind
         criteria_array = np.column_stack(
             [
-                rankdata(violations, method="min"),
-                rankdata(fronts, method="min"),
-                rankdata(crowd_dist, method="ordinal"),
-                ix,
+                violations,
+                fronts,
+                crowd_dist,
+                ix
             ]
         )
-        sort_vio = np.argsort(criteria_array[:, 0])
+        # 1) Evaluate Violations
+        sort_vio = np.argsort(criteria_array[:, 0])#Sort Violations Low->High
         criteria_array = criteria_array[sort_vio]
-        # 1)Violations
-        # Verify if there is a draw in the last number of violations
-        last_vio = criteria_array[:, 0][n_ind - 1]
-        dup_vio = np.sum(criteria_array[:, 0] == last_vio)
-        if dup_vio == 1:  # No draw at Violations
-            ix_selected = criteria_array[:, 3][np.where(criteria_array[:, 0] <= last_vio)]
-            # print(ix_selected.shape)
-        else:  # Draw, goes to fronts
-            # print(criteria_array.shape)
-            ix_vio = np.where(criteria_array[:, 0] <= last_vio)  # Removes selected values
-            ix_selected = criteria_array[:, 3][ix_vio]
-            # print(ix_selected.shape)
-            criteria_array = np.delete(criteria_array, ix_vio, 0)
-            remain = (n_ind - 1) - len(ix_vio[0])  # n_ind-1 because counter starts at 0
 
-            sort_front = np.argsort(criteria_array[:, 1])
-            criteria_array = criteria_array[sort_front]
+        last_vio_number = criteria_array[:, 0][n_ind - 1]
+        count=np.sum(criteria_array[:, 0] == last_vio_number)
+        if  count== 1:  # Verify if there is a draw in the highest number of violations
+            ix_selected = criteria_array[0:n_ind, 3].astype(np.int32)
+            remain=remain-n_ind
+        else:  # 2) Draw, evaluates fronts
+            ix_selected_vio=np.where(criteria_array[:,0]<last_vio_number)[0]
+            if len(ix_selected_vio)>0:#If num violations<last_vio_number add to selected and remove from criteria
+                ix_selected[0:len(ix_selected_vio)] = criteria_array[ix_selected_vio,3]
+                remain=remain-len(ix_selected_vio)
+                criteria_array=criteria_array[np.setdiff1d(np.arange(0,len(criteria_array)),ix_selected_vio),:]
+            #If already selected or num violations>last_vio_number+1 delete values
+            ix_keep_vio=np.where(criteria_array[:,0]<last_vio_number+1)[0]
+            criteria_array=criteria_array[ix_keep_vio,:]
+            
+            sort_fronts = np.argsort(criteria_array[:, 1])#Sort per fronts Low->High
+            criteria_array = criteria_array[sort_fronts]
 
-            # Verify draw in number of fronts
-            last_fro = criteria_array[:, 1][remain]
-            dup_fro = np.sum(criteria_array[:, 1] == last_fro)
-
-            # No draw at Fronts
-            if dup_fro == 1:
-                ix_selected = np.append(
-                    ix_selected, criteria_array[:, 3][np.where(criteria_array[:, 0] <= last_fro)]
-                )
-                # print(ix_selected.shape)
-            # Draw, goes to Crowding
-            else:
-                # Removes selected values
-                ix_fro = np.where(criteria_array[:, 1] <= last_fro - 1)
-                ix_selected = np.append(ix_selected, criteria_array[:, 3][ix_fro])
-                criteria_array = np.delete(criteria_array, ix_fro, 0)
-                remain = remain - len(ix_fro[0])
-
-                sort_crowd = np.argsort(criteria_array[:, 2])
+            last_front_number=criteria_array[:,1][remain-1]
+            count=np.sum(criteria_array[:, 1] == last_front_number)
+            if  count== 1:  # Verify if there is a draw in the highest number of fronts
+                ix_selected[n_ind-remain:] = criteria_array[:remain, 3]
+                remain=remain-remain
+            else:  # 2) Draw, evaluates Crowding distance
+                ix_selected_vio=np.where(criteria_array[:,1]<last_front_number)[0]
+                if len(ix_selected_vio)>0:#If num fronts<last_vio_number add to selected
+                    ix_selected[n_ind-remain:n_ind-remain+len(ix_selected_vio)] = criteria_array[ix_selected_vio,3]
+                    remain=remain-len(ix_selected_vio)
+                    criteria_array=criteria_array[np.setdiff1d(np.arange(0,len(criteria_array)),ix_selected_vio),:]
+                #If already selected or num violations>last_vio_number+1 delete values
+                ix_keep_vio=np.where(criteria_array[:,1]<last_front_number+1)[0]
+                criteria_array=criteria_array[ix_keep_vio,:]
+                sort_crowd = np.argsort(criteria_array[:, 2])#Sort per Crowding Distance Low->High
                 criteria_array = criteria_array[sort_crowd]
-
-                # Appends Solution
-                ix_selected = np.append(ix_selected, criteria_array[:remain, 3])
-                # print(ix_selected.shape)
-        if len(ix_selected) > n_ind:
-            expression=f"{len(ix_selected)} > {n_ind}"
-            e=f"Error in index selection, number of selected index:{len(ix_selected)}, Expected: {n_ind}"
+                ix_selected[n_ind-remain:] = criteria_array[(len(criteria_array)-remain):, 3]
+                remain=remain-remain
+        if  remain!=0:
+            expression=f"{remain}!=0"
+            e=f"Error in index selection, number of selected index:{remain}, Expected: 0"
             logging.error(CountError(expression,e),exc_info=True)#Adds Exception to log file
             raise CountError(expression,e)#Raise
         return ix_selected

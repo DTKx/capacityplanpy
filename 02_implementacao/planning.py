@@ -982,7 +982,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 20
+        n_exec = 2
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -991,7 +991,7 @@ class Planning:
 
         # Number of Chromossomes
         nc = [100]
-        ng = [10]  # Number of Generations
+        ng = [1000]  # Number of Generations
 
         # Number of tour
         nt = [2]
