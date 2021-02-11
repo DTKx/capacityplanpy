@@ -391,6 +391,78 @@ class PlanningTests(unittest.TestCase):
     def tearDown(self):
         print("tearDown")
 
+    def setUp(self):
+        print("setUp")
+
+    def test_merge_pop_with_offspring(self):
+        """Tests shape and content of merged populations.
+        """
+        print("merge_pop_with_offspring")
+        
+        pop = load_obj(self.path_data + "merge_pop_with_offspring_pop_1.pkl")
+        pop_copy = load_obj(self.path_data + "merge_pop_with_offspring_pop_1.pkl")
+        pop2 = load_obj(self.path_data + "merge_pop_with_offspring_pop_2.pkl")
+
+        pop_chromo=pop.num_chromossomes
+        pop_genes=pop.num_genes
+        num_metrics=pop.backlogs.shape[1]
+        num_objectives=pop.objectives_raw.shape[1]
+        max_months,num_products=pop.produced_month_product_individual.shape[:2]
+        pop2_chromo=pop2.num_chromossomes
+
+        Planning().merge_pop_with_offspring(pop,pop2)
+
+        #Batches
+        self.assertEqual(pop.batches_raw.shape,(pop_chromo+pop2_chromo,pop_genes))
+        self.assertEqual((pop.batches_raw[0:pop_chromo]).all(),(pop_copy.batches_raw).all())
+        self.assertEqual((pop.batches_raw[pop_chromo:]).all(),(pop2.batches_raw).all())
+        #Chromossomes
+        self.assertEqual(pop.num_chromossomes,pop_chromo+pop2_chromo)
+        #Products
+        self.assertEqual(pop.products_raw.shape,(pop_chromo+pop2_chromo,pop_genes))
+        self.assertEqual((pop.products_raw[0:pop_chromo]).all(),(pop_copy.products_raw).all())
+        self.assertEqual((pop.products_raw[pop_chromo:]).all(),(pop2.products_raw).all())
+
+        self.assertEqual(pop.masks.shape,(pop_chromo+pop2_chromo,pop_genes))# Masks
+        self.assertEqual((pop.masks[0:pop_chromo]).all(),(pop_copy.masks).all())
+        self.assertEqual((pop.masks[pop_chromo:]).all(),(pop2.masks).all())
+
+        self.assertEqual(pop.start_raw.shape,(pop_chromo+pop2_chromo,pop_genes))# Start Raw
+        self.assertTrue(np.array_equal(pop.start_raw[0:pop_chromo],pop_copy.start_raw))
+        self.assertTrue(np.array_equal(pop.start_raw[pop_chromo:],pop2.start_raw))
+        
+
+        self.assertEqual(pop.end_raw.shape,(pop_chromo+pop2_chromo,pop_genes))# End Raw
+        self.assertTrue(np.array_equal(pop.end_raw[0:pop_chromo],pop_copy.end_raw))
+        self.assertTrue(np.array_equal(pop.end_raw[pop_chromo:],pop2.end_raw))
+
+        self.assertEqual(pop.backlogs.shape,(pop_chromo+pop2_chromo,num_metrics))# Stock backlog_i
+        self.assertEqual((pop.backlogs[0:pop_chromo]).all(),(pop_copy.backlogs).all())
+        self.assertEqual((pop.backlogs[pop_chromo:]).all(),(pop2.backlogs).all())
+        
+        self.assertEqual(pop.deficit.shape,(pop_chromo+pop2_chromo,num_metrics-1))# Stock Deficit_i
+        self.assertEqual((pop.deficit[0:pop_chromo]).all(),(pop_copy.deficit).all())
+        self.assertEqual((pop.deficit[pop_chromo:]).all(),(pop2.deficit).all())
+
+        self.assertEqual(pop.objectives_raw.shape,(pop_chromo+pop2_chromo,num_objectives))# Stock Deficit_i
+        self.assertEqual((pop.objectives_raw[0:pop_chromo]).all(),(pop_copy.objectives_raw).all())
+        self.assertEqual((pop.objectives_raw[pop_chromo:]).all(),(pop2.objectives_raw).all())
+
+        self.assertEqual(pop.genes_per_chromo.shape,(pop_chromo+pop2_chromo,))# Genes per chromossome (Number of active campaigns per solution)
+        self.assertEqual((pop.genes_per_chromo[0:pop_chromo]).all(),(pop_copy.genes_per_chromo).all())
+        self.assertEqual((pop.genes_per_chromo[pop_chromo:]).all(),(pop2.genes_per_chromo).all())
+
+        self.assertEqual(pop.produced_month_product_individual.shape,(max_months,num_products,pop_chromo+pop2_chromo))# Genes per chromossome (Number of active campaigns per solution)
+        self.assertEqual((pop.produced_month_product_individual[0:pop_chromo]).all(),(pop_copy.produced_month_product_individual).all())
+        self.assertEqual((pop.produced_month_product_individual[pop_chromo:]).all(),(pop2.produced_month_product_individual).all())
+        
+        self.assertEqual(pop.fronts.shape,(pop_chromo+pop2_chromo,1))# fronts
+        self.assertEqual(pop.crowding_dist.shape,(pop_chromo+pop2_chromo,1))# crowding_dist
+
+    def tearDown(self):
+        print("tearDown")
+
+
     @classmethod
     def tearDownClass(cls):
         print("teardownClass")

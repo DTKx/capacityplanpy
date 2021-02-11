@@ -982,7 +982,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 2
+        n_exec = 1
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1038,13 +1038,14 @@ class Planning:
                     [v_i[3]] * n_exec,
                     [v_i[4]] * n_exec,
                 ):
-                    print("In merge pop exec", pop_exec.fronts)
+                    # print("In merge pop exec", pop_exec.fronts)
                     print("Backlog In merge", pop_exec.backlogs[:, 6])
-
-                    print("In merge pop main", pop_main.fronts)
+                    # print("In merge pop main", pop_main.fronts)
+                    print("In merge num_chromossomes", pop_main.num_chromossomes)                   
                     pop_main = self.merge_pop_with_offspring(pop_main, pop_exec)
-                    print("Out merge pop main", pop_main.fronts)
+                    # print("Out merge pop main", pop_main.fronts)
                     print("Backlog Out merge", pop_main.backlogs[:, 6])
+                    print("Out merge num_chromossomes", pop_main.num_chromossomes)
 
                     file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
                     self.export_obj(pop_main, root_path + file_name)

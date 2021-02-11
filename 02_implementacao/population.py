@@ -82,7 +82,7 @@ class Population:
 
         # Initialize 3d array with produced (month,product,individual)
         self.produced_month_product_individual = np.zeros(
-            shape=(num_months + qc_max_months, num_products, num_genes)
+            shape=(num_months + qc_max_months, num_products, num_chromossomes)
         )
 
         # NSGA2
