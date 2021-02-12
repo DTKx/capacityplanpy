@@ -409,7 +409,6 @@ class AlgNsga2:
                 ranks[ix_i_front,j]=rankdata(objectives_fn[ix_i_front,j],method="dense")
                 mask_borders=(ranks[ix_i_front,j]==1)|(ranks[ix_i_front,j]==np.max(ranks[ix_i_front,j]))
                 crowd_dist[ix_i_front[mask_borders]]=big_dummy #Adds a large value to the borders
-
         for k in range(num_ind):#loop per individual
             crowd_val=0
             for j in range(0, num_obj):#Loop objectives
@@ -422,116 +421,6 @@ class AlgNsga2:
                     crowd_val+=(objectives_fn[ix_rank_after,j]-objectives_fn[ix_rank_before,j])/fit_obj_max_delta[j]
             crowd_dist[k]=crowd_val
         return crowd_dist
-
-    def _torneio_simples_nsga2(
-        pop_tarefa, pop_processador, crowd_dist, fronts, n_ind_selecionar, n_tour
-    ):
-        """Seleciona n_ind_selecionar individuos da população utilizando o torneio simples:
-        1)Realiza se a seleção aleatória sem pesos de n_tour individuos
-        2)Seleciona se o individuo com a maior aptidão dos 3 individuos
-        3)Evita se possivel a repetição de pais
-        4)Retorna se todos os individuos mesmo o selecionado à população
-
-
-        Args:
-            pesos (int): Valores de aptidão
-            n_ind_selecionar (int): número de vetores a selecionar da população
-            n_tour (int): Número de individuos a selecionar para a comparação de aptidão
-
-        Returns:
-            array: array com a população escolhida
-        """
-        # Indexes de individuos da população e pesos de aptidao
-        indices_apt = np.arange(0, fronts.shape[0])
-
-        # # Ranking array with index from lowest to highest value
-        ind_low_high = np.argsort(pop_processador)
-
-        # # Mascara para armazenar index de valores selecionados
-        # mask_idx_nao_selecionados=np.ones(pop_tarefa.shape,dtype=bool)
-        idx_ganhadores = []
-
-        # Torneio para Minimizacao
-
-        # Seleção do primeiro index
-        # Seleção de indices de individuos para participação do torneio.
-        idx_sorteados_torneio = np.random.choice(indices_apt, size=n_tour, replace=True)
-        # Verifica os ganhadores com as melhores fronts em seguida com as maiores crowding distance
-        # fronts dos sorteados
-        front_competidores = fronts[idx_sorteados_torneio]
-        ix_ganhadores_front = idx_sorteados_torneio[
-            front_competidores == np.min(front_competidores)
-        ]
-        if len(ix_ganhadores_front) > 1:
-            crowd_competidores = crowd_dist[ix_ganhadores_front]
-            idx_ganhadores.append(ix_ganhadores_front[np.argmax(crowd_competidores)])
-        else:
-            idx_ganhadores.append(ix_ganhadores_front[0])
-
-        # Loop de torneios de seleção de individuos iniciando a partir do primeiro número
-        for i in range(1, n_ind_selecionar):
-            # Seleção de indices de individuos para participação do torneio.
-            idx_sorteados_torneio = np.random.choice(indices_apt, size=n_tour, replace=False)
-
-            # # Retorna a linha com a maior/menor aptidao de acordo com o tipo de maximização
-
-            # fronts dos sorteados
-            front_competidores = fronts[idx_sorteados_torneio]
-            ix_ganhadores_front = idx_sorteados_torneio[
-                front_competidores == np.min(front_competidores)
-            ]
-            if len(ix_ganhadores_front) > 1:
-                crowd_competidores = crowd_dist[ix_ganhadores_front]
-                idx_ganhador = ix_ganhadores_front[np.argmax(crowd_competidores)]
-            else:
-                idx_ganhador = ix_ganhadores_front[0]
-            # Verifica Duplicados seleciona apenas não duplicados
-            paridade = i % 2 == 0
-            if paridade:
-                tarefa_duplicada = (
-                    pop_tarefa[idx_ganhador][ind_low_high[idx_ganhador]]
-                    == pop_tarefa[idx_ganhadores[i - 1]][ind_low_high[idx_ganhadores[i - 1]]]
-                ).all()
-                proc_duplicada = (
-                    np.where(pop_processador[idx_ganhador][ind_low_high[idx_ganhador]] == 0)[0][-1]
-                    == np.where(
-                        pop_processador[idx_ganhadores[i - 1]][ind_low_high[idx_ganhadores[i - 1]]]
-                        == 0
-                    )[0][-1]
-                )
-                if tarefa_duplicada & proc_duplicada:
-                    try:
-                        distinto_ix = np.where(
-                            (pop_tarefa != pop_tarefa[idx_ganhador]).any(axis=1)
-                        )[0]
-                        # Seleção de indices de individuos para participação do torneio.
-                        idx_sorteados_torneio = np.random.choice(distinto_ix, size=n_tour)
-                        # Retorna a linha com a maior aptidao
-                        idx_ganhador = idx_sorteados_torneio[
-                            np.argmax(fronts[idx_sorteados_torneio])
-                        ]
-                        tarefa_duplicada = (
-                            pop_tarefa[idx_ganhador][ind_low_high[idx_ganhador]]
-                            == pop_tarefa[idx_ganhadores[i - 1]][
-                                ind_low_high[idx_ganhadores[i - 1]]
-                            ]
-                        ).all()
-                        proc_duplicada = (
-                            np.where(
-                                pop_processador[idx_ganhador][ind_low_high[idx_ganhador]] == 0
-                            )[0][-1]
-                            == np.where(
-                                pop_processador[idx_ganhadores[i - 1]][
-                                    ind_low_high[idx_ganhadores[i - 1]]
-                                ]
-                                == 0
-                            )[0][-1]
-                        )
-                    except Exception as e:
-                        logging.error(e,exc_info=True)#Adds Exception to log file 
-                        raise #Raise
-            idx_ganhadores.append(idx_ganhador)
-        return idx_ganhadores
 
     def _index_linear_reinsertion_nsga(crowd_dist, fronts, n_ind):
         """Returns the indexes of the chromossomes for the reinsertion in the new population, evaluating:

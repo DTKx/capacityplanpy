@@ -78,7 +78,7 @@ class Planning:
     yield_kg_batch_ar = np.array([3.1, 6.2, 4.9, 5.5])
     # initial_stock=dict(zip(products,[18.6,0,19.6,33]))
     initial_stock = np.array([18.6, 0, 19.6, 33])
-    min_batch = dict(zip(products, [2, 2, 2, 3]))
+    min_batch = (2, 2, 2, 3)
     max_batch = dict(zip(products, [50, 50, 50, 30]))
     batch_multiples = dict(zip(products, [1, 1, 1, 3]))
 
@@ -212,6 +212,7 @@ class Planning:
                     end_date = previous_end_date  # Return end date to the previous for breaking
                     pop_obj.masks[i][j : pop_obj.genes_per_chromo[i]] = False
                     pop_obj.batches_raw[i][j : pop_obj.genes_per_chromo[i]] = 0
+                    pop_obj.products_raw[i][j : pop_obj.genes_per_chromo[i]] = 0
                     pop_obj.genes_per_chromo[i] = np.sum(pop_obj.masks[i])
                     break  # Break the while loop, goes to produced_i = produced_i * self.yield_kg_batch_ar
                 else:  # Continues
@@ -667,7 +668,7 @@ class Planning:
             masks (array): Array of masks
         """
         # Loop per chromossome in population
-        for j in np.arange(0, len(genes_per_chromo)):
+        for j in prange(0, len(genes_per_chromo)):
             # if np.sum(masks[j,genes_per_chromo[j]:])>0:
             #     raise Exception("Invalid bool after number of active genes.")
             if genes_per_chromo[j] > 1:
@@ -697,34 +698,88 @@ class Planning:
                         i += 1
         return products, batches, masks
 
-    def fix_batch_violations(self, products, batches):
+    def fix_batch_violations(self, products, batches, masks):
         """Aggregates product batches in case of neighbours products.
         Fix process constraints of batch min, max and multiple.
-            If Batch<Min then Batch=Min, 
+            If Batch<Min then Batch=>Inactivate or set to minimum, 
             If Batch>Max then Batch=Max, 
             If Batch Multiple !=Multiple then Batch round to closest given not within Min and Max
 
         Args:
             products (array): Array of products
             batches (array): Array of batches
+            masks (array): Array of masks with state of activation
         """
-        min_batch_raw = np.vectorize(self.min_batch.__getitem__)(products)
-        max_batch_raw = np.vectorize(self.max_batch.__getitem__)(products)
+        # # 1)Multiples of number of batches
         batch_multiples_raw = np.vectorize(self.batch_multiples.__getitem__)(products)
-
-        # # 1)Minimum number of batches,
-        mask_min = (batches < min_batch_raw) & (batches != 0)
-        batches[mask_min] = min_batch_raw[mask_min].copy()
-        # # 2)Maximum number of batches,
-        mask_max = batches > max_batch_raw
-        batches[mask_max] = max_batch_raw[mask_max].copy()
-        # # 3)Multiples of number of batches
         remainder = np.remainder(batches, batch_multiples_raw)
         mask_remainder = (remainder != 0).copy()
         multiple = remainder + batches
         batches[mask_remainder] = multiple[mask_remainder].copy()
-        # Max always respects the remainder, therefore no need to correct again
-        return products, batches
+
+        # # 2)Maximum number of batches,
+        max_batch_raw = np.vectorize(self.max_batch.__getitem__)(products)
+        mask_max = batches > max_batch_raw
+        batches[mask_max] = max_batch_raw[mask_max].copy()
+        # # 3)Minimum number of batches
+        batches, masks, products = self.removeBelowMinimumBatches(
+            batches, masks, self.min_batch, products
+        )
+        return products, batches, masks
+
+    @staticmethod
+    @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
+    def removeBelowMinimumBatches(batches, masks, min_batch_raw, products):
+        """May remove batches that are below the minimum, if a random number is below threshhold, batch is removed (as long as the number of genes is higher than 1). Otherwise the number of batches is set to the minimum.
+        The threshold allows for inactivation or activation of the batch.
+
+        Args:
+            batches (Array of ints): Array containing number of batches
+            products (Array of ints): Array containing product label
+            masks (Array of bools): Contains activation state
+            min_batch_raw (tuple of ints): Minimum accepted value of batches per product (0,1,2,..)
+
+        Returns:
+            [type]: [description]
+        """
+        removalThreshold = 0.5
+        genesPerChromo = np.sum(masks, axis=1)
+        for j in prange(len(genesPerChromo)):  # Loop per individual
+            i = 0
+            while i < genesPerChromo[j]:  # Loop per genes
+                k=0#Correct index
+                # print("i",i)
+                if batches[j, i] < min_batch_raw[products[j, i]]:  # Value below minimum
+                    probaRemove = (
+                        np.random.rand()
+                    )  # Probability of keeping the minimum value, If <50% deactivate gene
+                    if (probaRemove < removalThreshold) | (
+                        genesPerChromo[j] == 1
+                    ):  # Set to minimum value, if below threshold of there is only one gene
+                        batches[j, i] = min_batch_raw[products[j, i]]
+                    else:  # Remove
+                        # print("In batches",batches[j])
+                        # print(batches[j][masks[j]])
+                        temp_ar = batches[j, i + 1 :].copy()
+                        batches[j, i:-1] = temp_ar  # Brings the sequence forward and sets the
+                        batches[j, -1] = 0  # last value as 0
+                        # print(batches[j])
+                        # print(products[j])
+                        temp_ar = products[j, i + 1 :].copy()  # Adjust Products
+                        products[j, i:-1] = temp_ar
+                        products[j, -1] = 0
+                        # print(products[j])
+                        # print(masks[j])
+                        masks[j, (genesPerChromo[j] - 1)] = False
+                        genesPerChromo[j] -= 1
+                        # print(masks[j])
+                        # print(batches[j][masks[j]])
+                        k = 1
+                i += 1-k#Corrects if a batch was removed
+            for k in prange(genesPerChromo[j]):#Verifies Invalid number of batches
+                if batches[j, k] == 0:
+                    raise Exception("Invalid number of batches active(0).")
+        return batches, masks, products
 
     def fix_aggregation_batches(self, products, batches, masks):
         """Fixes Aggregation of products and maximum, minimum and multiples of batches.
@@ -743,7 +798,9 @@ class Planning:
             products, batches, masks, genes_per_chromo
         )  # Fix Aggregation of products
 
-        products, batches = self.fix_batch_violations(products, batches)  # Fix number of batches
+        products, batches, masks = self.fix_batch_violations(
+            products, batches, masks
+        )  # Fix number of batches
         return products, batches, masks
 
     @staticmethod
@@ -905,32 +962,9 @@ class Planning:
             new_products, new_batches, new_mask = self.fix_aggregation_batches(
                 new_products, new_batches, new_mask
             )
-            # for i in range(0, len(new_products)):
-            #     if any(new_batches[i][new_mask[i]] == 0):
-            #         expression=f"any({new_batches[i][new_mask[i]] == 0})"
-            #         e=f"Invalid number of batches (0).\n Batches: {new_batches[i]} \n Masks  {new_mask[i]} \n Position {i})"
-            #         logging.error(InvalidValuesError(expression,e),exc_info=True)#Adds Exception to log file
-            #         raise InvalidValuesError(expression,e)#Raise
 
             # 10) Merge populations Current and Offspring
             pop_offspring.update_new_population(new_products, new_batches, new_mask)
-            for i in range(0, len(pop_offspring.products_raw)):
-                if any(pop_offspring.batches_raw[i][pop_offspring.masks[i]] == 0):
-                    expression = f"any({pop_offspring.batches_raw[i][pop_offspring.masks[i]] == 0})"
-                    e = f"Invalid number of batches (0).\n Batches: {pop_offspring.batches_raw[i]} \n Masks  {pop_offspring.masks[i]} \n Position {i})"
-                    logging.error(
-                        InvalidValuesError(expression, e), exc_info=True
-                    )  # Adds Exception to log file
-                    raise InvalidValuesError(expression, e)  # Raise
-                if np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i] :]) > 0:
-                    expression = (
-                        f"np.sum(pop_offspring.masks[i][pop_offspring.genes_per_chromo[i]:])>0"
-                    )
-                    e = f"Invalid number of batches (0).\n Genes per chromo : {pop_offspring.genes_per_chromo[i]} \n Masks  {pop_offspring.masks[i]} \n Position {i})"
-                    logging.error(
-                        InvalidValuesError(expression, e), exc_info=True
-                    )  # Adds Exception to log file
-                    raise InvalidValuesError(expression, e)  # Raise
 
             # 11) 2) Is calculated along Step 1, Note that USP end dates are calculated, but not stored.
             pop_offspring = self.calc_start_end(pop_offspring)
@@ -938,7 +972,6 @@ class Planning:
             # 12) 3)Calculate inventory levels and objectives
             pop_offspring = self.calc_inventory_objectives(pop_offspring)
             # 13) Merge Current Pop with Offspring
-            # pop_offspring_copy=copy.deepcopy(pop_offspring)
             pop = self.merge_pop_with_offspring(pop, pop_offspring)
 
             # 14) 4)Front Classification
@@ -1041,7 +1074,7 @@ class Planning:
                     # print("In merge pop exec", pop_exec.fronts)
                     print("Backlog In merge", pop_exec.backlogs[:, 6])
                     # print("In merge pop main", pop_main.fronts)
-                    print("In merge num_chromossomes", pop_main.num_chromossomes)                   
+                    print("In merge num_chromossomes", pop_main.num_chromossomes)
                     pop_main = self.merge_pop_with_offspring(pop_main, pop_exec)
                     # print("Out merge pop main", pop_main.fronts)
                     print("Backlog Out merge", pop_main.backlogs[:, 6])
