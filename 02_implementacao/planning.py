@@ -747,7 +747,7 @@ class Planning:
         for j in prange(len(genesPerChromo)):  # Loop per individual
             i = 0
             while i < genesPerChromo[j]:  # Loop per genes
-                k=0#Correct index
+                k = 0  # Correct index
                 # print("i",i)
                 if batches[j, i] < min_batch_raw[products[j, i]]:  # Value below minimum
                     probaRemove = (
@@ -775,8 +775,8 @@ class Planning:
                         # print(masks[j])
                         # print(batches[j][masks[j]])
                         k = 1
-                i += 1-k#Corrects if a batch was removed
-            for k in prange(genesPerChromo[j]):#Verifies Invalid number of batches
+                i += 1 - k  # Corrects if a batch was removed
+            for k in prange(genesPerChromo[j]):  # Verifies Invalid number of batches
                 if batches[j, k] == 0:
                     raise Exception("Invalid number of batches active(0).")
         return batches, masks, products
@@ -1015,7 +1015,7 @@ class Planning:
         """
         # Parameters
         # Number of executions
-        n_exec = 1
+        n_exec = 2
         n_exec_ite = range(0, n_exec)
 
         # Variables
@@ -1029,8 +1029,8 @@ class Planning:
         # Number of tour
         nt = [2]
         # Crossover Probability
-        pcross = [0.11]
-        # pcross=[0.5]
+        # pcross = [0.11]
+        pcross=[0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut = [(0.04, 0.61, 0.77, 0.47)]
 
@@ -1058,6 +1058,9 @@ class Planning:
                 self.num_months,
             )
             pop_main.name_variation = name_var
+            file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
+            self.export_obj(pop_main, root_path + file_name)
+            del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
 
             t0 = perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -1072,18 +1075,23 @@ class Planning:
                     [v_i[4]] * n_exec,
                 ):
                     # print("In merge pop exec", pop_exec.fronts)
-                    print("Backlog In merge", pop_exec.backlogs[:, 6])
+                    # print("Backlog In merge", pop_exec.backlogs[:, 6])
+
+                    pop_main = self.load_obj(root_path + file_name)
                     # print("In merge pop main", pop_main.fronts)
                     print("In merge num_chromossomes", pop_main.num_chromossomes)
                     pop_main = self.merge_pop_with_offspring(pop_main, pop_exec)
                     # print("Out merge pop main", pop_main.fronts)
-                    print("Backlog Out merge", pop_main.backlogs[:, 6])
+                    # print("Backlog Out merge", pop_main.backlogs[:, 6])
                     print("Out merge num_chromossomes", pop_main.num_chromossomes)
 
-                    file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
                     self.export_obj(pop_main, root_path + file_name)
+                    del pop_main
+                    del pop_exec
 
+            pop_main = self.load_obj(root_path + file_name)
             # Removes the first dummy one chromossome
+            print("Final Num Chromossomes", pop_main.fronts.shape)
             self.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
             print("fronts in", pop_main.fronts)
             # Front Classification
@@ -1091,6 +1099,10 @@ class Planning:
             print("fronts out", pop_main.fronts)
             # Select only front 0 with no violations or front 0
             try:
+                ix_min_back = np.argmin(pop_main.backlogs[:, 6])
+                print("Minimum Backlog", pop_main.backlogs[:, 6][ix_min_back])
+                print("Minimum Front", pop_main.fronts[ix_min_back])
+                print("Minimum Objectives", pop_main.objectives_raw[ix_min_back])
                 ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
                 ix_par = np.where(pop_main.fronts == 0)[0]
                 ix_pareto_novio = np.intersect(ix_vio, ix_par)
@@ -1165,7 +1177,7 @@ class Planning:
         """Runs without multiprocessing.
         """
         # tracemalloc.start()
-        num_exec = 1
+        num_exec = 50
         num_chromossomes = 100
         num_geracoes = 1000
         n_tour = 2
