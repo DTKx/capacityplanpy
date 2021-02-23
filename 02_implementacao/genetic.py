@@ -10,7 +10,7 @@ from errors import CountError, InvalidValuesError
 
 LOG_FILENAME = 'genetic.log'
 filepath= os.path.join(os.path.dirname(os.path.realpath(__file__)),LOG_FILENAME)
-logging.basicConfig(filename=filepath,filemode="w", level=logging.DEBUG)#Defines the path and level of log file
+logging.basicConfig(filename=filepath,filemode="w", level=logging.ERROR)#Defines the path and level of log file
 
 class Helpers:
     @jit(nopython=True, nogil=True)

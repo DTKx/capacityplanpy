@@ -28,11 +28,12 @@ from population import Population
 import logging
 import os
 from errors import CountError, InvalidValuesError
+import gc
 
 LOG_FILENAME = "planning.log"
 filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), LOG_FILENAME)
 logging.basicConfig(
-    filename=filepath, filemode="w", level=logging.DEBUG
+    filename=filepath, filemode="w", level=logging.ERROR
 )  # Defines the path and level of log file
 
 
@@ -885,6 +886,7 @@ class Planning:
 
     def main(self, num_exec, num_chromossomes, num_geracoes, n_tour, perc_crossover, pmut):
         print("START Exec number:", num_exec)
+        t0 = perf_counter()
         # 1) Random parent population is initialized with its attributes
         pop = Population(
             self.num_genes,
@@ -928,7 +930,7 @@ class Planning:
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
         for i_gen in range(0, num_geracoes):
-            print("Generation ", i_gen)
+            # print("Generation ", i_gen)
 
             # 6)Selection for Crossover Tournament
             backlogs_copy = pop.backlogs[:, 6].copy()
@@ -999,6 +1001,9 @@ class Planning:
             # 16.2) Remove non reinserted chromossomes from pop
             ix_reinsert_copy = np.copy(ix_reinsert)
             self.select_pop_by_index(pop, ix_reinsert_copy)
+        t1 = perf_counter()
+        print("Exec", num_exec, "Time", t1 - t0)
+        gc.collect()
         return pop
 
     def export_obj(self, obj, path):
@@ -1030,7 +1035,7 @@ class Planning:
         nt = [2]
         # Crossover Probability
         # pcross = [0.11]
-        pcross=[0.5]
+        pcross = [0.5]
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut = [(0.04, 0.61, 0.77, 0.47)]
 
@@ -1064,7 +1069,7 @@ class Planning:
 
             t0 = perf_counter()
             # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
                 for pop_exec in executor.map(
                     self.main,
                     n_exec_ite,
@@ -1098,19 +1103,20 @@ class Planning:
             pop_main.fronts = gn.AlgNsga2._fronts(pop_main.objectives_raw, self.num_fronts)
             print("fronts out", pop_main.fronts)
             # Select only front 0 with no violations or front 0
-            try:
-                ix_min_back = np.argmin(pop_main.backlogs[:, 6])
-                print("Minimum Backlog", pop_main.backlogs[:, 6][ix_min_back])
-                print("Minimum Front", pop_main.fronts[ix_min_back])
-                print("Minimum Objectives", pop_main.objectives_raw[ix_min_back])
-                ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
-                ix_par = np.where(pop_main.fronts == 0)[0]
-                ix_pareto_novio = np.intersect(ix_vio, ix_par)
+            ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
+            ix_par = np.where(pop_main.fronts == 0)[0]
+            ix_pareto_novio = np.intersect1d(ix_vio, ix_par)
+            if len(ix_pareto_novio) > 0:
                 var = var + "metrics_front0_wo_vio"
-            except:
-                print("No solution without violations, passing all in front 0.")
+                print(
+                    "Found Solutions without violations and in pareto front",
+                    len(ix_pareto_novio),
+                    ix_pareto_novio,
+                )
+            else:
+                print("No solution without violations and in front 0, passing all in front 0.")
                 var = var + "metrics_front0_w_vio"
-                ix_pareto_novio = np.where(pop_main.fronts == 0)[0]
+                ix_pareto_novio = ix_par
             print("Fronts In select by index", pop_main.fronts)
             print("Backlog In select by index", pop_main.backlogs[:, 6])
             self.select_pop_by_index(pop_main, ix_pareto_novio)
@@ -1177,24 +1183,33 @@ class Planning:
         """Runs without multiprocessing.
         """
         # tracemalloc.start()
-        num_exec = 50
+        n_exec = 4
+        n_exec_ite = range(0, n_exec)
+
         num_chromossomes = 100
-        num_geracoes = 1000
+        num_geracoes = 100
         n_tour = 2
         pcross = 0.50
         # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
         pmut = (0.04, 0.61, 0.77, 0.47)
-        pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
+        # pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
 
         t0 = perf_counter()
 
         pr = cProfile.Profile()
         pr.enable()
+        # pr.runctx(
+        #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
+        #     globals(),
+        #     locals(),
+        # )
         pr.runctx(
-            "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
+            # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * n_exec,[num_geracoes] * n_exec,[n_tour] * n_exec,[pcross] * n_exec,[pmut] * n_exec)",
+            "for pop_exec in map(self.main,n_exec_ite,[num_chromossomes] * n_exec,[num_geracoes] * n_exec,[n_tour] * n_exec,[pcross] * n_exec,[pmut] * n_exec):print()",
             globals(),
             locals(),
         )
+
         pr.disable()
         s = io.StringIO()
         sortby = SortKey.CUMULATIVE
