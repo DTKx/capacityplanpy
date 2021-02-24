@@ -38,23 +38,43 @@ logging.basicConfig(
 
 
 class Planning:
-    # Class Variables
+    def __init__(self,num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput):
+        """Initializes Planning class.
 
+        Args:
+            num_genes (int): Number of genes per chromossome
+            num_products (int): Number of different products
+            num_objectives (int): Number of different objectives
+            start_date (datetime): Start date of planning
+            qc_max_months (int): Number of maximum months
+            num_months (int): Number of months
+            num_fronts (int): Number of fronts
+            inversion_val_throughput (int): Value for inversion of throughput
+        """
+        self.num_genes=num_genes
+        self.num_products=num_products
+        self.num_objectives=num_objectives
+        self.start_date=start_date
+        self.qc_max_months=qc_max_months
+        self.num_months=num_months
+        self.num_fronts=num_fronts
+        self.inversion_val_throughput=inversion_val_throughput
+
+    # Class Variables  
     # General Genetic Algorithms parameters
-
-    # Number of genes
-    num_genes = int(25)
+    # # Number of genes
+    # num_genes = int(25)
 
     # Problem variables
 
-    # Number of products
-    num_products = int(4)
-    # Number of Objectives
-    num_objectives = 2
-    # Number of Months
-    num_months = 36
-    # Start date of manufacturing
-    start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+    # # Number of products
+    # num_products = int(4)
+    # # Number of Objectives
+    # num_objectives = 2
+    # # Number of Months
+    # num_months = 36
+    # # Start date of manufacturing
+    # start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
     # Last day of manufacturing
     last_date = datetime.date(2019, 12, 1)  # YYYY-MM-DD.
 
@@ -74,7 +94,7 @@ class Planning:
     usp_days = dict(zip(products, [45, 36, 45, 49]))  # total USP days
     dsp_days = dict(zip(products, [7, 11, 7, 7]))  # total USP days
     qc_days = dict(zip(products, [90, 90, 90, 90]))  # total QC days
-    qc_max_months = 4
+    # qc_max_months = 4
     yield_kg_batch = dict(zip(products, [3.1, 6.2, 4.9, 5.5]))
     yield_kg_batch_ar = np.array([3.1, 6.2, 4.9, 5.5])
     # initial_stock=dict(zip(products,[18.6,0,19.6,33]))
@@ -93,8 +113,8 @@ class Planning:
     s3 = [18, 10, 18, 0]
     setup_key_to_subkey = [{0: a, 1: b, 2: c, 3: d} for a, b, c, d in zip(s0, s1, s2, s3)]
 
-    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    inversion_val_throughput = 2000
+    # # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+    # inversion_val_throughput = 2000
 
     with open(input_path + "demand_distribution.txt", "r") as content:
         demand_distribution = np.array(literal_eval(content.read()))
@@ -111,17 +131,14 @@ class Planning:
 
     # NSGA Variables
 
-    num_fronts = 3  # Number of fronts created
+    # num_fronts = 3  # Number of fronts created
     big_dummy = 10 ** 5  # Big Dummy for crowding distance computation
 
     # Hypervolume parameters
 
     # Hypervolume Reference point
-    ref_point = [inversion_val_throughput + 500, 2500]
-    volume_max = np.prod(ref_point)  # Maximum Volume
-
-    def __init__(self):
-        pass
+    # ref_point = [inversion_val_throughput + 500, 2500]
+    # volume_max = np.prod(ref_point)  # Maximum Volume
 
     def create_export_demand_not_null(self):
         with open(self.input_path + "demand_distribution.txt", "r") as content:
@@ -840,7 +857,8 @@ class Planning:
         pop.crowding_dist = np.empty(shape=(pop.num_chromossomes, 1), dtype=int)
         return pop
 
-    def select_pop_by_index(self, pop, ix_reinsert):
+    @staticmethod
+    def select_pop_by_index(pop, ix_reinsert):
         """Selects chromossomes to maintain in pop class object, updating the class atributes given the index.
 
         Args:
@@ -974,7 +992,7 @@ class Planning:
             # 12) 3)Calculate inventory levels and objectives
             pop_offspring = self.calc_inventory_objectives(pop_offspring)
             # 13) Merge Current Pop with Offspring
-            pop = self.merge_pop_with_offspring(pop, pop_offspring)
+            pop = Planning.merge_pop_with_offspring(pop, pop_offspring)
 
             # 14) 4)Front Classification
             objectives_raw_copy = pop.objectives_raw.copy()
@@ -1006,233 +1024,274 @@ class Planning:
         gc.collect()
         return pop
 
-    def export_obj(self, obj, path):
+
+def run_parallel(numExec,numGenerations,maxWorkers):
+    """Run main function using Multiprocessing.
+    """
+    def export_obj(obj, path):
+        """Export object to pickle file.
+
+        Args:
+            obj (object): Object to be exported.
+            path (String): Path for the object to be exported.
+        """
         with open(path, "wb") as output:  # Overwrites any existing file.
             pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
-    def load_obj(self, path):
+    def load_obj(path):
+        """Load pickle file to object.
+
+        Args:
+            path (String): Path to pickle object.
+
+        Returns:
+            object: Object from pickle file.
+        """
         with open(path, "rb") as input:
             obj = pickle.load(input)
         return obj
 
-    def run_parallel(self):
-        """Runs with Multiprocessing.
-        """
-        # Parameters
-        # Number of executions
-        n_exec = 2
-        n_exec_ite = range(0, n_exec)
+    # Parameters
+    n_exec_ite = range(0, numExec)
 
-        # Variables
-        # Variant
-        var = "front_nsga,tour_vio,rein_vio,vio_back,calc_montecarlo"
+    # Number of genes
+    num_genes = int(25)
+    # Number of products
+    num_products = int(4)
+    # Number of Objectives
+    num_objectives = 2
+    # Start date of manufacturing
+    start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+    qc_max_months = 4#Max number of months
+    # Number of Months
+    num_months = 36
+    num_fronts = 3  # Number of fronts created
 
-        # Number of Chromossomes
-        nc = [100]
-        ng = [1000]  # Number of Generations
+    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+    inversion_val_throughput = 2000
+    ref_point = [inversion_val_throughput + 500, 2500]
+    volume_max = np.prod(ref_point)  # Maximum Volume
 
-        # Number of tour
-        nt = [2]
-        # Crossover Probability
-        # pcross = [0.11]
-        pcross = [0.5]
-        # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
-        pmut = [(0.04, 0.61, 0.77, 0.47)]
+    # Variables
+    # Variant
+    var = "front_nsga,tour_vio,rein_vio,vio_back,calc_montecarlo"
 
-        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+    # Number of Chromossomes
+    nc = [100]
+    ng = [numGenerations]  # Number of Generations
 
-        # List of variants
-        list_vars = list(product(*[nc, ng, nt, pcross, pmut]))
+    # Number of tour
+    nt = [2]
+    # Crossover Probability
+    # pcross = [0.11]
+    pcross = [0.5]
+    # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
+    pmut = [(0.04, 0.61, 0.77, 0.47)]
 
-        # Lists store results
-        result_execs = []
-        result_ids = []
+    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
 
-        times = []
-        # var=0
-        for v_i in list_vars:
-            name_var = f"{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}"
-            # Creates a dummy pop with one chromossome to concatenate results
-            pop_main = Population(
-                self.num_genes,
-                1,
-                self.num_products,
-                self.num_objectives,
-                self.start_date,
-                self.qc_max_months,
-                self.num_months,
-            )
-            pop_main.name_variation = name_var
-            file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-            self.export_obj(pop_main, root_path + file_name)
-            del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
+    # List of variants
+    list_vars = list(product(*[nc, ng, nt, pcross, pmut]))
 
-            t0 = perf_counter()
-            # with concurrent.futures.ThreadPoolExecutor() as executor:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
-                for pop_exec in executor.map(
-                    self.main,
-                    n_exec_ite,
-                    [v_i[0]] * n_exec,
-                    [v_i[1]] * n_exec,
-                    [v_i[2]] * n_exec,
-                    [v_i[3]] * n_exec,
-                    [v_i[4]] * n_exec,
-                ):
-                    # print("In merge pop exec", pop_exec.fronts)
-                    # print("Backlog In merge", pop_exec.backlogs[:, 6])
-
-                    pop_main = self.load_obj(root_path + file_name)
-                    # print("In merge pop main", pop_main.fronts)
-                    print("In merge num_chromossomes", pop_main.num_chromossomes)
-                    pop_main = self.merge_pop_with_offspring(pop_main, pop_exec)
-                    # print("Out merge pop main", pop_main.fronts)
-                    # print("Backlog Out merge", pop_main.backlogs[:, 6])
-                    print("Out merge num_chromossomes", pop_main.num_chromossomes)
-
-                    self.export_obj(pop_main, root_path + file_name)
-                    del pop_main
-                    del pop_exec
-
-            pop_main = self.load_obj(root_path + file_name)
-            # Removes the first dummy one chromossome
-            print("Final Num Chromossomes", pop_main.fronts.shape)
-            self.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
-            print("fronts in", pop_main.fronts)
-            # Front Classification
-            pop_main.fronts = gn.AlgNsga2._fronts(pop_main.objectives_raw, self.num_fronts)
-            print("fronts out", pop_main.fronts)
-            # Select only front 0 with no violations or front 0
-            ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
-            ix_par = np.where(pop_main.fronts == 0)[0]
-            ix_pareto_novio = np.intersect1d(ix_vio, ix_par)
-            if len(ix_pareto_novio) > 0:
-                var = var + "metrics_front0_wo_vio"
-                print(
-                    "Found Solutions without violations and in pareto front",
-                    len(ix_pareto_novio),
-                    ix_pareto_novio,
-                )
-            else:
-                print("No solution without violations and in front 0, passing all in front 0.")
-                var = var + "metrics_front0_w_vio"
-                ix_pareto_novio = ix_par
-            print("Fronts In select by index", pop_main.fronts)
-            print("Backlog In select by index", pop_main.backlogs[:, 6])
-            self.select_pop_by_index(pop_main, ix_pareto_novio)
-            print("Fronts out select by index", pop_main.fronts)
-            print("Backlog out select by index", pop_main.backlogs[:, 6])
-            print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
-
-            # Extract Metrics
-
-            # # Reinverts again the throughput, that was modified for minimization by addying a constant
-            # self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
-
-            r_exec, r_ind = pop_main.metrics_inversion_violations(
-                self.ref_point,
-                self.volume_max,
-                self.inversion_val_throughput,
-                self.num_fronts,
-                0,
-                name_var,
-                pop_main.backlogs[:, 6],
-            )
-
-            result_execs.append(r_exec)
-            result_ids.append(r_ind[0])  # X
-            result_ids.append(r_ind[1])  # Y
-            print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
-            print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
-
-            # # Reinverts again the throughput, that was modified for minimization by addying a constant
-            # pop_main.objectives_raw[:, 0] = self.inversion_val_throughput - pop_main.objectives_raw[:, 0]
-
-            file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-            self.export_obj(pop_main, root_path + file_name)
-
-            tf = perf_counter()
-            delta_t = tf - t0
-            print("Total time ", delta_t, "Per execution", delta_t / n_exec)
-            times.append([v_i, delta_t, delta_t / n_exec])
-
-            # var+=1
-        name_var = "v_0"
-        # name_var=f"exec{n_exec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
-        file_name = name_var + "_results.csv"
-        path = root_path + file_name
-        # print(f"{tempo} tempo/exec{tempo/n_exec}")
-        # Export times
-        with open(path, "a", newline="") as f:
-            writer = csv.writer(f)
-            try:
-                writer.writerows(times)
-            except:
-                writer.writerow(times)
-
-        # Export Pickle
-        file_name = name_var + "_exec.pkl"
-        self.export_obj(result_execs, root_path + file_name)
-
-        file_name = name_var + "_id.pkl"
-        self.export_obj(result_ids, root_path + file_name)
-
-        print("Finish")
-
-    def run_cprofile(self):
-        """Runs without multiprocessing.
-        """
-        # tracemalloc.start()
-        n_exec = 4
-        n_exec_ite = range(0, n_exec)
-
-        num_chromossomes = 100
-        num_geracoes = 100
-        n_tour = 2
-        pcross = 0.50
-        # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
-        pmut = (0.04, 0.61, 0.77, 0.47)
-        # pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
+    # Lists store results
+    result_execs = []
+    result_ids = []
+    times = []
+    for v_i in list_vars:
+        name_var = f"{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}"
+        # Creates a dummy pop with one chromossome to concatenate results
+        pop_main = Population(
+            num_genes,
+            1,
+            num_products,
+            num_objectives,
+            start_date,
+            qc_max_months,
+            num_months,
+        )
+        pop_main.name_variation = name_var
+        file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
+        export_obj(pop_main, root_path + file_name)
+        del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
 
         t0 = perf_counter()
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=maxWorkers) as executor:
+            for pop_exec in executor.map(
+                Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput).main,
+                n_exec_ite,
+                [v_i[0]] * numExec,
+                [v_i[1]] * numExec,
+                [v_i[2]] * numExec,
+                [v_i[3]] * numExec,
+                [v_i[4]] * numExec,
+            ):
+                # print("In merge pop exec", pop_exec.fronts)
+                # print("Backlog In merge", pop_exec.backlogs[:, 6])
 
-        pr = cProfile.Profile()
-        pr.enable()
-        # pr.runctx(
-        #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
-        #     globals(),
-        #     locals(),
-        # )
-        pr.runctx(
-            # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * n_exec,[num_geracoes] * n_exec,[n_tour] * n_exec,[pcross] * n_exec,[pmut] * n_exec)",
-            "for pop_exec in map(self.main,n_exec_ite,[num_chromossomes] * n_exec,[num_geracoes] * n_exec,[n_tour] * n_exec,[pcross] * n_exec,[pmut] * n_exec):print()",
-            globals(),
-            locals(),
+                pop_main = load_obj(root_path + file_name)
+                # print("In merge pop main", pop_main.fronts)
+                print("In merge num_chromossomes", pop_main.num_chromossomes)
+                pop_main = Planning.merge_pop_with_offspring(pop_main, pop_exec)
+                # print("Out merge pop main", pop_main.fronts)
+                # print("Backlog Out merge", pop_main.backlogs[:, 6])
+                print("Out merge num_chromossomes", pop_main.num_chromossomes)
+
+                export_obj(pop_main, root_path + file_name)
+                del pop_main
+                del pop_exec
+
+        pop_main = load_obj(root_path + file_name)
+        # Removes the first dummy one chromossome
+        print("Final Num Chromossomes", pop_main.fronts.shape)
+        Planning.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
+        # Front Classification
+        pop_main.fronts = gn.AlgNsga2._fronts(pop_main.objectives_raw, num_fronts)
+        print("fronts out", pop_main.fronts)
+        # Select only front 0 with no violations or front 0
+        ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
+        ix_par = np.where(pop_main.fronts == 0)[0]
+        ix_pareto_novio = np.intersect1d(ix_vio, ix_par)
+        if len(ix_pareto_novio) > 0:
+            var = var + "metrics_front0_wo_vio"
+            print(
+                "Found Solutions without violations and in pareto front",
+                len(ix_pareto_novio),
+                ix_pareto_novio,
+            )
+        else:
+            print(
+                "No solution without violations and in front 0, passing all in front 0.",
+                ix_pareto_novio,
+            )
+            var = var + "metrics_front0_w_vio"
+            ix_pareto_novio = ix_par
+        print("Fronts In select by index", pop_main.fronts)
+        print("Backlog In select by index", pop_main.backlogs[:, 6])
+        Planning.select_pop_by_index(pop_main, ix_pareto_novio)
+        print("Fronts out select by index", pop_main.fronts)
+        print("Backlog out select by index", pop_main.backlogs[:, 6])
+        print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
+
+        # Extract Metrics
+
+        # # Reinverts again the throughput, that was modified for minimization by addying a constant
+        # self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
+
+        r_exec, r_ind = pop_main.metrics_inversion_violations(
+            ref_point,
+            volume_max,
+            inversion_val_throughput,
+            num_fronts,
+            0,
+            name_var,
+            pop_main.backlogs[:, 6],
         )
 
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
-        root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-        file_name = "cprofile.txt"
-        path = root_path + file_name
-        ps.print_stats()
-        with open(path, "w+") as f:
-            f.write(s.getvalue())
+        result_execs.append(r_exec)
+        result_ids.append(r_ind[0])  # X
+        result_ids.append(r_ind[1])  # Y
+        print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
+        print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
+
+        # # Reinverts again the throughput, that was modified for minimization by addying a constant
+        # pop_main.objectives_raw[:, 0] = self.inversion_val_throughput - pop_main.objectives_raw[:, 0]
+
+        file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
+        export_obj(pop_main, root_path + file_name)
+
         tf = perf_counter()
         delta_t = tf - t0
-        print("Total time ", delta_t)
-        # snapshot = tracemalloc.take_snapshot()
-        # top_stats = snapshot.statistics("lineno")
+        print("Total time ", delta_t, "Per execution", delta_t / numExec)
+        times.append([v_i, delta_t, delta_t / numExec])
+    name_var = "v_0"
+    # name_var=f"exec{numExec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
+    file_name = name_var + "_results.csv"
+    path = root_path + file_name
+    # print(f"{tempo} tempo/exec{tempo/numExec}")
+    # Export times
+    with open(path, "a", newline="") as f:
+        writer = csv.writer(f)
+        try:
+            writer.writerows(times)
+        except:
+            writer.writerow(times)
 
-        # print("[ Top 10 ]")
-        # for stat in top_stats[:10]:
-        #     print(stat)
+    # Export Pickle
+    file_name = name_var + "_exec.pkl"
+    export_obj(result_execs, root_path + file_name)
+
+    file_name = name_var + "_id.pkl"
+    export_obj(result_ids, root_path + file_name)
+
+    print("Finish")
+
+
+def run_cprofile(numExec,numGenerations,maxWorkers):
+    """Runs without multiprocessing.
+    """
+    # # tracemalloc.start()
+    # numExec = 4
+    # n_exec_ite = range(0, numExec)
+
+    # num_chromossomes = 100
+    # num_geracoes = 100
+    # n_tour = 2
+    # pcross = 0.50
+    # # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
+    # pmut = (0.04, 0.61, 0.77, 0.47)
+    # # pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
+
+    # numExec = 2# Number of executions
+    # numGenerations = 1# Number of executions
+    # maxWorkers=2#Local parallelization Maximum number of threads
+
+    t0 = perf_counter()
+
+    pr = cProfile.Profile()
+    pr.enable()
+    pr.runctx(
+        "run_parallel(numExec,numGenerations,maxWorkers)",
+        globals(),
+        locals(),
+    )
+    # pr.runctx(
+    #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
+    #     globals(),
+    #     locals(),
+    # )
+    # pr.runctx(
+    #     # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec)",
+    #     "for pop_exec in map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec):print()",
+    #     globals(),
+    #     locals(),
+    # )
+
+    pr.disable()
+    s = io.StringIO()
+    sortby = SortKey.CUMULATIVE
+    ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
+    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+    file_name = "cprofile.txt"
+    path = root_path + file_name
+    ps.print_stats()
+    with open(path, "w+") as f:
+        f.write(s.getvalue())
+    tf = perf_counter()
+    delta_t = tf - t0
+    print("Total time ", delta_t)
+    # snapshot = tracemalloc.take_snapshot()
+    # top_stats = snapshot.statistics("lineno")
+
+    # print("[ Top 10 ]")
+    # for stat in top_stats[:10]:
+    #     print(stat)
 
 
 if __name__ == "__main__":
-    # Planning().run_cprofile()
-    Planning().run_parallel()
-    # Saves Monte Carlo Simulations
-    # self.calc_demand_montecarlo_to_external_file(5000)
+    # Planning().run_cprofile()   
+    numExec = 2# Number of executions
+    numGenerations = 1000# Number of executions
+    maxWorkers=2#Local parallelization Maximum number of threads
+    # run_parallel(numExec,numGenerations,maxWorkers)
+    run_cprofile(numExec,numGenerations,maxWorkers)

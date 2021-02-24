@@ -110,13 +110,24 @@ class PlanningTests(unittest.TestCase):
         """Tests start and end of production batches, by comparing with a calculated example.
         """
         print("calc_start_end")
-        num_genes = 20
         num_chromossomes = 1
-        num_products = 4
+
+        # Number of genes
+        num_genes = int(25)
+        # Number of products
+        num_products = int(4)
+        # Number of Objectives
         num_objectives = 2
+        # Start date of manufacturing
         start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-        qc_max_months = 4
+        qc_max_months = 4#Max number of months
+        # Number of Months
         num_months = 36
+        num_fronts = 3  # Number of fronts created
+
+        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+        inversion_val_throughput = 2000
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
 
         def parser_calc_start_end(path):
             with open(path) as f:
@@ -157,7 +168,7 @@ class PlanningTests(unittest.TestCase):
         pop.masks[0, 0:num_data] = True
         pop.update_genes_per_chromo()
 
-        pop = Planning().calc_start_end(pop)  # Call function
+        pop = myPlan.calc_start_end(pop)  # Call function
         pop.start_raw
         pop.end_raw
 
@@ -167,50 +178,67 @@ class PlanningTests(unittest.TestCase):
     def tearDown(self):
         print("tearDown")
 
-    def setUp(self):
-        print("setUp")
+    # def setUp(self):
+    #     print("setUp")
 
-    def test_calc_distributions_monte_carlo_cuda(self):
-        """Tests function calc_distributions_monte_carlo_cuda, comparing to a manually calculated result.
-        """
-        print("calc_distributions_monte_carlo")
-        produced = np.loadtxt(
-            self.path_data + "distributions_monte_carlo_produced.csv", delimiter=",", skiprows=1
-        )
-        demand_val = np.loadtxt(
-            self.path_data + "distributions_monte_carlo_demand.csv", delimiter=","
-        )
-        demand = np.zeros(shape=(demand_val.shape[0], demand_val.shape[1], 2))
-        demand[:, :, 0] = demand_val.copy()
-        demand[:, :, 1] = demand_val
-        distribution_sums_backlog_solution = 0
-        distribution_sums_deficit_solution = 413.32
+    # def test_calc_distributions_monte_carlo_cuda(self):
+    #     """Tests function calc_distributions_monte_carlo_cuda, comparing to a manually calculated result.
+    #     """
+    #     print("calc_distributions_monte_carlo")
+    #     produced = np.loadtxt(
+    #         self.path_data + "distributions_monte_carlo_produced.csv", delimiter=",", skiprows=1
+    #     )
+    #     demand_val = np.loadtxt(
+    #         self.path_data + "distributions_monte_carlo_demand.csv", delimiter=","
+    #     )
+    #     demand = np.zeros(shape=(demand_val.shape[0], demand_val.shape[1], 2))
+    #     demand[:, :, 0] = demand_val.copy()
+    #     demand[:, :, 1] = demand_val
+    #     distribution_sums_backlog_solution = 0
+    #     distribution_sums_deficit_solution = 413.32
 
-        (
-            distribution_sums_backlog,
-            distribution_sums_deficit,
-        ) = Planning().calc_distributions_monte_carlo_cuda(
-            produced,  # Produced Month 0 is the first month of inventory batches
-            demand,
-            2,
-            Planning().num_months,
-            Planning().num_products,
-            Planning().target_stock,
-            Planning().initial_stock,
-        )
-        delta = 0.1
-        message = "First and second backlog are not almost equal."  # error message in case if test case got failed
-        self.assertAlmostEqual(
-            distribution_sums_backlog_solution, distribution_sums_backlog[0], None, message, delta
-        )
-        message = "First and second deficit values are not almost equal."  # error message in case if test case got failed
-        print(distribution_sums_deficit[0])
-        self.assertAlmostEqual(
-            distribution_sums_deficit_solution, distribution_sums_deficit[0], None, message, delta
-        )
+    #     # Number of genes
+    #     num_genes = int(25)
+    #     # Number of products
+    #     num_products = int(4)
+    #     # Number of Objectives
+    #     num_objectives = 2
+    #     # Start date of manufacturing
+    #     start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+    #     qc_max_months = 4#Max number of months
+    #     # Number of Months
+    #     num_months = 36
+    #     num_fronts = 3  # Number of fronts created
 
-    def tearDown(self):
-        print("tearDown")
+    #     # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+    #     inversion_val_throughput = 2000
+    #     myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+
+    #     (
+    #         distribution_sums_backlog,
+    #         distribution_sums_deficit,
+    #     ) = myPlan.calc_distributions_monte_carlo_cuda(
+    #         produced,  # Produced Month 0 is the first month of inventory batches
+    #         demand,
+    #         2,
+    #         num_months,
+    #         num_products,
+    #         myPlan.target_stock,
+    #         myPlan.initial_stock,
+    #     )
+    #     delta = 0.1
+    #     message = "First and second backlog are not almost equal."  # error message in case if test case got failed
+    #     self.assertAlmostEqual(
+    #         distribution_sums_backlog_solution, distribution_sums_backlog[0], None, message, delta
+    #     )
+    #     message = "First and second deficit values are not almost equal."  # error message in case if test case got failed
+    #     print(distribution_sums_deficit[0])
+    #     self.assertAlmostEqual(
+    #         distribution_sums_deficit_solution, distribution_sums_deficit[0], None, message, delta
+    #     )
+
+    # def tearDown(self):
+    #     print("tearDown")
 
 
     def setUp(self):
@@ -232,17 +260,34 @@ class PlanningTests(unittest.TestCase):
         distribution_sums_backlog_solution = 0
         distribution_sums_deficit_solution = 413.32
 
+        # Number of genes
+        num_genes = int(25)
+        # Number of products
+        num_products = int(4)
+        # Number of Objectives
+        num_objectives = 2
+        # Start date of manufacturing
+        start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+        qc_max_months = 4#Max number of months
+        # Number of Months
+        num_months = 36
+        num_fronts = 3  # Number of fronts created
+
+        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+        inversion_val_throughput = 2000
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+
         (
             distribution_sums_backlog,
             distribution_sums_deficit,
-        ) = Planning().calc_distributions_monte_carlo(
+        ) = myPlan.calc_distributions_monte_carlo(
             produced,  # Produced Month 0 is the first month of inventory batches
             demand,
             2,
-            Planning().num_months,
-            Planning().num_products,
-            Planning().target_stock,
-            Planning().initial_stock,
+            num_months,
+            num_products,
+            myPlan.target_stock,
+            myPlan.initial_stock,
         )
         delta = 0.1
         message = "First and second backlog are not almost equal."  # error message in case if test case got failed
@@ -278,11 +323,28 @@ class PlanningTests(unittest.TestCase):
         n_tour = 2
         mean_violations = np.mean(violations)
 
+        # Number of genes
+        num_genes = int(25)
+        # Number of products
+        num_products = int(4)
+        # Number of Objectives
+        num_objectives = 2
+        # Start date of manufacturing
+        start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+        qc_max_months = 4#Max number of months
+        # Number of Months
+        num_months = 36
+        num_fronts = 3  # Number of fronts created
+
+        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+        inversion_val_throughput = 2000
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+
         for i in range(n_tests):
             violations_copy = violations.copy()
             crowding_dist_copy = crowd_dist.copy()
             fronts_copy = fronts.copy()
-            ix_to_crossover = Planning().tournament_restrictions(
+            ix_to_crossover = myPlan.tournament_restrictions(
                 fronts_copy, crowding_dist_copy, n_parents, n_tour, violations_copy
             )
             self.assertLess(np.mean(violations[ix_to_crossover]), mean_violations)
@@ -305,6 +367,23 @@ class PlanningTests(unittest.TestCase):
         ]
         pmut_list.append((0.0, 0.0, 0.0, 0.0))
         pmut_list.append((1.0, 1.0, 1.0, 1.0))
+
+        # Number of genes
+        num_genes = int(25)
+        # Number of products
+        num_products = int(4)
+        # Number of Objectives
+        num_objectives = 2
+        # Start date of manufacturing
+        start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+        qc_max_months = 4#Max number of months
+        # Number of Months
+        num_months = 36
+        num_fronts = 3  # Number of fronts created
+
+        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+        inversion_val_throughput = 2000
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
 
         for pmut in pmut_list:  # Loops for different mutation rates
             num_genes = random.randint(2, 25)
@@ -331,7 +410,7 @@ class PlanningTests(unittest.TestCase):
                     (batches_raw[i, genes_per_chromo[i] :] > 0).any()
                 )  # If true Invalid number of batches (0).
 
-            products_raw, batches_raw, masks = Planning().mutation_processes(
+            products_raw, batches_raw, masks = myPlan.mutation_processes(
                 products_raw, batches_raw, masks, pmut
             )
             genes_per_chromo = np.sum(masks, axis=1, dtype=int)
@@ -361,6 +440,23 @@ class PlanningTests(unittest.TestCase):
         2)Verify invalid number of batches
         3)Verify invalid value of active genes
         """
+        # Number of genes
+        num_genes = int(25)
+        # Number of products
+        num_products = int(4)
+        # Number of Objectives
+        num_objectives = 2
+        # Start date of manufacturing
+        start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+        qc_max_months = 4#Max number of months
+        # Number of Months
+        num_months = 36
+        num_fronts = 3  # Number of fronts created
+
+        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+        inversion_val_throughput = 2000
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+
         n_tests = 100  # Number of tests
         for i in range(n_tests):
             pop = load_obj(self.path_data + "select_pop_by_index_pop.pkl")
@@ -376,7 +472,7 @@ class PlanningTests(unittest.TestCase):
             self.assertLess(
                 np.mean(violations_copy[ix_sel]), mean_violations
             )  # Verifies if selected indexes indeed reduce violations mean
-            Planning().select_pop_by_index(pop, ix_sel)
+            myPlan.select_pop_by_index(pop, ix_sel)
             self.assertLess(
                 np.mean(pop.backlogs[:, 6]), mean_violations
             )  # Verifies if selected individuals indeed reduce violations mean
@@ -410,7 +506,7 @@ class PlanningTests(unittest.TestCase):
         max_months,num_products=pop.produced_month_product_individual.shape[:2]
         pop2_chromo=pop2.num_chromossomes
 
-        Planning().merge_pop_with_offspring(pop,pop2)
+        Planning.merge_pop_with_offspring(pop,pop2)
 
         #Batches
         self.assertEqual(pop.batches_raw.shape,(pop_chromo+pop2_chromo,pop_genes))
