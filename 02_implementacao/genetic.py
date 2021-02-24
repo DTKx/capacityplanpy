@@ -7,6 +7,7 @@ from scipy.stats import rankdata
 import logging
 import os
 from errors import CountError, InvalidValuesError
+import pickle
 
 LOG_FILENAME = 'genetic.log'
 filepath= os.path.join(os.path.dirname(os.path.realpath(__file__)),LOG_FILENAME)
@@ -45,6 +46,30 @@ class Helpers:
                 res.append(val)
                 break
         return np.where(array_duplicates == val)[0], val
+
+    def _export_obj(obj, path):
+        """Exports object in pickle file.
+
+        Args:
+            obj (object): Object to export
+            path (String): Path to file to export
+        """
+        with open(path, "wb") as output:  # Overwrites any existing file.
+            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+
+    def _load_obj(path):
+        """Loads pickle object.
+
+        Args:
+            path (String): Path to file to load.
+
+        Returns:
+            object: Object loaded
+        """
+        with open(path, "rb") as input:
+            obj = pickle.load(input)
+        return obj
+
 
 
 class Crossovers:

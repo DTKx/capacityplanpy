@@ -23,7 +23,7 @@ import tracemalloc
 # import sys
 # # insert at 1, 0 is the script path (or '' in REPL)
 # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
-import genetic as gn
+from genetic import Helpers, Mutations, Crossovers, AlgNsga2
 from population import Population
 import logging
 import os
@@ -633,7 +633,7 @@ class Planning:
         for i in range(0, len(new_product)):
             # 1. To mutate a product label with a rate of pMutP.
             # print("In label",new_product[i])
-            new_product[i, 0 : genes_per_chromo[i]] = gn.Mutations._label_mutation(
+            new_product[i, 0 : genes_per_chromo[i]] = Mutations._label_mutation(
                 new_product[i, 0 : genes_per_chromo[i]], self.num_products, pmut[0]
             )
             # print(new_product[i])
@@ -644,7 +644,7 @@ class Planning:
                 new_product[i],
                 new_mask[i],
                 genes_per_chromo[i],
-            ) = gn.Mutations._add_subtract_mutation(
+            ) = Mutations._add_subtract_mutation(
                 new_batches[i], new_product[i], new_mask[i], genes_per_chromo[i], pmut[1], pmut[2]
             )
             # print(new_batches[i])
@@ -664,7 +664,7 @@ class Planning:
             (
                 new_product[i, 0 : genes_per_chromo[i]],
                 new_batches[i, 0 : genes_per_chromo[i]],
-            ) = gn.Mutations._swap_mutation(
+            ) = Mutations._swap_mutation(
                 new_product[i, 0 : genes_per_chromo[i]],
                 new_batches[i, 0 : genes_per_chromo[i]],
                 pmut[3],
@@ -900,7 +900,17 @@ class Planning:
         pop.fronts = pop.fronts[ix_reinsert]
         pop.crowding_dist = pop.crowding_dist[ix_reinsert]
 
-    def main(self, num_exec, num_chromossomes, num_geracoes, n_tour, perc_crossover, pmut):
+    def main(
+        self,
+        num_exec,
+        num_chromossomes,
+        num_geracoes,
+        n_tour,
+        perc_crossover,
+        pmut,
+        root_path,
+        file_name,
+    ):
         print("START Exec number:", num_exec)
         t0 = perf_counter()
         # 1) Random parent population is initialized with its attributes
@@ -937,16 +947,16 @@ class Planning:
 
         # 4)Front Classification
         objectives_raw_copy = pop.objectives_raw.copy()
-        pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
+        pop.fronts = AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
 
         # 5) Crowding Distance
         objectives_raw_copy = pop.objectives_raw.copy()
         fronts_copy = pop.fronts.copy()
-        pop.crowding_dist = gn.AlgNsga2._crowding_distance(
+        pop.crowding_dist = AlgNsga2._crowding_distance(
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
         for i_gen in range(0, num_geracoes):
-            # print("Generation ", i_gen)
+            print("Generation ", i_gen)
 
             # 6)Selection for Crossover Tournament
             backlogs_copy = pop.backlogs[:, 6].copy()
@@ -964,7 +974,7 @@ class Planning:
             products_raw_copy = pop.products_raw.copy()
             batches_raw_copy = pop.batches_raw.copy()
             masks_copy = pop.masks.copy()
-            new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
+            new_products, new_batches, new_mask = Crossovers._crossover_uniform(
                 products_raw_copy[ix_to_crossover],
                 batches_raw_copy[ix_to_crossover],
                 masks_copy[ix_to_crossover],
@@ -994,12 +1004,12 @@ class Planning:
 
             # 14) 4)Front Classification
             objectives_raw_copy = pop.objectives_raw.copy()
-            pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
+            pop.fronts = AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
 
             # 15) 5) Crowding Distance
             objectives_copy = pop.objectives_raw.copy()
             fronts_copy = pop.fronts.copy()
-            pop.crowding_dist = gn.AlgNsga2._crowding_distance(
+            pop.crowding_dist = AlgNsga2._crowding_distance(
                 objectives_copy, fronts_copy, self.big_dummy
             )
 
@@ -1010,46 +1020,100 @@ class Planning:
             backlogs_copy = np.copy(pop.backlogs[:, 6])
             crowding_dist_copy = np.copy(pop.crowding_dist)
             fronts_copy = np.copy(pop.fronts)
-            ix_reinsert = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+            ix_reinsert = AlgNsga2._index_linear_reinsertion_nsga_constraints(
                 backlogs_copy, crowding_dist_copy, fronts_copy, num_chromossomes,
             )
 
             # 16.2) Remove non reinserted chromossomes from pop
             ix_reinsert_copy = np.copy(ix_reinsert)
             self.select_pop_by_index(pop, ix_reinsert_copy)
+            if i_gen == 0:
+                print("hey")
+        print("In load")
+
+        with open(root_path + file_name, "rb") as input:
+            pop_main = pickle.load(input)
+            print("In merge num_chromossomes", pop_main.num_chromossomes)
+
+        pop_main = Helpers._load_obj(root_path + file_name)
+        print("In merge num_chromossomes", pop_main.num_chromossomes)
+        pop_main = Planning.merge_pop_with_offspring(pop_main, pop)
+        print("Out merge num_chromossomes", pop_main.num_chromossomes)
+
+        Helpers._export_obj(pop_main, root_path + file_name)
+        # del pop_main
+        # del pop
         t1 = perf_counter()
         print("Exec", num_exec, "Time", t1 - t0)
         gc.collect()
-        return pop
+
+
+def selectFrontExtractMetrics(root_path, file_name, name_var, num_fronts):
+    """Preprocess executions to generate a pareto front using the already found solutions and extracts metrics that were already exported to the pkl file. 
+    """
+    # Variables
+    ref_point = [2500, 2500]  # Hipervolume calculation
+    volume_max = np.prod(ref_point)  # Maximum Volume
+
+    # Lists store results
+    result_execs = []
+    result_ids = []
+
+    pop_main = Helpers._load_obj(root_path + file_name)
+    # Removes the first dummy one chromossome
+    print("Final Num Chromossomes", pop_main.fronts.shape)
+    Planning.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
+    # Front Classification
+    pop_main.fronts = AlgNsga2._fronts(pop_main.objectives_raw, num_fronts)
+    print("fronts out", pop_main.fronts)
+    # Select only front 0 with no violations or front 0
+    ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
+    ix_par = np.where(pop_main.fronts == 0)[0]
+    ix_pareto_novio = np.intersect1d(ix_vio, ix_par)
+    if len(ix_pareto_novio) > 0:
+        print(
+            "Found Solutions without violations and in pareto front",
+            len(ix_pareto_novio),
+            ix_pareto_novio,
+        )
+    else:
+        print(
+            "No solution without violations and in front 0, passing all in front 0.",
+            ix_pareto_novio,
+        )
+        ix_pareto_novio = ix_par
+    print("Fronts In select by index", pop_main.fronts)
+    print("Backlog In select by index", pop_main.backlogs[:, 6])
+    Planning.select_pop_by_index(pop_main, ix_pareto_novio)
+    print("Fronts out select by index", pop_main.fronts)
+    print("Backlog out select by index", pop_main.backlogs[:, 6])
+    print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
+
+    # Extract Metrics
+
+    r_exec, r_ind = pop_main.metrics_inversion_violations(
+        ref_point, volume_max, num_fronts, 0, name_var, pop_main.backlogs[:, 6],
+    )
+
+    result_execs.append(r_exec)
+    result_ids.append(r_ind[0])  # X
+    result_ids.append(r_ind[1])  # Y
+    print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
+    print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
+    Helpers._export_obj(pop_main, root_path + file_name)
+    name_var = "v_0"
+    # Export Pickle
+    file_name = name_var + "_exec.pkl"
+    Helpers._export_obj(result_execs, root_path + file_name)
+
+    file_name = name_var + "_id.pkl"
+    Helpers._export_obj(result_ids, root_path + file_name)
+    print("Finish Aggregation")
 
 
 def run_parallel(numExec, numGenerations, maxWorkers):
     """Run main function using Multiprocessing.
     """
-
-    def export_obj(obj, path):
-        """Export object to pickle file.
-
-        Args:
-            obj (object): Object to be exported.
-            path (String): Path for the object to be exported.
-        """
-        with open(path, "wb") as output:  # Overwrites any existing file.
-            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
-
-    def load_obj(path):
-        """Load pickle file to object.
-
-        Args:
-            path (String): Path to pickle object.
-
-        Returns:
-            object: Object from pickle file.
-        """
-        with open(path, "rb") as input:
-            obj = pickle.load(input)
-        return obj
-
     # Parameters
     n_exec_ite = range(0, numExec)
 
@@ -1103,13 +1167,13 @@ def run_parallel(numExec, numGenerations, maxWorkers):
         )
         pop_main.name_variation = name_var
         file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-        export_obj(pop_main, root_path + file_name)
+        Helpers._export_obj(pop_main, root_path + file_name)
         del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
 
         t0 = perf_counter()
         # with concurrent.futures.ThreadPoolExecutor() as executor:
         with concurrent.futures.ProcessPoolExecutor(max_workers=maxWorkers) as executor:
-            for pop_exec in executor.map(
+            executor.map(
                 Planning(
                     num_genes,
                     num_products,
@@ -1125,73 +1189,17 @@ def run_parallel(numExec, numGenerations, maxWorkers):
                 [v_i[2]] * numExec,
                 [v_i[3]] * numExec,
                 [v_i[4]] * numExec,
-            ):
-                # print("In merge pop exec", pop_exec.fronts)
-                # print("Backlog In merge", pop_exec.backlogs[:, 6])
-
-                pop_main = load_obj(root_path + file_name)
-                # print("In merge pop main", pop_main.fronts)
-                print("In merge num_chromossomes", pop_main.num_chromossomes)
-                pop_main = Planning.merge_pop_with_offspring(pop_main, pop_exec)
-                # print("Out merge pop main", pop_main.fronts)
-                # print("Backlog Out merge", pop_main.backlogs[:, 6])
-                print("Out merge num_chromossomes", pop_main.num_chromossomes)
-
-                export_obj(pop_main, root_path + file_name)
-                del pop_main
-                del pop_exec
-
-        pop_main = load_obj(root_path + file_name)
-        # Removes the first dummy one chromossome
-        print("Final Num Chromossomes", pop_main.fronts.shape)
-        Planning.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
-        # Front Classification
-        pop_main.fronts = gn.AlgNsga2._fronts(pop_main.objectives_raw, num_fronts)
-        print("fronts out", pop_main.fronts)
-        # Select only front 0 with no violations or front 0
-        ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
-        ix_par = np.where(pop_main.fronts == 0)[0]
-        ix_pareto_novio = np.intersect1d(ix_vio, ix_par)
-        if len(ix_pareto_novio) > 0:
-            var = var + "metrics_front0_wo_vio"
-            print(
-                "Found Solutions without violations and in pareto front",
-                len(ix_pareto_novio),
-                ix_pareto_novio,
+                root_path,
+                file_name,
             )
-        else:
-            print(
-                "No solution without violations and in front 0, passing all in front 0.",
-                ix_pareto_novio,
-            )
-            var = var + "metrics_front0_w_vio"
-            ix_pareto_novio = ix_par
-        print("Fronts In select by index", pop_main.fronts)
-        print("Backlog In select by index", pop_main.backlogs[:, 6])
-        Planning.select_pop_by_index(pop_main, ix_pareto_novio)
-        print("Fronts out select by index", pop_main.fronts)
-        print("Backlog out select by index", pop_main.backlogs[:, 6])
-        print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
-
-        # Extract Metrics
-
-        r_exec, r_ind = pop_main.metrics_inversion_violations(
-            ref_point, volume_max, num_fronts, 0, name_var, pop_main.backlogs[:, 6],
-        )
-
-        result_execs.append(r_exec)
-        result_ids.append(r_ind[0])  # X
-        result_ids.append(r_ind[1])  # Y
-        print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
-        print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
-
-        file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-        export_obj(pop_main, root_path + file_name)
 
         tf = perf_counter()
         delta_t = tf - t0
         print("Total time ", delta_t, "Per execution", delta_t / numExec)
         times.append([v_i, delta_t, delta_t / numExec])
+        selectFrontExtractMetrics(
+            root_path, file_name, name_var, num_fronts
+        )  # Makes the fronts calculation and extracts metricts
     name_var = "v_0"
     # name_var=f"exec{numExec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
     file_name = name_var + "_results.csv"
@@ -1204,15 +1212,6 @@ def run_parallel(numExec, numGenerations, maxWorkers):
             writer.writerows(times)
         except:
             writer.writerow(times)
-
-    # Export Pickle
-    file_name = name_var + "_exec.pkl"
-    export_obj(result_execs, root_path + file_name)
-
-    file_name = name_var + "_id.pkl"
-    export_obj(result_ids, root_path + file_name)
-
-    print("Finish")
 
 
 def run_cprofile(numExec, numGenerations, maxWorkers):
