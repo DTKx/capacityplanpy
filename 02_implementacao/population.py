@@ -175,7 +175,6 @@ class Population:
         self,
         ref_point,
         volume_max,
-        inversion_val_throughput,
         num_fronts,
         num_exec,
         name_var,
@@ -206,8 +205,8 @@ class Population:
         metrics_exec = [num_exec, name_var, hv_vol_norma]
         # data_plot=[]
 
-        # Reinverts again the throughput, that was modified for minimization by addying a constant
-        self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
+        # Reinverts again the throughput, that was modified for minimization
+        self.objectives_raw[:, 0] =self.objectives_raw[:, 0]*(-1.0)
         # Metrics
         ix_best_min = np.argmin(self.objectives_raw[:, 0][ix_pareto])
         ix_best_max = np.argmax(self.objectives_raw[:, 0][ix_pareto])

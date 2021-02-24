@@ -38,7 +38,16 @@ logging.basicConfig(
 
 
 class Planning:
-    def __init__(self,num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput):
+    def __init__(
+        self,
+        num_genes,
+        num_products,
+        num_objectives,
+        start_date,
+        qc_max_months,
+        num_months,
+        num_fronts,
+    ):
         """Initializes Planning class.
 
         Args:
@@ -49,18 +58,16 @@ class Planning:
             qc_max_months (int): Number of maximum months
             num_months (int): Number of months
             num_fronts (int): Number of fronts
-            inversion_val_throughput (int): Value for inversion of throughput
         """
-        self.num_genes=num_genes
-        self.num_products=num_products
-        self.num_objectives=num_objectives
-        self.start_date=start_date
-        self.qc_max_months=qc_max_months
-        self.num_months=num_months
-        self.num_fronts=num_fronts
-        self.inversion_val_throughput=inversion_val_throughput
+        self.num_genes = num_genes
+        self.num_products = num_products
+        self.num_objectives = num_objectives
+        self.start_date = start_date
+        self.qc_max_months = qc_max_months
+        self.num_months = num_months
+        self.num_fronts = num_fronts
 
-    # Class Variables  
+    # Class Variables
     # General Genetic Algorithms parameters
     # # Number of genes
     # num_genes = int(25)
@@ -113,9 +120,6 @@ class Planning:
     s3 = [18, 10, 18, 0]
     setup_key_to_subkey = [{0: a, 1: b, 2: c, 3: d} for a, b, c, d in zip(s0, s1, s2, s3)]
 
-    # # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    # inversion_val_throughput = 2000
-
     with open(input_path + "demand_distribution.txt", "r") as content:
         demand_distribution = np.array(literal_eval(content.read()))
 
@@ -133,12 +137,6 @@ class Planning:
 
     # num_fronts = 3  # Number of fronts created
     big_dummy = 10 ** 5  # Big Dummy for crowding distance computation
-
-    # Hypervolume parameters
-
-    # Hypervolume Reference point
-    # ref_point = [inversion_val_throughput + 500, 2500]
-    # volume_max = np.prod(ref_point)  # Maximum Volume
 
     def create_export_demand_not_null(self):
         with open(self.input_path + "demand_distribution.txt", "r") as content:
@@ -542,17 +540,17 @@ class Planning:
                 raise InvalidValuesError(expression, e)  # Raise
 
             produced = np.dot(pop.batches_raw[i][pop.masks[i]], pop_yield[i][pop.masks[i]])
-            pop.objectives_raw[i, 0] = (
-                self.inversion_val_throughput - produced
+            pop.objectives_raw[i, 0] = produced * (
+                -1.0
             )  # Inversion of the Throughput by a fixed value to generate a minimization problem
 
             pop.objectives_raw[i, 1] = self.calc_median_deficit_backlog(
                 pop, i
             )  # Adds median_deficit_i
 
-            if pop.objectives_raw[i, 0] < 0:
+            if pop.objectives_raw[i, 0] > 0:
                 expression = f"{pop.objectives_raw[i, 0] < 0}"
-                e = f"Invalid value of Objective 1.\n Produced: {produced} \n Inversion  {self.inversion_val_throughput} \n Index {i} \n objective {pop.objectives_raw[i, 0]})"
+                e = f"Invalid value of Objective 1 (Positive value).\n Produced: {produced} \n Index {i} \n objective {pop.objectives_raw[i, 0]})"
                 logging.error(
                     InvalidValuesError(expression, e), exc_info=True
                 )  # Adds Exception to log file
@@ -1025,9 +1023,10 @@ class Planning:
         return pop
 
 
-def run_parallel(numExec,numGenerations,maxWorkers):
+def run_parallel(numExec, numGenerations, maxWorkers):
     """Run main function using Multiprocessing.
     """
+
     def export_obj(obj, path):
         """Export object to pickle file.
 
@@ -1062,14 +1061,13 @@ def run_parallel(numExec,numGenerations,maxWorkers):
     num_objectives = 2
     # Start date of manufacturing
     start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-    qc_max_months = 4#Max number of months
+    qc_max_months = 4  # Max number of months
     # Number of Months
     num_months = 36
     num_fronts = 3  # Number of fronts created
 
     # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    inversion_val_throughput = 2000
-    ref_point = [inversion_val_throughput + 500, 2500]
+    ref_point = [2500, 2500]
     volume_max = np.prod(ref_point)  # Maximum Volume
 
     # Variables
@@ -1101,13 +1099,7 @@ def run_parallel(numExec,numGenerations,maxWorkers):
         name_var = f"{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}"
         # Creates a dummy pop with one chromossome to concatenate results
         pop_main = Population(
-            num_genes,
-            1,
-            num_products,
-            num_objectives,
-            start_date,
-            qc_max_months,
-            num_months,
+            num_genes, 1, num_products, num_objectives, start_date, qc_max_months, num_months,
         )
         pop_main.name_variation = name_var
         file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
@@ -1118,7 +1110,15 @@ def run_parallel(numExec,numGenerations,maxWorkers):
         # with concurrent.futures.ThreadPoolExecutor() as executor:
         with concurrent.futures.ProcessPoolExecutor(max_workers=maxWorkers) as executor:
             for pop_exec in executor.map(
-                Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput).main,
+                Planning(
+                    num_genes,
+                    num_products,
+                    num_objectives,
+                    start_date,
+                    qc_max_months,
+                    num_months,
+                    num_fronts,
+                ).main,
                 n_exec_ite,
                 [v_i[0]] * numExec,
                 [v_i[1]] * numExec,
@@ -1175,17 +1175,8 @@ def run_parallel(numExec,numGenerations,maxWorkers):
 
         # Extract Metrics
 
-        # # Reinverts again the throughput, that was modified for minimization by addying a constant
-        # self.objectives_raw[:, 0] = inversion_val_throughput - self.objectives_raw[:, 0]
-
         r_exec, r_ind = pop_main.metrics_inversion_violations(
-            ref_point,
-            volume_max,
-            inversion_val_throughput,
-            num_fronts,
-            0,
-            name_var,
-            pop_main.backlogs[:, 6],
+            ref_point, volume_max, num_fronts, 0, name_var, pop_main.backlogs[:, 6],
         )
 
         result_execs.append(r_exec)
@@ -1193,9 +1184,6 @@ def run_parallel(numExec,numGenerations,maxWorkers):
         result_ids.append(r_ind[1])  # Y
         print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
         print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
-
-        # # Reinverts again the throughput, that was modified for minimization by addying a constant
-        # pop_main.objectives_raw[:, 0] = self.inversion_val_throughput - pop_main.objectives_raw[:, 0]
 
         file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
         export_obj(pop_main, root_path + file_name)
@@ -1227,7 +1215,7 @@ def run_parallel(numExec,numGenerations,maxWorkers):
     print("Finish")
 
 
-def run_cprofile(numExec,numGenerations,maxWorkers):
+def run_cprofile(numExec, numGenerations, maxWorkers):
     """Runs without multiprocessing.
     """
     # # tracemalloc.start()
@@ -1251,9 +1239,7 @@ def run_cprofile(numExec,numGenerations,maxWorkers):
     pr = cProfile.Profile()
     pr.enable()
     pr.runctx(
-        "run_parallel(numExec,numGenerations,maxWorkers)",
-        globals(),
-        locals(),
+        "run_parallel(numExec,numGenerations,maxWorkers)", globals(), locals(),
     )
     # pr.runctx(
     #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
@@ -1289,9 +1275,9 @@ def run_cprofile(numExec,numGenerations,maxWorkers):
 
 
 if __name__ == "__main__":
-    # Planning().run_cprofile()   
-    numExec = 2# Number of executions
-    numGenerations = 1000# Number of executions
-    maxWorkers=2#Local parallelization Maximum number of threads
-    # run_parallel(numExec,numGenerations,maxWorkers)
-    run_cprofile(numExec,numGenerations,maxWorkers)
+    # Planning().run_cprofile()
+    numExec = 2  # Number of executions
+    numGenerations = 1  # Number of executions
+    maxWorkers = 2  # Local parallelization Maximum number of threads
+    run_parallel(numExec, numGenerations, maxWorkers)
+    # run_cprofile(numExec,numGenerations,maxWorkers)

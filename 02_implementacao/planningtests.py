@@ -125,9 +125,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-        inversion_val_throughput = 2000
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
 
         def parser_calc_start_end(path):
             with open(path) as f:
@@ -210,9 +208,7 @@ class PlanningTests(unittest.TestCase):
     #     num_months = 36
     #     num_fronts = 3  # Number of fronts created
 
-    #     # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    #     inversion_val_throughput = 2000
-    #     myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+    #     myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
 
     #     (
     #         distribution_sums_backlog,
@@ -273,9 +269,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-        inversion_val_throughput = 2000
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
 
         (
             distribution_sums_backlog,
@@ -336,9 +330,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-        inversion_val_throughput = 2000
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
 
         for i in range(n_tests):
             violations_copy = violations.copy()
@@ -380,10 +372,7 @@ class PlanningTests(unittest.TestCase):
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
-
-        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-        inversion_val_throughput = 2000
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
 
         for pmut in pmut_list:  # Loops for different mutation rates
             num_genes = random.randint(2, 25)
@@ -453,9 +442,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-        inversion_val_throughput = 2000
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts,inversion_val_throughput)
+        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
 
         n_tests = 100  # Number of tests
         for i in range(n_tests):
