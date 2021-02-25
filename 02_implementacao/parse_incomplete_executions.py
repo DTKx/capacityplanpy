@@ -131,7 +131,6 @@ def parse_incomplete():
         r_exec, r_ind = pop_main.metrics_inversion_violations(
             ref_point,
             volume_max,
-            inversion_val_throughput,
             num_fronts,
             0,
             name_var,

@@ -1276,8 +1276,8 @@ def run_cprofile(numExec, numGenerations, maxWorkers):
 
 if __name__ == "__main__":
     # Planning().run_cprofile()
-    numExec = 2  # Number of executions
-    numGenerations = 1  # Number of executions
+    numExec = 20  # Number of executions
+    numGenerations = 1000  # Number of executions
     maxWorkers = 2  # Local parallelization Maximum number of threads
     run_parallel(numExec, numGenerations, maxWorkers)
     # run_cprofile(numExec,numGenerations,maxWorkers)
