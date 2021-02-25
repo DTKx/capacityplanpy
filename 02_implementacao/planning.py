@@ -1217,22 +1217,6 @@ def run_parallel(numExec, numGenerations, maxWorkers):
 def run_cprofile(numExec, numGenerations, maxWorkers):
     """Runs without multiprocessing.
     """
-    # # tracemalloc.start()
-    # numExec = 4
-    # n_exec_ite = range(0, numExec)
-
-    # num_chromossomes = 100
-    # num_geracoes = 100
-    # n_tour = 2
-    # pcross = 0.50
-    # # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
-    # pmut = (0.04, 0.61, 0.77, 0.47)
-    # # pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
-
-    # numExec = 2# Number of executions
-    # numGenerations = 1# Number of executions
-    # maxWorkers=2#Local parallelization Maximum number of threads
-
     t0 = perf_counter()
 
     pr = cProfile.Profile()
@@ -1240,18 +1224,74 @@ def run_cprofile(numExec, numGenerations, maxWorkers):
     pr.runctx(
         "run_parallel(numExec,numGenerations,maxWorkers)", globals(), locals(),
     )
+    pr.disable()
+    s = io.StringIO()
+    sortby = SortKey.CUMULATIVE
+    ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
+    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+    file_name = "cprofile.txt"
+    path = root_path + file_name
+    ps.print_stats()
+    with open(path, "w+") as f:
+        f.write(s.getvalue())
+    tf = perf_counter()
+    delta_t = tf - t0
+    print("Total time ", delta_t)
+    # snapshot = tracemalloc.take_snapshot()
+    # top_stats = snapshot.statistics("lineno")
+
+    # print("[ Top 10 ]")
+    # for stat in top_stats[:10]:
+    #     print(stat)
+
+
+def runCprofileMain(numExec, numGenerations, maxWorkers):
+    """Runs without multiprocessing.
+    """
+    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+    file_name = "cProfileMain.pkl"
+
+    # Number of genes
+    num_genes = int(25)
+    # Number of products
+    num_products = int(4)
+    # Number of Objectives
+    num_objectives = 2
+    # Start date of manufacturing
+    start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+    qc_max_months = 4  # Max number of months
+    # Number of Months
+    num_months = 36
+    num_fronts = 3  # Number of fronts created
+
+    numExec = 4
+    n_exec_ite = range(0, numExec)
+
+    num_chromossomes = 100
+    num_geracoes = 100
+    n_tour = 2
+    pcross = 0.50
+    # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
+    pmut = (0.04, 0.61, 0.77, 0.47)
+    t0 = perf_counter()
+
+    pr = cProfile.Profile()
+    pr.enable()
     # pr.runctx(
     #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
     #     globals(),
     #     locals(),
     # )
-    # pr.runctx(
-    #     # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec)",
-    #     "for pop_exec in map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec):print()",
-    #     globals(),
-    #     locals(),
-    # )
+    myPlan = Planning(
+        num_genes, num_products, num_objectives, start_date, qc_max_months, num_months, num_fronts,
+    )
 
+    pr.runctx(
+        # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec)",
+        "map(myPlan.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec,root_path,file_name)",
+        globals(),
+        locals(),
+    )
     pr.disable()
     s = io.StringIO()
     sortby = SortKey.CUMULATIVE
@@ -1278,5 +1318,6 @@ if __name__ == "__main__":
     numExec = 2  # Number of executions
     numGenerations = 1  # Number of executions
     maxWorkers = 2  # Local parallelization Maximum number of threads
-    run_parallel(numExec, numGenerations, maxWorkers)
+    # run_parallel(numExec, numGenerations, maxWorkers)
     # run_cprofile(numExec,numGenerations,maxWorkers)
+    runCprofileMain(numExec, numGenerations, maxWorkers)
