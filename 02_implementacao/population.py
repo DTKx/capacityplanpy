@@ -21,7 +21,7 @@ class Population:
         num_chromossomes,
         num_products,
         num_objectives,
-        start_date,
+        # start_date,
         qc_max_months,
         num_months,
     ):

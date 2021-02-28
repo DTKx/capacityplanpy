@@ -43,7 +43,7 @@ class Planning:
         num_genes,
         num_products,
         num_objectives,
-        start_date,
+        # start_date,
         qc_max_months,
         num_months,
         num_fronts,
@@ -54,7 +54,7 @@ class Planning:
             num_genes (int): Number of genes per chromossome
             num_products (int): Number of different products
             num_objectives (int): Number of different objectives
-            start_date (datetime): Start date of planning
+            # start_date (datetime): Start date of planning
             qc_max_months (int): Number of maximum months
             num_months (int): Number of months
             num_fronts (int): Number of fronts
@@ -62,7 +62,7 @@ class Planning:
         self.num_genes = num_genes
         self.num_products = num_products
         self.num_objectives = num_objectives
-        self.start_date = start_date
+        # self.start_date = start_date
         self.qc_max_months = qc_max_months
         self.num_months = num_months
         self.num_fronts = num_fronts
@@ -80,8 +80,8 @@ class Planning:
     # num_objectives = 2
     # # Number of Months
     # num_months = 36
-    # # Start date of manufacturing
-    # start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+    # Start date of manufacturing
+    start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
     # Last day of manufacturing
     last_date = datetime.date(2019, 12, 1)  # YYYY-MM-DD.
 
@@ -919,7 +919,6 @@ class Planning:
             num_chromossomes,
             self.num_products,
             self.num_objectives,
-            self.start_date,
             self.qc_max_months,
             self.num_months,
         )
@@ -933,7 +932,6 @@ class Planning:
             n_parents,
             self.num_products,
             self.num_objectives,
-            self.start_date,
             self.qc_max_months,
             self.num_months,
         )
@@ -956,7 +954,7 @@ class Planning:
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
         for i_gen in range(0, num_geracoes):
-            print("Generation ", i_gen)
+            # print("Generation ", i_gen)
 
             # 6)Selection for Crossover Tournament
             backlogs_copy = pop.backlogs[:, 6].copy()
@@ -1027,13 +1025,6 @@ class Planning:
             # 16.2) Remove non reinserted chromossomes from pop
             ix_reinsert_copy = np.copy(ix_reinsert)
             self.select_pop_by_index(pop, ix_reinsert_copy)
-            if i_gen == 0:
-                print("hey")
-        print("In load")
-
-        with open(root_path + file_name, "rb") as input:
-            pop_main = pickle.load(input)
-            print("In merge num_chromossomes", pop_main.num_chromossomes)
 
         pop_main = Helpers._load_obj(root_path + file_name)
         print("In merge num_chromossomes", pop_main.num_chromossomes)
@@ -1046,6 +1037,7 @@ class Planning:
         t1 = perf_counter()
         print("Exec", num_exec, "Time", t1 - t0)
         gc.collect()
+        return t1 - t0
 
 
 def selectFrontExtractMetrics(root_path, file_name, name_var, num_fronts):
@@ -1123,16 +1115,16 @@ def run_parallel(numExec, numGenerations, maxWorkers):
     num_products = int(4)
     # Number of Objectives
     num_objectives = 2
-    # Start date of manufacturing
-    start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
+    # # Start date of manufacturing
+    # start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
     qc_max_months = 4  # Max number of months
     # Number of Months
     num_months = 36
     num_fronts = 3  # Number of fronts created
 
-    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    ref_point = [2500, 2500]
-    volume_max = np.prod(ref_point)  # Maximum Volume
+    # # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
+    # ref_point = [2500, 2500]
+    # volume_max = np.prod(ref_point)  # Maximum Volume
 
     # Variables
     # Variant
@@ -1156,14 +1148,18 @@ def run_parallel(numExec, numGenerations, maxWorkers):
     list_vars = list(product(*[nc, ng, nt, pcross, pmut]))
 
     # Lists store results
-    result_execs = []
-    result_ids = []
     times = []
     for v_i in list_vars:
         name_var = f"{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}"
         # Creates a dummy pop with one chromossome to concatenate results
         pop_main = Population(
-            num_genes, 1, num_products, num_objectives, start_date, qc_max_months, num_months,
+            # num_genes, 1, num_products, num_objectives, start_date, qc_max_months, num_months,
+            num_genes,
+            1,
+            num_products,
+            num_objectives,
+            qc_max_months,
+            num_months,
         )
         pop_main.name_variation = name_var
         file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
@@ -1172,13 +1168,15 @@ def run_parallel(numExec, numGenerations, maxWorkers):
 
         t0 = perf_counter()
         # with concurrent.futures.ThreadPoolExecutor() as executor:
+        print("Entering")
+        timeExecution = []
         with concurrent.futures.ProcessPoolExecutor(max_workers=maxWorkers) as executor:
-            executor.map(
+            for time in executor.map(
                 Planning(
                     num_genes,
                     num_products,
                     num_objectives,
-                    start_date,
+                    # start_date,
                     qc_max_months,
                     num_months,
                     num_fronts,
@@ -1189,14 +1187,15 @@ def run_parallel(numExec, numGenerations, maxWorkers):
                 [v_i[2]] * numExec,
                 [v_i[3]] * numExec,
                 [v_i[4]] * numExec,
-                root_path,
-                file_name,
-            )
+                [root_path] * numExec,
+                [file_name] * numExec,
+            ):
+                timeExecution.append(time)
 
         tf = perf_counter()
         delta_t = tf - t0
         print("Total time ", delta_t, "Per execution", delta_t / numExec)
-        times.append([v_i, delta_t, delta_t / numExec])
+        times.append([v_i, delta_t, delta_t / numExec, timeExecution])
         selectFrontExtractMetrics(
             root_path, file_name, name_var, num_fronts
         )  # Makes the fronts calculation and extracts metricts
@@ -1245,7 +1244,7 @@ def run_cprofile(numExec, numGenerations, maxWorkers):
     #     print(stat)
 
 
-def runCprofileMain(numExec, numGenerations, maxWorkers):
+def runCprofileMain(numExec, num_geracoes):
     """Runs without multiprocessing.
     """
     root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
@@ -1268,27 +1267,39 @@ def runCprofileMain(numExec, numGenerations, maxWorkers):
     n_exec_ite = range(0, numExec)
 
     num_chromossomes = 100
-    num_geracoes = 100
     n_tour = 2
     pcross = 0.50
     # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
     pmut = (0.04, 0.61, 0.77, 0.47)
     t0 = perf_counter()
+    # Creates a dummy pop with one chromossome to concatenate results
+    pop_main = Population(
+        # num_genes, 1, num_products, num_objectives, start_date, qc_max_months, num_months,
+        num_genes,
+        1,
+        num_products,
+        num_objectives,
+        qc_max_months,
+        num_months,
+    )
+    file_name = "cProfileMain.pkl"
+    pop_main.name_variation = file_name
+    Helpers._export_obj(pop_main, root_path + file_name)
+    del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
+    # myPlan = Planning(
+    #     num_genes, num_products, num_objectives, start_date, qc_max_months, num_months, num_fronts
+    # )
+    # for time in map(myPlan.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec,[root_path]*numExec,[file_name]*numExec):
+    #     print(time)
 
     pr = cProfile.Profile()
     pr.enable()
-    # pr.runctx(
-    #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
-    #     globals(),
-    #     locals(),
-    # )
     myPlan = Planning(
         num_genes, num_products, num_objectives, start_date, qc_max_months, num_months, num_fronts,
     )
 
     pr.runctx(
-        # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec)",
-        "map(myPlan.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec,root_path,file_name)",
+        "for time in map(myPlan.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec,[root_path]* numExec,[file_name]* numExec):print(time)",
         globals(),
         locals(),
     )
@@ -1316,8 +1327,8 @@ def runCprofileMain(numExec, numGenerations, maxWorkers):
 if __name__ == "__main__":
     # Planning().run_cprofile()
     numExec = 2  # Number of executions
-    numGenerations = 1  # Number of executions
-    maxWorkers = 2  # Local parallelization Maximum number of threads
+    numGenerations = 1000  # Number of executions
+    maxWorkers = 1  # Local parallelization Maximum number of threads
     # run_parallel(numExec, numGenerations, maxWorkers)
-    # run_cprofile(numExec,numGenerations,maxWorkers)
-    runCprofileMain(numExec, numGenerations, maxWorkers)
+    run_cprofile(numExec, numGenerations, maxWorkers)
+    # runCprofileMain(numExec, numGenerations)

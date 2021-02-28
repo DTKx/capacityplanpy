@@ -66,6 +66,7 @@ class Helpers:
         Returns:
             object: Object loaded
         """
+        print("In load")
         with open(path, "rb") as input:
             obj = pickle.load(input)
         return obj

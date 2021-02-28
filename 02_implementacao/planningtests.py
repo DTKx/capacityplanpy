@@ -36,7 +36,7 @@ class PlanningTests(unittest.TestCase):
         num_tests = 1000
         count_products = {x: 0 for x in range(4)}
         for i in range(num_tests):
-            pop = Population(1, num_chromossomes, num_products, 1, 1, 2, 2)
+            pop = Population(1, num_chromossomes, num_products, 1, 2, 2)
             for j in range(num_products):
                 count_products[j] += np.sum(pop.products_raw[:, 0] == j)
             del pop  # Deletes object
@@ -125,7 +125,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan=Planning(num_genes,num_products,num_objectives,qc_max_months,num_months,num_fronts)
 
         def parser_calc_start_end(path):
             with open(path) as f:
@@ -157,7 +157,6 @@ class PlanningTests(unittest.TestCase):
             num_chromossomes,
             num_products,
             num_objectives,
-            start_date,
             qc_max_months,
             num_months,
         )
@@ -208,7 +207,7 @@ class PlanningTests(unittest.TestCase):
     #     num_months = 36
     #     num_fronts = 3  # Number of fronts created
 
-    #     myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+    #     myPlan=Planning(num_genes,num_products,num_objectives,qc_max_months,num_months,num_fronts)
 
     #     (
     #         distribution_sums_backlog,
@@ -269,7 +268,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan=Planning(num_genes,num_products,num_objectives,qc_max_months,num_months,num_fronts)
 
         (
             distribution_sums_backlog,
@@ -330,7 +329,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan=Planning(num_genes,num_products,num_objectives,qc_max_months,num_months,num_fronts)
 
         for i in range(n_tests):
             violations_copy = violations.copy()
@@ -372,7 +371,7 @@ class PlanningTests(unittest.TestCase):
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan=Planning(num_genes,num_products,num_objectives,qc_max_months,num_months,num_fronts)
 
         for pmut in pmut_list:  # Loops for different mutation rates
             num_genes = random.randint(2, 25)
@@ -442,7 +441,7 @@ class PlanningTests(unittest.TestCase):
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan=Planning(num_genes,num_products,num_objectives,qc_max_months,num_months,num_fronts)
 
         n_tests = 100  # Number of tests
         for i in range(n_tests):

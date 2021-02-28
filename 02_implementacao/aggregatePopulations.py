@@ -1,38 +1,20 @@
-# import concurrent.futures
-# import copy
-# import cProfile
-# import csv
-# import datetime
-# import io
-# import multiprocessing
-# import pickle
-# import pstats
-# import random
-# import time
-# from ast import literal_eval
-# from collections import defaultdict
-# from datetime import timedelta
-# from itertools import product
-# from pstats import SortKey
+import pickle
+from ast import literal_eval
 
-# import numpy as np
-# import pandas as pd
-# from dateutil import relativedelta
-# from dateutil.relativedelta import *
-# import numba as nb
+import numpy as np
+from dateutil.relativedelta import *
 
-# # from numba import jit, prange, typeof
-# from pygmo import hypervolume
-# from scipy import stats
+# from numba import jit, prange, typeof
+from pygmo import hypervolume
 
-# # Local Modules
-# # import sys
-# # # insert at 1, 0 is the script path (or '' in REPL)
-# # sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
-# # import genetico_permutacao as genetico
-# import genetic as gn
-# import population
-# from planning import Planning
+# Local Modules
+# import sys
+# # insert at 1, 0 is the script path (or '' in REPL)
+# sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
+# import genetico_permutacao as genetico
+import genetic as gn
+import population
+from planning import Planning
 
 
 def selectFrontExtractMetrics(root_path, file_name, name_var, num_fronts):
@@ -106,3 +88,8 @@ def selectFrontExtractMetrics(root_path, file_name, name_var, num_fronts):
     file_name = name_var + "_id.pkl"
     export_obj(result_ids, root_path + file_name)
     print("Finish Aggregation")
+
+if __name__ == "__main__":
+    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
+    file_name = "pop_100,1000,2,0.5,(0.04, 0.61, 0.77, 0.47).pkl"
+    selectFrontExtractMetrics(root_path, file_name, "file_name", 3)
