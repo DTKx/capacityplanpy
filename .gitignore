@@ -1,11 +1,13 @@
-#Débora
-
 #Ignore folders
-01_dados/*
-03_relatorio/*
-04_apresentacao/*
+data/*
+report/*
+presentation/*
+results_analysis/data*
 compevol.code-workspace
-**/*.log
+**/*.log #Ignore Log files
+**/*.xlsx #Ignore (.xlsx) files
+**/*.pdf #Ignore pdf files
+
 # # From https://github.com/github/gitignore/blob/master/Python.gitignore
 # # Byte-compiled / optimized / DLL files
 # __pycache__/
