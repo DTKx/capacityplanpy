@@ -10,8 +10,8 @@ from itertools import product
 from pstats import SortKey
 import numpy as np
 from numba import jit, prange, typeof
-from capacityplanpy import planning,population
-from capacityplanpy.genetic import AlgNsga2,Mutations,Crossovers
+from capacityplanpy import planning, population
+from capacityplanpy.genetic import AlgNsga2, Mutations, Crossovers
 
 # from scipy import stats
 import tracemalloc
@@ -19,6 +19,8 @@ import logging
 import os
 from capacityplanpy.errors import CountError, InvalidValuesError
 import gc
+
+
 class Planning:
     def __init__(
         self,
@@ -58,7 +60,7 @@ class Planning:
     num_monte = 1000
     # input_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/input/"))
     input_path = os.path.abspath(os.path.join(os.getcwd(), "data/input/"))
-    if os.path.exists(input_path)==False:
+    if os.path.exists(input_path) == False:
         raise Exception(f"Could not find the path {input_path}, please modify the path.")
 
     # Process Data
@@ -82,7 +84,9 @@ class Planning:
     max_batch = dict(zip(products, [50, 50, 50, 30]))
     batch_multiples = dict(zip(products, [1, 1, 1, 3]))
 
-    target_stock = np.loadtxt(os.path.join(input_path, "target_stock.csv"),delimiter=",", skiprows=1)  # Target Stock
+    target_stock = np.loadtxt(
+        os.path.join(input_path, "target_stock.csv"), delimiter=",", skiprows=1
+    )  # Target Stock
 
     s0 = [0, 10, 16, 20]  # Setup Time
     s1 = [16, 0, 16, 20]
@@ -91,14 +95,17 @@ class Planning:
     setup_key_to_subkey = [{0: a, 1: b, 2: c, 3: d} for a, b, c, d in zip(s0, s1, s2, s3)]
 
     with open(os.path.join(input_path, "demand_distribution.txt"), "r") as content:
-        demand_distribution = np.array(literal_eval(content.read()))
+        # demand_distribution = np.array(literal_eval(content.read()))
+        demand_distribution = np.array(literal_eval(content.read()), dtype=object)
 
     # Monte Carlo
 
     ix_not0 = np.where(demand_distribution != 0)  # Index of values that are not zeros
-    tr_demand = np.loadtxt(os.path.join(input_path, "triangular_demand.txt"),delimiter=",")  # 1D array with only not zeros demand_distribution
+    tr_demand = np.loadtxt(
+        os.path.join(input_path, "triangular_demand.txt"), delimiter=","
+    )  # 1D array with only not zeros demand_distribution
 
-    with open(os.path.join(input_path,"demand_montecarlo.pkl"), "rb") as reader:
+    with open(os.path.join(input_path, "demand_montecarlo.pkl"), "rb") as reader:
         demand_montecarlo = pickle.load(reader)  # Pre Calculated Monte Carlo Simulations option
 
     # NSGA Variables
