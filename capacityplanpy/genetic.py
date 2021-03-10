@@ -1,16 +1,18 @@
 import numpy as np
 import random
 import copy
-import numba as nb
-from numba import jit,prange
+from numba import jit, prange
 from scipy.stats import rankdata
 import logging
 import os
-from errors import CountError, InvalidValuesError
+from capacityplanpy.errors import CountError, InvalidValuesError
 
-LOG_FILENAME = 'genetic.log'
-filepath= os.path.join(os.path.dirname(os.path.realpath(__file__)),LOG_FILENAME)
-logging.basicConfig(filename=filepath,filemode="w", level=logging.ERROR)#Defines the path and level of log file
+LOG_FILENAME = "genetic.log"
+filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), LOG_FILENAME)
+logging.basicConfig(
+    filename=filepath, filemode="w", level=logging.ERROR
+)  # Defines the path and level of log file
+
 
 class Helpers:
     @jit(nopython=True, nogil=True)
@@ -28,7 +30,7 @@ class Helpers:
 
     @jit(nopython=True, nogil=True)
     def _find_idx_duplicates(array_duplicates):
-        """Returns indexes of first duplicate found 
+        """Returns indexes of first duplicate found
 
         Args:
             list_duplicates ([type]): [description]
@@ -48,8 +50,7 @@ class Helpers:
 
 
 class Crossovers:
-    """Methods applied for Crossover of genes between selected parents.
-    """
+    """Methods applied for Crossover of genes between selected parents."""
 
     def _crossover_uniform(pop_product, pop_batches, pop_mask, perc_crossover):
         """Performs the uniform crossover with 2 populations, in case one length of one parent is larger, then the last cromossome may be added with the perc_crossover probability to the shorter offspring.
@@ -63,16 +64,16 @@ class Crossovers:
         Returns:
             Arrays: Returns the offspring of the product, batches and mask.
         """
-        new_product=copy.deepcopy(pop_product)
-        new_batches=copy.deepcopy(pop_batches)
-        new_mask=copy.deepcopy(pop_mask)
+        new_product = copy.deepcopy(pop_product)
+        new_batches = copy.deepcopy(pop_batches)
+        new_mask = copy.deepcopy(pop_mask)
         genes_per_chromo = np.sum(pop_mask, axis=1, dtype=int)
         if any(genes_per_chromo >= 3):  # Check if any fullfills crossover
             for i in range(0, len(new_product), 2):
                 if genes_per_chromo[i] >= 3:  # Condition for crossover
                     # Masks
                     mask = np.random.randint(100, size=(1, genes_per_chromo[i]))
-                    mask[mask <= perc_crossover * 100] = 1#1==crossover activated
+                    mask[mask <= perc_crossover * 100] = 1  # 1==crossover activated
                     mask[mask > perc_crossover * 100] = 0
                     mask_invert = mask ^ 1
                     # Offspring1=
@@ -85,8 +86,14 @@ class Crossovers:
                         + pop_product[i, 0 : genes_per_chromo[i]] * mask
                     )
 
-                    new_batches[i, 0 : genes_per_chromo[i]] = (pop_batches[i, 0 : genes_per_chromo[i]] * mask_invert+ pop_batches[i + 1, 0 : genes_per_chromo[i]] * mask)
-                    new_batches[i + 1, 0 : genes_per_chromo[i]] = (pop_batches[i + 1, 0 : genes_per_chromo[i]] * mask_invert+ pop_batches[i, 0 : genes_per_chromo[i]] * mask)
+                    new_batches[i, 0 : genes_per_chromo[i]] = (
+                        pop_batches[i, 0 : genes_per_chromo[i]] * mask_invert
+                        + pop_batches[i + 1, 0 : genes_per_chromo[i]] * mask
+                    )
+                    new_batches[i + 1, 0 : genes_per_chromo[i]] = (
+                        pop_batches[i + 1, 0 : genes_per_chromo[i]] * mask_invert
+                        + pop_batches[i, 0 : genes_per_chromo[i]] * mask
+                    )
 
                     len_dif = genes_per_chromo[i + 1] - genes_per_chromo[i]
                     if (
@@ -106,8 +113,7 @@ class Crossovers:
 
 
 class Mutations:
-    """Methods applied for mutation of individuals.
-    """
+    """Methods applied for mutation of individuals."""
 
     @staticmethod
     @jit(nopython=True, nogil=True, fastmath=True)
@@ -131,7 +137,7 @@ class Mutations:
 
     @staticmethod
     @jit(nopython=True, nogil=True, fastmath=True)
-    def _add_subtract_mutation(batches,products,masks,num_genes, pposb, pnegb):
+    def _add_subtract_mutation(batches, products, masks, num_genes, pposb, pnegb):
         """2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
            3. To add a new random gene to the end of the chromosome (un- conditionally).
         Args:
@@ -149,30 +155,32 @@ class Mutations:
         mask_add = np.random.randint(0, 100, size=num_genes)
         ix_mut_add = np.where(mask_add <= pposb * 100)[0]
         if len(ix_mut_add) > 0:
-            batches[0 : num_genes][ix_mut_add] = batches[0 : num_genes][ix_mut_add] + 1
+            batches[0:num_genes][ix_mut_add] = batches[0:num_genes][ix_mut_add] + 1
         mask_sub = np.random.randint(0, 100, size=num_genes)
         ix_mut_sub = np.where(mask_sub <= pnegb * 100)[0]
         if len(ix_mut_sub) > 0:
             for i in ix_mut_sub:
-                if batches[i] > 1:# Subtract only if > 1
+                if batches[i] > 1:  # Subtract only if > 1
                     batches[i] = batches[i] - 1
-                elif (batches[i] == 1)&(num_genes>1):#Removes batch if there is more than 1 gene
+                elif (batches[i] == 1) & (
+                    num_genes > 1
+                ):  # Removes batch if there is more than 1 gene
                     # print(batches)
-                    temp_ar = batches[ i + 1 :].copy()
-                    batches[i : -1] = temp_ar# Brings the sequence forward and sets the 
-                    batches[-1] = 0#last value as 0
+                    temp_ar = batches[i + 1 :].copy()
+                    batches[i:-1] = temp_ar  # Brings the sequence forward and sets the
+                    batches[-1] = 0  # last value as 0
                     # print(batches)
                     # print(products)
-                    temp_ar = products[i +1 :].copy()#Adjust Products
-                    products[i: -1] = temp_ar
+                    temp_ar = products[i + 1 :].copy()  # Adjust Products
+                    products[i:-1] = temp_ar
                     products[-1] = 0
                     # print(products)
                     # print(masks)
                     masks[num_genes - 1] = False
-                    num_genes= num_genes- 1
+                    num_genes = num_genes - 1
                     # print(masks)
-                    
-        return batches,products,masks,num_genes
+
+        return batches, products, masks, num_genes
 
     @staticmethod
     @jit(nopython=True, nogil=True, fastmath=True)
@@ -208,8 +216,7 @@ class Mutations:
 
 
 class AlgNsga2:
-    """ Methods for Algorithm NSGA 2 (1. Deb, K. et al.: A Fast and Elitist Multiobjective Genetic Algorithm: NSGA-II. (2002).)
-    """
+    """Methods for Algorithm NSGA 2 (1. Deb, K. et al.: A Fast and Elitist Multiobjective Genetic Algorithm: NSGA-II. (2002).)"""
 
     @jit(nopython=True, nogil=True, fastmath=True)
     def _fronts_violations(objectives_fn, num_fronts, violations):
@@ -298,13 +305,13 @@ class AlgNsga2:
 
     # @jit(nopython=True, nogil=True)
     def _fronts(objectives_fn, num_fronts):
-        """ Calculates pareto fronts for each individual (each row) in population.
+        """Calculates pareto fronts for each individual (each row) in population.
         Considers a minimization problem.
         Deprecated.
 
         Args:
             resultado_fn (float): Array of floats shape(m,n) with the n fitnesses   Ex: f0(coluna 0), f1(coluna 1)...fn(coluna n)
-            num_fronts (int): Number of Fronts to separate 
+            num_fronts (int): Number of Fronts to separate
         Returns:
             int: Array shape (n,) with the pareto fronts classification for each individual.
         """
@@ -373,14 +380,13 @@ class AlgNsga2:
             j += 1
         fronts[ix_falta_classificar] = j  # Adiciona todos os outros pontos na última fronteira
 
-        if (any(fronts>=num_fronts))|(any(fronts<0)):
-            expression=f"(any({fronts>num_fronts}))|(any({fronts<0}))"
+        if (any(fronts >= num_fronts)) | (any(fronts < 0)):
+            expression = f"(any({fronts>num_fronts}))|(any({fronts<0}))"
             e = "Invalid values of fronts."
             logging.error(
                 InvalidValuesError(expression, e), exc_info=True
             )  # Adds Exception to log file
             raise InvalidValuesError(expression, e)  # Raise
-
 
         return fronts
 
@@ -395,31 +401,47 @@ class AlgNsga2:
             float: Array com shared fitness shape (n,1)
         """
         num_ind, num_obj = objectives_fn.shape
-        ranks=np.zeros(shape=(num_ind,num_obj),dtype=int)
-        crowd_dist = np.zeros(shape=(num_ind,), dtype=float)# Last Column will remain dummy (0)
+        ranks = np.zeros(shape=(num_ind, num_obj), dtype=int)
+        crowd_dist = np.zeros(shape=(num_ind,), dtype=float)  # Last Column will remain dummy (0)
         num_fronts = np.unique(fronts)
-        fit_obj_max_delta = np.zeros(num_obj,dtype=float)#stores max and min for normalization
-        #Populates ranks per objectives and add high values to min and max of fronts and objectives
-        for j in range(num_obj):#Objectives
-            fit_obj_max_delta[j] = np.max(objectives_fn[:,j]) - np.min(objectives_fn[:,j])# Stores Max and minimum for each objective
-            if fit_obj_max_delta[j] == 0.0:#Fix in case only one value
+        fit_obj_max_delta = np.zeros(num_obj, dtype=float)  # stores max and min for normalization
+        # Populates ranks per objectives and add high values to min and max of fronts and objectives
+        for j in range(num_obj):  # Objectives
+            fit_obj_max_delta[j] = np.max(objectives_fn[:, j]) - np.min(
+                objectives_fn[:, j]
+            )  # Stores Max and minimum for each objective
+            if fit_obj_max_delta[j] == 0.0:  # Fix in case only one value
                 fit_obj_max_delta[j] = 1.0
-            for m in num_fronts:#Fronts
+            for m in num_fronts:  # Fronts
                 ix_i_front = np.where(fronts == m)[0]
-                ranks[ix_i_front,j]=rankdata(objectives_fn[ix_i_front,j],method="dense")
-                mask_borders=(ranks[ix_i_front,j]==1)|(ranks[ix_i_front,j]==np.max(ranks[ix_i_front,j]))
-                crowd_dist[ix_i_front[mask_borders]]=big_dummy #Adds a large value to the borders
-        for k in range(num_ind):#loop per individual
-            crowd_val=0
-            for j in range(0, num_obj):#Loop objectives
-                if crowd_dist[k]==big_dummy:#If contains any border maintains the high value
-                    crowd_val=big_dummy
+                ranks[ix_i_front, j] = rankdata(objectives_fn[ix_i_front, j], method="dense")
+                mask_borders = (ranks[ix_i_front, j] == 1) | (
+                    ranks[ix_i_front, j] == np.max(ranks[ix_i_front, j])
+                )
+                crowd_dist[
+                    ix_i_front[mask_borders]
+                ] = big_dummy  # Adds a large value to the borders
+        for k in range(num_ind):  # loop per individual
+            crowd_val = 0
+            for j in range(0, num_obj):  # Loop objectives
+                if crowd_dist[k] == big_dummy:  # If contains any border maintains the high value
+                    crowd_val = big_dummy
                     break
                 else:
-                    ix_rank_before=np.where((ranks[:,j]==ranks[k,j]-1)&(fronts==fronts[k]))[0][0]#Select the first one
-                    ix_rank_after=np.where((ranks[:,j]==ranks[k,j]+1)&(fronts==fronts[k]))[0][0]#Select the first one
-                    crowd_val+=(objectives_fn[ix_rank_after,j]-objectives_fn[ix_rank_before,j])/fit_obj_max_delta[j]
-            crowd_dist[k]=crowd_val
+                    ix_rank_before = np.where(
+                        (ranks[:, j] == ranks[k, j] - 1) & (fronts == fronts[k])
+                    )[0][
+                        0
+                    ]  # Select the first one
+                    ix_rank_after = np.where(
+                        (ranks[:, j] == ranks[k, j] + 1) & (fronts == fronts[k])
+                    )[0][
+                        0
+                    ]  # Select the first one
+                    crowd_val += (
+                        objectives_fn[ix_rank_after, j] - objectives_fn[ix_rank_before, j]
+                    ) / fit_obj_max_delta[j]
+            crowd_dist[k] = crowd_val
         return crowd_dist
 
     def _index_linear_reinsertion_nsga(crowd_dist, fronts, n_ind):
@@ -459,11 +481,13 @@ class AlgNsga2:
                 indice_nova_pop[k : k + len_val_front_i] = (val_front_i[:, 2]).astype(int)
                 k += len_val_front_i
 
-        if (len(indice_nova_pop)<n_ind)|(len(indice_nova_pop[indice_nova_pop<0])>0):
-            expression=f"({len(indice_nova_pop)}<{n_ind})|({len(indice_nova_pop[indice_nova_pop<0])}>0)"
-            e=f"Error in index selection, number of selected index vs. expected."
-            logging.error(CountError(expression,e),exc_info=True)#Adds Exception to log file
-            raise CountError(expression,e)#Raise
+        if (len(indice_nova_pop) < n_ind) | (len(indice_nova_pop[indice_nova_pop < 0]) > 0):
+            expression = (
+                f"({len(indice_nova_pop)}<{n_ind})|({len(indice_nova_pop[indice_nova_pop<0])}>0)"
+            )
+            e = f"Error in index selection, number of selected index vs. expected."
+            logging.error(CountError(expression, e), exc_info=True)  # Adds Exception to log file
+            raise CountError(expression, e)  # Raise
         return indice_nova_pop
 
     def _index_linear_reinsertion_nsga_constraints(violations, crowd_dist, fronts, n_ind):
@@ -481,60 +505,63 @@ class AlgNsga2:
         Returns:
             [array]: Array with selected indexes for next generation.
         """
-        ix_selected=np.zeros(shape=(n_ind,),dtype=np.int32)
-        ix = np.arange(0, len(fronts),dtype=np.int32)
-        remain=n_ind
-        criteria_array = np.column_stack(
-            [
-                violations,
-                fronts,
-                crowd_dist,
-                ix
-            ]
-        )
+        ix_selected = np.zeros(shape=(n_ind,), dtype=np.int32)
+        ix = np.arange(0, len(fronts), dtype=np.int32)
+        remain = n_ind
+        criteria_array = np.column_stack([violations, fronts, crowd_dist, ix])
         # 1) Evaluate Violations
-        sort_vio = np.argsort(criteria_array[:, 0])#Sort Violations Low->High
+        sort_vio = np.argsort(criteria_array[:, 0])  # Sort Violations Low->High
         criteria_array = criteria_array[sort_vio]
 
         last_vio_number = criteria_array[:, 0][n_ind - 1]
-        count=np.sum(criteria_array[:, 0] == last_vio_number)
-        if  count== 1:  # Verify if there is a draw in the highest number of violations
+        count = np.sum(criteria_array[:, 0] == last_vio_number)
+        if count == 1:  # Verify if there is a draw in the highest number of violations
             ix_selected = criteria_array[0:n_ind, 3].astype(np.int32)
-            remain=remain-n_ind
+            remain = remain - n_ind
         else:  # 2) Draw, evaluates fronts
-            ix_selected_vio=np.where(criteria_array[:,0]<last_vio_number)[0]
-            if len(ix_selected_vio)>0:#If num violations<last_vio_number add to selected and remove from criteria
-                ix_selected[0:len(ix_selected_vio)] = criteria_array[ix_selected_vio,3]
-                remain=remain-len(ix_selected_vio)
-                criteria_array=criteria_array[np.setdiff1d(np.arange(0,len(criteria_array)),ix_selected_vio),:]
-            #If already selected or num violations>last_vio_number+1 delete values
-            ix_keep_vio=np.where(criteria_array[:,0]<last_vio_number+1)[0]
-            criteria_array=criteria_array[ix_keep_vio,:]
-            
-            sort_fronts = np.argsort(criteria_array[:, 1])#Sort per fronts Low->High
+            ix_selected_vio = np.where(criteria_array[:, 0] < last_vio_number)[0]
+            if (
+                len(ix_selected_vio) > 0
+            ):  # If num violations<last_vio_number add to selected and remove from criteria
+                ix_selected[0 : len(ix_selected_vio)] = criteria_array[ix_selected_vio, 3]
+                remain = remain - len(ix_selected_vio)
+                criteria_array = criteria_array[
+                    np.setdiff1d(np.arange(0, len(criteria_array)), ix_selected_vio), :
+                ]
+            # If already selected or num violations>last_vio_number+1 delete values
+            ix_keep_vio = np.where(criteria_array[:, 0] < last_vio_number + 1)[0]
+            criteria_array = criteria_array[ix_keep_vio, :]
+
+            sort_fronts = np.argsort(criteria_array[:, 1])  # Sort per fronts Low->High
             criteria_array = criteria_array[sort_fronts]
 
-            last_front_number=criteria_array[:,1][remain-1]
-            count=np.sum(criteria_array[:, 1] == last_front_number)
-            if  count== 1:  # Verify if there is a draw in the highest number of fronts
-                ix_selected[n_ind-remain:] = criteria_array[:remain, 3]
-                remain=remain-remain
+            last_front_number = criteria_array[:, 1][remain - 1]
+            count = np.sum(criteria_array[:, 1] == last_front_number)
+            if count == 1:  # Verify if there is a draw in the highest number of fronts
+                ix_selected[n_ind - remain :] = criteria_array[:remain, 3]
+                remain = remain - remain
             else:  # 2) Draw, evaluates Crowding distance
-                ix_selected_vio=np.where(criteria_array[:,1]<last_front_number)[0]
-                if len(ix_selected_vio)>0:#If num fronts<last_vio_number add to selected
-                    ix_selected[n_ind-remain:n_ind-remain+len(ix_selected_vio)] = criteria_array[ix_selected_vio,3]
-                    remain=remain-len(ix_selected_vio)
-                    criteria_array=criteria_array[np.setdiff1d(np.arange(0,len(criteria_array)),ix_selected_vio),:]
-                #If already selected or num violations>last_vio_number+1 delete values
-                ix_keep_vio=np.where(criteria_array[:,1]<last_front_number+1)[0]
-                criteria_array=criteria_array[ix_keep_vio,:]
-                sort_crowd = np.argsort(criteria_array[:, 2])#Sort per Crowding Distance Low->High
+                ix_selected_vio = np.where(criteria_array[:, 1] < last_front_number)[0]
+                if len(ix_selected_vio) > 0:  # If num fronts<last_vio_number add to selected
+                    ix_selected[
+                        n_ind - remain : n_ind - remain + len(ix_selected_vio)
+                    ] = criteria_array[ix_selected_vio, 3]
+                    remain = remain - len(ix_selected_vio)
+                    criteria_array = criteria_array[
+                        np.setdiff1d(np.arange(0, len(criteria_array)), ix_selected_vio), :
+                    ]
+                # If already selected or num violations>last_vio_number+1 delete values
+                ix_keep_vio = np.where(criteria_array[:, 1] < last_front_number + 1)[0]
+                criteria_array = criteria_array[ix_keep_vio, :]
+                sort_crowd = np.argsort(
+                    criteria_array[:, 2]
+                )  # Sort per Crowding Distance Low->High
                 criteria_array = criteria_array[sort_crowd]
-                ix_selected[n_ind-remain:] = criteria_array[(len(criteria_array)-remain):, 3]
-                remain=remain-remain
-        if  remain!=0:
-            expression=f"{remain}!=0"
-            e=f"Error in index selection, number of selected index:{remain}, Expected: 0"
-            logging.error(CountError(expression,e),exc_info=True)#Adds Exception to log file
-            raise CountError(expression,e)#Raise
+                ix_selected[n_ind - remain :] = criteria_array[(len(criteria_array) - remain) :, 3]
+                remain = remain - remain
+        if remain != 0:
+            expression = f"{remain}!=0"
+            e = f"Error in index selection, number of selected index:{remain}, Expected: 0"
+            logging.error(CountError(expression, e), exc_info=True)  # Adds Exception to log file
+            raise CountError(expression, e)  # Raise
         return ix_selected

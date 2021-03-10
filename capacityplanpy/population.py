@@ -1,7 +1,6 @@
 import copy
 import numpy as np
-from dateutil.relativedelta import *
-from pygmo import hypervolume
+# from pygmo.util import hypervolume
 
 
 class Population:
@@ -200,8 +199,11 @@ class Population:
         try:
             hv = hypervolume(points=self.objectives_raw[ix_pareto])
             hv_vol_norma = hv.compute(ref_point) / volume_max
-        except ValueError:
+        except Exception as e:
+            print(e, "setting hv_vol_norma = 0")
             hv_vol_norma = 0
+        # except ValueError:
+        #     hv_vol_norma = 0
         metrics_exec = [num_exec, name_var, hv_vol_norma]
         # data_plot=[]
 

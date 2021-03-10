@@ -1,6 +1,3 @@
-import concurrent.futures
-import cProfile
-import csv
 import datetime
 import io
 import pickle
@@ -13,21 +10,16 @@ from itertools import product
 from pstats import SortKey
 import numpy as np
 from numba import jit, prange, typeof
-from pygmo import hypervolume
+from capacityplanpy import planning,population
+from capacityplanpy.genetic import AlgNsga2,Mutations,Crossovers
+
+
 
 # from scipy import stats
 import tracemalloc
-
-
-# Local Modules
-# import sys
-# # insert at 1, 0 is the script path (or '' in REPL)
-# sys.path.insert(1,'C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\')
-import genetic as gn
-from population import Population
 import logging
 import os
-from errors import CountError, InvalidValuesError
+from capacityplanpy.errors import CountError, InvalidValuesError
 import gc
 
 LOG_FILENAME = "planning.log"
@@ -68,26 +60,16 @@ class Planning:
         self.num_fronts = num_fronts
 
     # Class Variables
-    # General Genetic Algorithms parameters
-    # # Number of genes
-    # num_genes = int(25)
-
     # Problem variables
-
-    # # Number of products
-    # num_products = int(4)
-    # # Number of Objectives
-    # num_objectives = 2
-    # # Number of Months
-    # num_months = 36
-    # # Start date of manufacturing
-    # start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
     # Last day of manufacturing
     last_date = datetime.date(2019, 12, 1)  # YYYY-MM-DD.
 
     # Number of Monte Carlo executions Article ==1000
     num_monte = 1000
-    input_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\00_input\\"
+    # input_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/input/"))
+    input_path = os.path.abspath(os.path.join(os.getcwd(), "data/input/"))
+    if os.path.exists(input_path)==False:
+        raise Exception(f"Could not find the path {input_path}, please modify the path.")
 
     # Process Data
 
@@ -110,9 +92,7 @@ class Planning:
     max_batch = dict(zip(products, [50, 50, 50, 30]))
     batch_multiples = dict(zip(products, [1, 1, 1, 3]))
 
-    target_stock = np.loadtxt(
-        input_path + "target_stock.csv", delimiter=",", skiprows=1
-    )  # Target Stock
+    target_stock = np.loadtxt(os.path.join(input_path, "target_stock.csv"),delimiter=",", skiprows=1)  # Target Stock
 
     s0 = [0, 10, 16, 20]  # Setup Time
     s1 = [16, 0, 16, 20]
@@ -120,17 +100,15 @@ class Planning:
     s3 = [18, 10, 18, 0]
     setup_key_to_subkey = [{0: a, 1: b, 2: c, 3: d} for a, b, c, d in zip(s0, s1, s2, s3)]
 
-    with open(input_path + "demand_distribution.txt", "r") as content:
+    with open(os.path.join(input_path, "demand_distribution.txt"), "r") as content:
         demand_distribution = np.array(literal_eval(content.read()))
 
     # Monte Carlo
 
     ix_not0 = np.where(demand_distribution != 0)  # Index of values that are not zeros
-    tr_demand = np.loadtxt(
-        input_path + "triangular_demand.txt", delimiter=","
-    )  # 1D array with only not zeros demand_distribution
+    tr_demand = np.loadtxt(os.path.join(input_path, "triangular_demand.txt"),delimiter=",")  # 1D array with only not zeros demand_distribution
 
-    with open(input_path + "demand_montecarlo.pkl", "rb") as reader:
+    with open(os.path.join(input_path,"demand_montecarlo.pkl"), "rb") as reader:
         demand_montecarlo = pickle.load(reader)  # Pre Calculated Monte Carlo Simulations option
 
     # NSGA Variables
@@ -138,19 +116,8 @@ class Planning:
     # num_fronts = 3  # Number of fronts created
     big_dummy = 10 ** 5  # Big Dummy for crowding distance computation
 
-    def create_export_demand_not_null(self):
-        with open(self.input_path + "demand_distribution.txt", "r") as content:
-            demand_distribution = np.array(literal_eval(content.read()))
-        # Length of rows to calculate triangular
-        tr_len = len(demand_distribution[self.ix_not0])
-        # Generates tr_demand
-        tr_demand = np.zeros(shape=(tr_len, 3))
-        for i in range(0, tr_len):
-            tr_demand[i] = np.array(demand_distribution[self.ix_not0][i], dtype=np.float64)
-        np.savetxt(self.input_path + "triangular_demand.txt", tr_demand, delimiter=",")
-
     def calc_start_end(self, pop_obj):
-        """Calculates start and end dates of batch manufacturing, as well as generates (dicts_batches_month_kg) a list of dictionaries (List index = Chromossome, key=Number of products and date values os release from QC) per chromossome with release dates of each batch per product. 
+        """Calculates start and end dates of batch manufacturing, as well as generates (dicts_batches_month_kg) a list of dictionaries (List index = Chromossome, key=Number of products and date values os release from QC) per chromossome with release dates of each batch per product.
         Start USP=End Date USP (last batch) + Changeover(opt)
         End
 
@@ -293,7 +260,10 @@ class Planning:
     @jit(nopython=True, nogil=True, fastmath=True, parallel=True)
     def calc_triangular_dist(demand_distribution, num_monte):
         return np.random.triangular(
-            demand_distribution[0], demand_distribution[1], demand_distribution[2], size=num_monte,
+            demand_distribution[0],
+            demand_distribution[1],
+            demand_distribution[2],
+            size=num_monte,
         )
 
     @staticmethod
@@ -560,8 +530,8 @@ class Planning:
 
     @staticmethod
     def tournament_restrictions(fronts, crowding_dist, n_parents, n_tour, violations):
-        """Tournament with replacement for selection to crossover, considering those criteria:       
-        1)Lowest number of constraints: 1)Lowest median Total BacklogIf draw then: 
+        """Tournament with replacement for selection to crossover, considering those criteria:
+        1)Lowest number of constraints: 1)Lowest median Total BacklogIf draw then:
         2)Best pareto front, if draw then:
         3)Highest Crowding Distance
 
@@ -612,7 +582,7 @@ class Planning:
 
     def mutation_processes(self, new_product, new_batches, new_mask, pmut):
         """Mutation Processes:
-            1. To mutate a product label with a rate of pMutP. 
+            1. To mutate a product label with a rate of pMutP.
             2. To increase or decrease the number of batches by one with a rate of pPosB and pNegB , respectively.
             3. To add a new random gene to the end of the chromosome (un- conditionally).
             4. To swap two genes within the same chromosome once with a rate of pSwap .
@@ -633,7 +603,7 @@ class Planning:
         for i in range(0, len(new_product)):
             # 1. To mutate a product label with a rate of pMutP.
             # print("In label",new_product[i])
-            new_product[i, 0 : genes_per_chromo[i]] = gn.Mutations._label_mutation(
+            new_product[i, 0 : genes_per_chromo[i]] = Mutations._label_mutation(
                 new_product[i, 0 : genes_per_chromo[i]], self.num_products, pmut[0]
             )
             # print(new_product[i])
@@ -644,7 +614,7 @@ class Planning:
                 new_product[i],
                 new_mask[i],
                 genes_per_chromo[i],
-            ) = gn.Mutations._add_subtract_mutation(
+            ) = Mutations._add_subtract_mutation(
                 new_batches[i], new_product[i], new_mask[i], genes_per_chromo[i], pmut[1], pmut[2]
             )
             # print(new_batches[i])
@@ -664,7 +634,7 @@ class Planning:
             (
                 new_product[i, 0 : genes_per_chromo[i]],
                 new_batches[i, 0 : genes_per_chromo[i]],
-            ) = gn.Mutations._swap_mutation(
+            ) = Mutations._swap_mutation(
                 new_product[i, 0 : genes_per_chromo[i]],
                 new_batches[i, 0 : genes_per_chromo[i]],
                 pmut[3],
@@ -717,8 +687,8 @@ class Planning:
     def fix_batch_violations(self, products, batches, masks):
         """Aggregates product batches in case of neighbours products.
         Fix process constraints of batch min, max and multiple.
-            If Batch<Min then Batch=>Inactivate or set to minimum, 
-            If Batch>Max then Batch=Max, 
+            If Batch<Min then Batch=>Inactivate or set to minimum,
+            If Batch>Max then Batch=Max,
             If Batch Multiple !=Multiple then Batch round to closest given not within Min and Max
 
         Args:
@@ -904,7 +874,7 @@ class Planning:
         print("START Exec number:", num_exec)
         t0 = perf_counter()
         # 1) Random parent population is initialized with its attributes
-        pop = Population(
+        pop = population.Population(
             self.num_genes,
             num_chromossomes,
             self.num_products,
@@ -918,7 +888,7 @@ class Planning:
         n_parents = int(num_chromossomes * perc_crossover)
         if n_parents % 2 == 1:
             n_parents = n_parents + 1
-        pop_offspring = Population(
+        pop_offspring = population.Population(
             self.num_genes,
             n_parents,
             self.num_products,
@@ -937,16 +907,16 @@ class Planning:
 
         # 4)Front Classification
         objectives_raw_copy = pop.objectives_raw.copy()
-        pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
+        pop.fronts = AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
 
         # 5) Crowding Distance
         objectives_raw_copy = pop.objectives_raw.copy()
         fronts_copy = pop.fronts.copy()
-        pop.crowding_dist = gn.AlgNsga2._crowding_distance(
+        pop.crowding_dist = AlgNsga2._crowding_distance(
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
         for i_gen in range(0, num_geracoes):
-            # print("Generation ", i_gen)
+            print("Generation ", i_gen)
 
             # 6)Selection for Crossover Tournament
             backlogs_copy = pop.backlogs[:, 6].copy()
@@ -964,7 +934,7 @@ class Planning:
             products_raw_copy = pop.products_raw.copy()
             batches_raw_copy = pop.batches_raw.copy()
             masks_copy = pop.masks.copy()
-            new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
+            new_products, new_batches, new_mask = Crossovers._crossover_uniform(
                 products_raw_copy[ix_to_crossover],
                 batches_raw_copy[ix_to_crossover],
                 masks_copy[ix_to_crossover],
@@ -994,12 +964,12 @@ class Planning:
 
             # 14) 4)Front Classification
             objectives_raw_copy = pop.objectives_raw.copy()
-            pop.fronts = gn.AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
+            pop.fronts = AlgNsga2._fronts(objectives_raw_copy, self.num_fronts)
 
             # 15) 5) Crowding Distance
             objectives_copy = pop.objectives_raw.copy()
             fronts_copy = pop.fronts.copy()
-            pop.crowding_dist = gn.AlgNsga2._crowding_distance(
+            pop.crowding_dist = AlgNsga2._crowding_distance(
                 objectives_copy, fronts_copy, self.big_dummy
             )
 
@@ -1010,8 +980,11 @@ class Planning:
             backlogs_copy = np.copy(pop.backlogs[:, 6])
             crowding_dist_copy = np.copy(pop.crowding_dist)
             fronts_copy = np.copy(pop.fronts)
-            ix_reinsert = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
-                backlogs_copy, crowding_dist_copy, fronts_copy, num_chromossomes,
+            ix_reinsert = AlgNsga2._index_linear_reinsertion_nsga_constraints(
+                backlogs_copy,
+                crowding_dist_copy,
+                fronts_copy,
+                num_chromossomes,
             )
 
             # 16.2) Remove non reinserted chromossomes from pop
@@ -1021,263 +994,3 @@ class Planning:
         print("Exec", num_exec, "Time", t1 - t0)
         gc.collect()
         return pop
-
-
-def run_parallel(numExec, numGenerations, maxWorkers):
-    """Run main function using Multiprocessing.
-    """
-
-    def export_obj(obj, path):
-        """Export object to pickle file.
-
-        Args:
-            obj (object): Object to be exported.
-            path (String): Path for the object to be exported.
-        """
-        with open(path, "wb") as output:  # Overwrites any existing file.
-            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
-
-    def load_obj(path):
-        """Load pickle file to object.
-
-        Args:
-            path (String): Path to pickle object.
-
-        Returns:
-            object: Object from pickle file.
-        """
-        with open(path, "rb") as input:
-            obj = pickle.load(input)
-        return obj
-
-    # Parameters
-    n_exec_ite = range(0, numExec)
-
-    # Number of genes
-    num_genes = int(25)
-    # Number of products
-    num_products = int(4)
-    # Number of Objectives
-    num_objectives = 2
-    # Start date of manufacturing
-    start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-    qc_max_months = 4  # Max number of months
-    # Number of Months
-    num_months = 36
-    num_fronts = 3  # Number of fronts created
-
-    # Inversion val to convert maximization of throughput to minimization, using a value a little bit higher than the article max 630.4
-    ref_point = [2500, 2500]
-    volume_max = np.prod(ref_point)  # Maximum Volume
-
-    # Variables
-    # Variant
-    var = "front_nsga,tour_vio,rein_vio,vio_back,calc_montecarlo"
-
-    # Number of Chromossomes
-    nc = [100]
-    ng = [numGenerations]  # Number of Generations
-
-    # Number of tour
-    nt = [2]
-    # Crossover Probability
-    # pcross = [0.11]
-    pcross = [0.5]
-    # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
-    pmut = [(0.04, 0.61, 0.77, 0.47)]
-
-    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-
-    # List of variants
-    list_vars = list(product(*[nc, ng, nt, pcross, pmut]))
-
-    # Lists store results
-    result_execs = []
-    result_ids = []
-    times = []
-    for v_i in list_vars:
-        name_var = f"{var},{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}"
-        # Creates a dummy pop with one chromossome to concatenate results
-        pop_main = Population(
-            num_genes, 1, num_products, num_objectives, start_date, qc_max_months, num_months,
-        )
-        pop_main.name_variation = name_var
-        file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-        export_obj(pop_main, root_path + file_name)
-        del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
-
-        t0 = perf_counter()
-        # with concurrent.futures.ThreadPoolExecutor() as executor:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=maxWorkers) as executor:
-            for pop_exec in executor.map(
-                Planning(
-                    num_genes,
-                    num_products,
-                    num_objectives,
-                    start_date,
-                    qc_max_months,
-                    num_months,
-                    num_fronts,
-                ).main,
-                n_exec_ite,
-                [v_i[0]] * numExec,
-                [v_i[1]] * numExec,
-                [v_i[2]] * numExec,
-                [v_i[3]] * numExec,
-                [v_i[4]] * numExec,
-            ):
-                # print("In merge pop exec", pop_exec.fronts)
-                # print("Backlog In merge", pop_exec.backlogs[:, 6])
-
-                pop_main = load_obj(root_path + file_name)
-                # print("In merge pop main", pop_main.fronts)
-                print("In merge num_chromossomes", pop_main.num_chromossomes)
-                pop_main = Planning.merge_pop_with_offspring(pop_main, pop_exec)
-                # print("Out merge pop main", pop_main.fronts)
-                # print("Backlog Out merge", pop_main.backlogs[:, 6])
-                print("Out merge num_chromossomes", pop_main.num_chromossomes)
-
-                export_obj(pop_main, root_path + file_name)
-                del pop_main
-                del pop_exec
-
-        pop_main = load_obj(root_path + file_name)
-        # Removes the first dummy one chromossome
-        print("Final Num Chromossomes", pop_main.fronts.shape)
-        Planning.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
-        # Front Classification
-        pop_main.fronts = gn.AlgNsga2._fronts(pop_main.objectives_raw, num_fronts)
-        print("fronts out", pop_main.fronts)
-        # Select only front 0 with no violations or front 0
-        ix_vio = np.where(pop_main.backlogs[:, 6] == 0)[0]
-        ix_par = np.where(pop_main.fronts == 0)[0]
-        ix_pareto_novio = np.intersect1d(ix_vio, ix_par)
-        if len(ix_pareto_novio) > 0:
-            var = var + "metrics_front0_wo_vio"
-            print(
-                "Found Solutions without violations and in pareto front",
-                len(ix_pareto_novio),
-                ix_pareto_novio,
-            )
-        else:
-            print(
-                "No solution without violations and in front 0, passing all in front 0.",
-                ix_pareto_novio,
-            )
-            var = var + "metrics_front0_w_vio"
-            ix_pareto_novio = ix_par
-        print("Fronts In select by index", pop_main.fronts)
-        print("Backlog In select by index", pop_main.backlogs[:, 6])
-        Planning.select_pop_by_index(pop_main, ix_pareto_novio)
-        print("Fronts out select by index", pop_main.fronts)
-        print("Backlog out select by index", pop_main.backlogs[:, 6])
-        print("Objectives before metrics_inversion_violations", pop_main.objectives_raw)
-
-        # Extract Metrics
-
-        r_exec, r_ind = pop_main.metrics_inversion_violations(
-            ref_point, volume_max, num_fronts, 0, name_var, pop_main.backlogs[:, 6],
-        )
-
-        result_execs.append(r_exec)
-        result_ids.append(r_ind[0])  # X
-        result_ids.append(r_ind[1])  # Y
-        print("Objectives after metrics_inversion_violations", pop_main.objectives_raw)
-        print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
-
-        file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-        export_obj(pop_main, root_path + file_name)
-
-        tf = perf_counter()
-        delta_t = tf - t0
-        print("Total time ", delta_t, "Per execution", delta_t / numExec)
-        times.append([v_i, delta_t, delta_t / numExec])
-    name_var = "v_0"
-    # name_var=f"exec{numExec}_chr{nc}_ger{ng}_tour{nt}_cross{pcross}_mut{pmut}"
-    file_name = name_var + "_results.csv"
-    path = root_path + file_name
-    # print(f"{tempo} tempo/exec{tempo/numExec}")
-    # Export times
-    with open(path, "a", newline="") as f:
-        writer = csv.writer(f)
-        try:
-            writer.writerows(times)
-        except:
-            writer.writerow(times)
-
-    # Export Pickle
-    file_name = name_var + "_exec.pkl"
-    export_obj(result_execs, root_path + file_name)
-
-    file_name = name_var + "_id.pkl"
-    export_obj(result_ids, root_path + file_name)
-
-    print("Finish")
-
-
-def run_cprofile(numExec, numGenerations, maxWorkers):
-    """Runs without multiprocessing.
-    """
-    # # tracemalloc.start()
-    # numExec = 4
-    # n_exec_ite = range(0, numExec)
-
-    # num_chromossomes = 100
-    # num_geracoes = 100
-    # n_tour = 2
-    # pcross = 0.50
-    # # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
-    # pmut = (0.04, 0.61, 0.77, 0.47)
-    # # pop_exec = self.main(num_exec, num_chromossomes, num_geracoes, n_tour, pcross, pmut)
-
-    # numExec = 2# Number of executions
-    # numGenerations = 1# Number of executions
-    # maxWorkers=2#Local parallelization Maximum number of threads
-
-    t0 = perf_counter()
-
-    pr = cProfile.Profile()
-    pr.enable()
-    pr.runctx(
-        "run_parallel(numExec,numGenerations,maxWorkers)", globals(), locals(),
-    )
-    # pr.runctx(
-    #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
-    #     globals(),
-    #     locals(),
-    # )
-    # pr.runctx(
-    #     # "pop_exec=map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec)",
-    #     "for pop_exec in map(self.main,n_exec_ite,[num_chromossomes] * numExec,[num_geracoes] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec):print()",
-    #     globals(),
-    #     locals(),
-    # )
-
-    pr.disable()
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats(pr, stream=s).sort_stats("tottime")
-    root_path = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\01_raw\\"
-    file_name = "cprofile.txt"
-    path = root_path + file_name
-    ps.print_stats()
-    with open(path, "w+") as f:
-        f.write(s.getvalue())
-    tf = perf_counter()
-    delta_t = tf - t0
-    print("Total time ", delta_t)
-    # snapshot = tracemalloc.take_snapshot()
-    # top_stats = snapshot.statistics("lineno")
-
-    # print("[ Top 10 ]")
-    # for stat in top_stats[:10]:
-    #     print(stat)
-
-
-if __name__ == "__main__":
-    # Planning().run_cprofile()
-    numExec = 20  # Number of executions
-    numGenerations = 1000  # Number of executions
-    maxWorkers = 2  # Local parallelization Maximum number of threads
-    run_parallel(numExec, numGenerations, maxWorkers)
-    # run_cprofile(numExec,numGenerations,maxWorkers)
