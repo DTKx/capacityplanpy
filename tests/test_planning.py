@@ -2,16 +2,18 @@ import unittest
 import numpy as np
 import copy
 import pickle
-# from context import capacityplanpy
+from context import capacityplanpy
 from capacityplanpy.planning import Planning
-# from capacityplanpy.population import Population
 from capacityplanpy.genetic import AlgNsga2
+from capacityplanpy.population import Population
+
 import datetime
 import matplotlib.pyplot as plt
 from scipy.stats import mode
 import random
 import os
 import sys
+import textwrap
 
 
 def load_obj(path):
@@ -19,10 +21,13 @@ def load_obj(path):
         obj = pickle.load(input)
     return obj
 
-def load_population_obj(path):
-    import sys
+def load_population_obj(path):   
     from capacityplanpy import population
     sys.modules['population'] = population
+    # names = sorted(sys.modules.keys())
+    # name_text = ', '.join(names)
+    # print(textwrap.fill(name_text))
+
     with open(path, "rb") as input:
         obj = pickle.load(input)
     del sys.modules['population']
@@ -423,19 +428,23 @@ class PlanningTests(unittest.TestCase):
     def test_merge_pop_with_offspring(self):
         """Tests shape and content of merged populations."""
         print("merge_pop_with_offspring")
-        import sys
-        import textwrap
 
-        names = sorted(sys.modules.keys())
-        name_text = ', '.join(names)
+        # names = sorted(sys.modules.keys())
+        # name_text = ', '.join(names)
+        # print(textwrap.fill(name_text))
 
-        print(textwrap.fill(name_text))
+        # pop = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
+        # pop_copy = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
+        # pop2 = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_2.pkl"))
+
         try:
             pop = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
             pop_copy = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
             pop2 = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_2.pkl"))
         except ModuleNotFoundError:
-            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            pop = load_population_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
+            pop_copy = load_population_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
+            pop2 = load_population_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_2.pkl"))
 
         pop_chromo = pop.num_chromossomes
         pop_genes = pop.num_genes
