@@ -13,22 +13,12 @@ from numba import jit, prange, typeof
 from capacityplanpy import planning,population
 from capacityplanpy.genetic import AlgNsga2,Mutations,Crossovers
 
-
-
 # from scipy import stats
 import tracemalloc
 import logging
 import os
 from capacityplanpy.errors import CountError, InvalidValuesError
 import gc
-
-LOG_FILENAME = "planning.log"
-filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), LOG_FILENAME)
-logging.basicConfig(
-    filename=filepath, filemode="w", level=logging.ERROR
-)  # Defines the path and level of log file
-
-
 class Planning:
     def __init__(
         self,

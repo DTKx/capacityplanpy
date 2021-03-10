@@ -7,13 +7,6 @@ import logging
 import os
 from capacityplanpy.errors import CountError, InvalidValuesError
 
-LOG_FILENAME = "genetic.log"
-filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), LOG_FILENAME)
-logging.basicConfig(
-    filename=filepath, filemode="w", level=logging.ERROR
-)  # Defines the path and level of log file
-
-
 class Helpers:
     @jit(nopython=True, nogil=True)
     def _is_in(array_2d_to_search, array_1d_search):

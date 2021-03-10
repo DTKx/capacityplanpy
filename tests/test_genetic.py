@@ -2,10 +2,12 @@ import unittest
 import numpy as np
 import copy
 import pickle
-from population import Population
-import genetic as gn
+from context import capacityplanpy
+from capacityplanpy.genetic import AlgNsga2, Mutations, Crossovers
+from capacityplanpy.population import Population
 import random
 from ast import literal_eval
+import os
 
 
 def load_obj(path):
@@ -14,8 +16,10 @@ def load_obj(path):
     return obj
 
 
-class GeneticTests(unittest.TestCase):
-    path_data = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\03_testing\\"
+class GeneticTest(unittest.TestCase):
+    path_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "tests_data/"))
+    if os.path.exists(path_data) == False:
+        raise Exception(f"Could not find the path {path_data}, please modify the path.")
 
     @classmethod
     def setUpClass(cls):
@@ -32,21 +36,19 @@ class GeneticTests(unittest.TestCase):
         print("_fronts")
         # Test 1
         num_fronts = 3
-        objectives_fn = np.loadtxt(
-            self.path_data + "_fronts.csv", delimiter=",", skiprows=1
-        )  # Index(['f0', 'f1', 'f2', 'f3', 'front'], dtype='object')
-        front_calc = gn.AlgNsga2._fronts(objectives_fn[:, 0:3], num_fronts)
+        objectives_fn = np.loadtxt(os.path.join(self.path_data,"_fronts.csv"),delimiter=",", skiprows=1)  # Index(['f0', 'f1', 'f2', 'f3', 'front'], dtype='object')
+        front_calc = AlgNsga2._fronts(objectives_fn[:, 0:3], num_fronts)
         self.assertEqual(front_calc.all(), objectives_fn[:, 4].all())
         # Test 2
         # Matrix of ones
         objectives_fn = np.ones(shape=(100, 4))  # Index(['f0', 'f1', 'f2', 'f3'])
-        front_calc = gn.AlgNsga2._fronts(objectives_fn, num_fronts)
+        front_calc = AlgNsga2._fronts(objectives_fn, num_fronts)
         self.assertFalse((any(front_calc >= num_fronts)) | (any(front_calc < 0)))
         self.assertEqual(np.unique(front_calc)[0], 0)
 
         # Matrix of zeros
         objectives_fn = np.zeros(shape=(100, 4))  # Index(['f0', 'f1', 'f2', 'f3'])
-        front_calc = gn.AlgNsga2._fronts(objectives_fn, num_fronts)
+        front_calc = AlgNsga2._fronts(objectives_fn, num_fronts)
         self.assertFalse((any(front_calc >= num_fronts)) | (any(front_calc < 0)))
         self.assertEqual(np.unique(front_calc)[0], 0)
 
@@ -56,7 +58,7 @@ class GeneticTests(unittest.TestCase):
             objectives_fn = np.random.randint(0, 100, size=400).reshape(
                 -1, 4
             )  # Index(['f0', 'f1', 'f2', 'f3'])
-            front_calc = gn.AlgNsga2._fronts(objectives_fn, num_fronts)
+            front_calc = AlgNsga2._fronts(objectives_fn, num_fronts)
             self.assertFalse((any(front_calc >= num_fronts)) | (any(front_calc < 0)))
 
     def tearDown(self):
@@ -66,14 +68,12 @@ class GeneticTests(unittest.TestCase):
         print("setUp")
 
     def test__crowding_distance(self):
-        """Tests evaluation of crowding distance for a manually calculated crowding distance.
-        """
+        """Tests evaluation of crowding distance for a manually calculated crowding distance."""
         print("_crowding_distance")
         big_dummy = 10 ** 5
-        objectives_fn = np.loadtxt(
-            self.path_data + "_crowding_distance.csv", delimiter=",", skiprows=1
+        objectives_fn = np.loadtxt(os.path.join(self.path_data,"_crowding_distance.csv"), delimiter=",", skiprows=1
         )  # Index(['f0', 'f1', 'f2', 'f3', 'front','dcrowd'], dtype='object')
-        crowding_dist = gn.AlgNsga2._crowding_distance(
+        crowding_dist = AlgNsga2._crowding_distance(
             objectives_fn[:, 0:4], objectives_fn[:, 4], big_dummy
         )
         delta = 0.0001
@@ -94,35 +94,34 @@ class GeneticTests(unittest.TestCase):
         """
         print("_index_linear_reinsertion_nsga_constraints")
 
-        data = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_data.csv",
+        data = np.loadtxt(os.path.join(self.path_data,"_index_linear_reinsertion_nsga_constraints_data.csv"),
             delimiter=",",
             skiprows=1,
         )  # violations	crowd_dist	fronts
         index = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_index.csv",
+            os.path.join(self.path_data,"_index_linear_reinsertion_nsga_constraints_index.csv"),
             delimiter=",",
             skiprows=1,
             dtype=np.int32,
         )
-        ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+        ix_sel = AlgNsga2._index_linear_reinsertion_nsga_constraints(
             data[:, 0], data[:, 1], data[:, 2], 100
         )
         self.assertTrue(len(set(ix_sel) - set(index)) == 0)
 
         # Test with second data
         data = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_data_2.csv",
+            os.path.join(self.path_data,"_index_linear_reinsertion_nsga_constraints_data_2.csv"),
             delimiter=",",
             skiprows=1,
         )  # violations	crowd_dist	fronts
         index = np.loadtxt(
-            self.path_data + "_index_linear_reinsertion_nsga_constraints_index_2.csv",
+            os.path.join(self.path_data,"_index_linear_reinsertion_nsga_constraints_index_2.csv"),
             delimiter=",",
             skiprows=1,
             dtype=np.int32,
         )  # All indexes in the array are acceptable
-        ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+        ix_sel = AlgNsga2._index_linear_reinsertion_nsga_constraints(
             data[:, 0], data[:, 1], data[:, 2], 100
         )
         self.assertTrue(len(set(ix_sel) - set(index)) == 0)
@@ -136,7 +135,7 @@ class GeneticTests(unittest.TestCase):
             mean_violations = np.mean(violations)
             crowd_dist = np.random.randint(0, 100, size=n_ind)
             fronts = np.random.randint(0, 3, size=n_ind)
-            ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+            ix_sel = AlgNsga2._index_linear_reinsertion_nsga_constraints(
                 violations, crowd_dist, fronts, len(fronts) // 2
             )
             self.assertLess(np.mean(violations[ix_sel]), mean_violations)
@@ -159,7 +158,7 @@ class GeneticTests(unittest.TestCase):
         data_pop = ["_crossover_uniform_pop.pkl", "_crossover_uniform_pop2.pkl"]
         for pop_name in data_pop:
             for perc_crossover in cross_probabilities:
-                pop = load_obj(self.path_data + pop_name)
+                pop = load_obj(os.path.join(self.path_data,pop_name))
                 num_ind = len(pop.products_raw)
 
                 n_parents = num_ind // 2
@@ -174,7 +173,7 @@ class GeneticTests(unittest.TestCase):
                 masks_copy = pop.masks[ix_to_crossover].copy()
                 genes_per_chromo_copy = pop.genes_per_chromo[ix_to_crossover].copy()
 
-                new_products, new_batches, new_mask = gn.Crossovers._crossover_uniform(
+                new_products, new_batches, new_mask = Crossovers._crossover_uniform(
                     pop.products_raw[ix_to_crossover],
                     pop.batches_raw[ix_to_crossover],
                     pop.masks[ix_to_crossover],

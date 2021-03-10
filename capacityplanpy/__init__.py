@@ -1,3 +1,5 @@
-# import planning as Planning
-# import population as Population
-# from genetic import AlgNsga2
+import os, logging
+
+logging.basicConfig(
+    filename=os.path.join(os.getcwd(), "capacityplan.log"), filemode="w", level=logging.ERROR
+)  # Defines the path and level of log file

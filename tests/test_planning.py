@@ -2,13 +2,16 @@ import unittest
 import numpy as np
 import copy
 import pickle
-from planning import Planning
-from population import Population
+# from context import capacityplanpy
+from capacityplanpy.planning import Planning
+# from capacityplanpy.population import Population
+from capacityplanpy.genetic import AlgNsga2
 import datetime
-import genetic as gn
 import matplotlib.pyplot as plt
 from scipy.stats import mode
 import random
+import os
+import sys
 
 
 def load_obj(path):
@@ -16,9 +19,22 @@ def load_obj(path):
         obj = pickle.load(input)
     return obj
 
+def load_population_obj(path):
+    import sys
+    from capacityplanpy import population
+    sys.modules['population'] = population
+    with open(path, "rb") as input:
+        obj = pickle.load(input)
+    del sys.modules['population']
+    # with open(path, "wb") as output:  # Overwrites any existing file.
+    #     pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+    # https://stackoverflow.com/questions/2121874/python-pickling-after-changing-a-modules-directory
+    return obj
 
 class PlanningTests(unittest.TestCase):
-    path_data = "C:\\Users\\Debora\\Documents\\01_UFU_local\\01_comp_evolutiva\\05_trabalho3\\01_dados\\03_testing\\"
+    path_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "tests_data/"))
+    if os.path.exists(path_data) == False:
+        raise Exception(f"Could not find the path {path_data}, please modify the path.")
 
     @classmethod
     def setUpClass(cls):
@@ -28,8 +44,7 @@ class PlanningTests(unittest.TestCase):
         print("setUp")
 
     def test_Population__init__(self):
-        """Tests generation of random values __init__ of Population class.
-        """
+        """Tests generation of random values __init__ of Population class."""
         print("Population__init__")
         num_chromossomes = 1000
         num_products = 4
@@ -51,64 +66,11 @@ class PlanningTests(unittest.TestCase):
     def tearDown(self):
         print("tearDown")
 
-    # def setUp(self):
-    #     print("setUp")
-
-    # def test_create_demand_montecarlo(self):
-    #     """Tests function create_demand_montecarlo, evaluates if demand generated:
-    #     1) Equal to demand expected.
-    #     2) Generates distributions within the expected triangular distribution range.
-    #     """
-    #     print("create_demand_montecarlo")
-    #     num_tests = 1000
-    #     n_tr_distributions = len(
-    #         Planning().tr_demand
-    #     )  # number of different values with triangular distributions
-    #     demand_distribution = Planning().demand_distribution
-    #     ix_not0 = Planning().ix_not0
-
-    #     for i in range(num_tests):
-    #         demand_j = Planning().create_demand_montecarlo()
-    #         ix_0 = np.where(demand_distribution == 0)
-    #         self.assertTrue(
-    #             (demand_j[ix_0] == 0).all()
-    #         )  # Assures demand have the expected value==0, for each value and Monte Carlo Simulation
-
-    #     for k in np.arange(
-    #         n_tr_distributions
-    #     ):  # Loop per triangular distributions assures values in expected range of triangular distribution.
-    #         triangular_params = demand_distribution[ix_not0[0][k], ix_not0[1][k]]
-    #         self.assertTrue(
-    #             (demand_j[ix_not0[0][k], ix_not0[1][k]] >= triangular_params[0]).all()
-    #             & (demand_j[ix_not0[0][k], ix_not0[1][k]] <= triangular_params[2]).all()
-    #         )
-    #         min_dist = min(demand_j[ix_not0[0][k], ix_not0[1][k]])
-    #         mode_dist = mode(np.around(demand_j[ix_not0[0][k], ix_not0[1][k]], 2))[0][0]
-    #         max_dist = max(demand_j[ix_not0[0][k], ix_not0[1][k]])
-    #         delta = 0.75 * abs(triangular_params[0] - triangular_params[2])
-    #         # delta = abs(
-    #         #     0.25
-    #         #     * (
-    #         #         max(
-    #         #             abs(triangular_params[0] - triangular_params[1]),
-    #         #             abs(triangular_params[2] - triangular_params[1]),
-    #         #         )
-    #         #     )
-    #         # )
-    #         message = "Triangular Distribution is outside expected ranges."  # error message in case if test case got failed
-    #         self.assertAlmostEqual(triangular_params[0], min_dist, None, message, delta)
-    #         self.assertAlmostEqual(triangular_params[1], mode_dist, None, message, delta)
-    #         self.assertAlmostEqual(triangular_params[2], max_dist, None, message, delta)
-
-    # def tearDown(self):
-    #     print("tearDown")
-
     def setUp(self):
         print("setUp")
 
     def test_calc_start_end(self):
-        """Tests start and end of production batches, by comparing with a calculated example.
-        """
+        """Tests start and end of production batches, by comparing with a calculated example."""
         print("calc_start_end")
         num_chromossomes = 1
 
@@ -120,12 +82,20 @@ class PlanningTests(unittest.TestCase):
         num_objectives = 2
         # Start date of manufacturing
         start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-        qc_max_months = 4#Max number of months
+        qc_max_months = 4  # Max number of months
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan = Planning(
+            num_genes,
+            num_products,
+            num_objectives,
+            start_date,
+            qc_max_months,
+            num_months,
+            num_fronts,
+        )
 
         def parser_calc_start_end(path):
             with open(path) as f:
@@ -148,7 +118,9 @@ class PlanningTests(unittest.TestCase):
                     )  # YYYY-MM-DD. Avoids endlines
             return data_input, data_output
 
-        data_input, data_output = parser_calc_start_end(self.path_data + "calc_start_end.csv")
+        data_input, data_output = parser_calc_start_end(
+            os.path.join(self.path_data, "calc_start_end.csv")
+        )
         num_data = len(data_input)
 
         # Loads Solution to population
@@ -176,79 +148,19 @@ class PlanningTests(unittest.TestCase):
     def tearDown(self):
         print("tearDown")
 
-    # def setUp(self):
-    #     print("setUp")
-
-    # def test_calc_distributions_monte_carlo_cuda(self):
-    #     """Tests function calc_distributions_monte_carlo_cuda, comparing to a manually calculated result.
-    #     """
-    #     print("calc_distributions_monte_carlo")
-    #     produced = np.loadtxt(
-    #         self.path_data + "distributions_monte_carlo_produced.csv", delimiter=",", skiprows=1
-    #     )
-    #     demand_val = np.loadtxt(
-    #         self.path_data + "distributions_monte_carlo_demand.csv", delimiter=","
-    #     )
-    #     demand = np.zeros(shape=(demand_val.shape[0], demand_val.shape[1], 2))
-    #     demand[:, :, 0] = demand_val.copy()
-    #     demand[:, :, 1] = demand_val
-    #     distribution_sums_backlog_solution = 0
-    #     distribution_sums_deficit_solution = 413.32
-
-    #     # Number of genes
-    #     num_genes = int(25)
-    #     # Number of products
-    #     num_products = int(4)
-    #     # Number of Objectives
-    #     num_objectives = 2
-    #     # Start date of manufacturing
-    #     start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-    #     qc_max_months = 4#Max number of months
-    #     # Number of Months
-    #     num_months = 36
-    #     num_fronts = 3  # Number of fronts created
-
-    #     myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
-
-    #     (
-    #         distribution_sums_backlog,
-    #         distribution_sums_deficit,
-    #     ) = myPlan.calc_distributions_monte_carlo_cuda(
-    #         produced,  # Produced Month 0 is the first month of inventory batches
-    #         demand,
-    #         2,
-    #         num_months,
-    #         num_products,
-    #         myPlan.target_stock,
-    #         myPlan.initial_stock,
-    #     )
-    #     delta = 0.1
-    #     message = "First and second backlog are not almost equal."  # error message in case if test case got failed
-    #     self.assertAlmostEqual(
-    #         distribution_sums_backlog_solution, distribution_sums_backlog[0], None, message, delta
-    #     )
-    #     message = "First and second deficit values are not almost equal."  # error message in case if test case got failed
-    #     print(distribution_sums_deficit[0])
-    #     self.assertAlmostEqual(
-    #         distribution_sums_deficit_solution, distribution_sums_deficit[0], None, message, delta
-    #     )
-
-    # def tearDown(self):
-    #     print("tearDown")
-
-
     def setUp(self):
         print("setUp")
 
     def test_calc_distributions_monte_carlo(self):
-        """Tests function calc_distributions_monte_carlo, comparing to a manually calculated result.
-        """
+        """Tests function calc_distributions_monte_carlo, comparing to a manually calculated result."""
         print("calc_distributions_monte_carlo")
         produced = np.loadtxt(
-            self.path_data + "distributions_monte_carlo_produced.csv", delimiter=",", skiprows=1
+            os.path.join(self.path_data, "distributions_monte_carlo_produced.csv"),
+            delimiter=",",
+            skiprows=1,
         )
         demand_val = np.loadtxt(
-            self.path_data + "distributions_monte_carlo_demand.csv", delimiter=","
+            os.path.join(self.path_data, "distributions_monte_carlo_demand.csv"), delimiter=","
         )
         demand = np.zeros(shape=(demand_val.shape[0], demand_val.shape[1], 2))
         demand[:, :, 0] = demand_val.copy()
@@ -264,12 +176,20 @@ class PlanningTests(unittest.TestCase):
         num_objectives = 2
         # Start date of manufacturing
         start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-        qc_max_months = 4#Max number of months
+        qc_max_months = 4  # Max number of months
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan = Planning(
+            num_genes,
+            num_products,
+            num_objectives,
+            start_date,
+            qc_max_months,
+            num_months,
+            num_fronts,
+        )
 
         (
             distribution_sums_backlog,
@@ -300,17 +220,17 @@ class PlanningTests(unittest.TestCase):
         print("setUp")
 
     def test_tournament_restrictions(self):
-        """Tests the tournament function to evaluate if the mean of the violations is decreasing after the tournament. In other words, verify if the lowest violations individuals are indeed being selected.
-        """
+        """Tests the tournament function to evaluate if the mean of the violations is decreasing after the tournament. In other words, verify if the lowest violations individuals are indeed being selected."""
         print("tournament_restrictions")
         violations = np.loadtxt(
-            self.path_data + "tournament_restrictions_violations.txt", delimiter=","
+            os.path.join(self.path_data, "tournament_restrictions_violations.txt"), delimiter=","
         )
         crowd_dist = np.loadtxt(
-            self.path_data + "tournament_restrictions_crowding_dist_copy.txt", delimiter=","
+            os.path.join(self.path_data, "tournament_restrictions_crowding_dist_copy.txt"),
+            delimiter=",",
         )
         fronts = np.loadtxt(
-            self.path_data + "tournament_restrictions_fronts_copy.txt", delimiter=","
+            os.path.join(self.path_data, "tournament_restrictions_fronts_copy.txt"), delimiter=","
         )
         n_tests = 10  # Number of tests
         n_parents = len(fronts) // 2
@@ -325,12 +245,20 @@ class PlanningTests(unittest.TestCase):
         num_objectives = 2
         # Start date of manufacturing
         start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-        qc_max_months = 4#Max number of months
+        qc_max_months = 4  # Max number of months
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan = Planning(
+            num_genes,
+            num_products,
+            num_objectives,
+            start_date,
+            qc_max_months,
+            num_months,
+            num_fronts,
+        )
 
         for i in range(n_tests):
             violations_copy = violations.copy()
@@ -348,8 +276,7 @@ class PlanningTests(unittest.TestCase):
         print("setUp")
 
     def test_mutation_processes(self):
-        """Tests the mutation_processes.
-        """
+        """Tests the mutation_processes."""
         print("mutation_processes")
         num_tests = 3
         num_products = 4
@@ -368,11 +295,19 @@ class PlanningTests(unittest.TestCase):
         num_objectives = 2
         # Start date of manufacturing
         start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-        qc_max_months = 4#Max number of months
+        qc_max_months = 4  # Max number of months
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan = Planning(
+            num_genes,
+            num_products,
+            num_objectives,
+            start_date,
+            qc_max_months,
+            num_months,
+            num_fronts,
+        )
 
         for pmut in pmut_list:  # Loops for different mutation rates
             num_genes = random.randint(2, 25)
@@ -437,23 +372,31 @@ class PlanningTests(unittest.TestCase):
         num_objectives = 2
         # Start date of manufacturing
         start_date = datetime.date(2016, 12, 1)  # YYYY-MM-DD.
-        qc_max_months = 4#Max number of months
+        qc_max_months = 4  # Max number of months
         # Number of Months
         num_months = 36
         num_fronts = 3  # Number of fronts created
 
-        myPlan=Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts)
+        myPlan = Planning(
+            num_genes,
+            num_products,
+            num_objectives,
+            start_date,
+            qc_max_months,
+            num_months,
+            num_fronts,
+        )
 
         n_tests = 100  # Number of tests
         for i in range(n_tests):
-            pop = load_obj(self.path_data + "select_pop_by_index_pop.pkl")
+            pop = load_obj(os.path.join(self.path_data,"select_pop_by_index_pop.pkl"))
             violations_copy = np.copy(pop.backlogs[:, 6])
             crowding_dist_copy = np.copy(pop.crowding_dist)
             fronts_copy = np.copy(pop.fronts)
 
             mean_violations = np.mean(violations_copy)
 
-            ix_sel = gn.AlgNsga2._index_linear_reinsertion_nsga_constraints(
+            ix_sel = AlgNsga2._index_linear_reinsertion_nsga_constraints(
                 violations_copy, crowding_dist_copy, fronts_copy, len(fronts_copy) // 2
             )  # Input Violations,Crowding Distance, Fronts
             self.assertLess(
@@ -478,73 +421,98 @@ class PlanningTests(unittest.TestCase):
         print("setUp")
 
     def test_merge_pop_with_offspring(self):
-        """Tests shape and content of merged populations.
-        """
+        """Tests shape and content of merged populations."""
         print("merge_pop_with_offspring")
-        
-        pop = load_obj(self.path_data + "merge_pop_with_offspring_pop_1.pkl")
-        pop_copy = load_obj(self.path_data + "merge_pop_with_offspring_pop_1.pkl")
-        pop2 = load_obj(self.path_data + "merge_pop_with_offspring_pop_2.pkl")
+        import sys
+        import textwrap
 
-        pop_chromo=pop.num_chromossomes
-        pop_genes=pop.num_genes
-        num_metrics=pop.backlogs.shape[1]
-        num_objectives=pop.objectives_raw.shape[1]
-        max_months,num_products=pop.produced_month_product_individual.shape[:2]
-        pop2_chromo=pop2.num_chromossomes
+        names = sorted(sys.modules.keys())
+        name_text = ', '.join(names)
 
-        Planning.merge_pop_with_offspring(pop,pop2)
+        print(textwrap.fill(name_text))
+        try:
+            pop = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
+            pop_copy = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_1.pkl"))
+            pop2 = load_obj(os.path.join(self.path_data, "merge_pop_with_offspring_pop_2.pkl"))
+        except ModuleNotFoundError:
+            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        #Batches
-        self.assertEqual(pop.batches_raw.shape,(pop_chromo+pop2_chromo,pop_genes))
-        self.assertEqual((pop.batches_raw[0:pop_chromo]).all(),(pop_copy.batches_raw).all())
-        self.assertEqual((pop.batches_raw[pop_chromo:]).all(),(pop2.batches_raw).all())
-        #Chromossomes
-        self.assertEqual(pop.num_chromossomes,pop_chromo+pop2_chromo)
-        #Products
-        self.assertEqual(pop.products_raw.shape,(pop_chromo+pop2_chromo,pop_genes))
-        self.assertEqual((pop.products_raw[0:pop_chromo]).all(),(pop_copy.products_raw).all())
-        self.assertEqual((pop.products_raw[pop_chromo:]).all(),(pop2.products_raw).all())
+        pop_chromo = pop.num_chromossomes
+        pop_genes = pop.num_genes
+        num_metrics = pop.backlogs.shape[1]
+        num_objectives = pop.objectives_raw.shape[1]
+        max_months, num_products = pop.produced_month_product_individual.shape[:2]
+        pop2_chromo = pop2.num_chromossomes
 
-        self.assertEqual(pop.masks.shape,(pop_chromo+pop2_chromo,pop_genes))# Masks
-        self.assertEqual((pop.masks[0:pop_chromo]).all(),(pop_copy.masks).all())
-        self.assertEqual((pop.masks[pop_chromo:]).all(),(pop2.masks).all())
+        Planning.merge_pop_with_offspring(pop, pop2)
 
-        self.assertEqual(pop.start_raw.shape,(pop_chromo+pop2_chromo,pop_genes))# Start Raw
-        self.assertTrue(np.array_equal(pop.start_raw[0:pop_chromo],pop_copy.start_raw))
-        self.assertTrue(np.array_equal(pop.start_raw[pop_chromo:],pop2.start_raw))
-        
+        # Batches
+        self.assertEqual(pop.batches_raw.shape, (pop_chromo + pop2_chromo, pop_genes))
+        self.assertEqual((pop.batches_raw[0:pop_chromo]).all(), (pop_copy.batches_raw).all())
+        self.assertEqual((pop.batches_raw[pop_chromo:]).all(), (pop2.batches_raw).all())
+        # Chromossomes
+        self.assertEqual(pop.num_chromossomes, pop_chromo + pop2_chromo)
+        # Products
+        self.assertEqual(pop.products_raw.shape, (pop_chromo + pop2_chromo, pop_genes))
+        self.assertEqual((pop.products_raw[0:pop_chromo]).all(), (pop_copy.products_raw).all())
+        self.assertEqual((pop.products_raw[pop_chromo:]).all(), (pop2.products_raw).all())
 
-        self.assertEqual(pop.end_raw.shape,(pop_chromo+pop2_chromo,pop_genes))# End Raw
-        self.assertTrue(np.array_equal(pop.end_raw[0:pop_chromo],pop_copy.end_raw))
-        self.assertTrue(np.array_equal(pop.end_raw[pop_chromo:],pop2.end_raw))
+        self.assertEqual(pop.masks.shape, (pop_chromo + pop2_chromo, pop_genes))  # Masks
+        self.assertEqual((pop.masks[0:pop_chromo]).all(), (pop_copy.masks).all())
+        self.assertEqual((pop.masks[pop_chromo:]).all(), (pop2.masks).all())
 
-        self.assertEqual(pop.backlogs.shape,(pop_chromo+pop2_chromo,num_metrics))# Stock backlog_i
-        self.assertEqual((pop.backlogs[0:pop_chromo]).all(),(pop_copy.backlogs).all())
-        self.assertEqual((pop.backlogs[pop_chromo:]).all(),(pop2.backlogs).all())
-        
-        self.assertEqual(pop.deficit.shape,(pop_chromo+pop2_chromo,num_metrics-1))# Stock Deficit_i
-        self.assertEqual((pop.deficit[0:pop_chromo]).all(),(pop_copy.deficit).all())
-        self.assertEqual((pop.deficit[pop_chromo:]).all(),(pop2.deficit).all())
+        self.assertEqual(pop.start_raw.shape, (pop_chromo + pop2_chromo, pop_genes))  # Start Raw
+        self.assertTrue(np.array_equal(pop.start_raw[0:pop_chromo], pop_copy.start_raw))
+        self.assertTrue(np.array_equal(pop.start_raw[pop_chromo:], pop2.start_raw))
 
-        self.assertEqual(pop.objectives_raw.shape,(pop_chromo+pop2_chromo,num_objectives))# Stock Deficit_i
-        self.assertEqual((pop.objectives_raw[0:pop_chromo]).all(),(pop_copy.objectives_raw).all())
-        self.assertEqual((pop.objectives_raw[pop_chromo:]).all(),(pop2.objectives_raw).all())
+        self.assertEqual(pop.end_raw.shape, (pop_chromo + pop2_chromo, pop_genes))  # End Raw
+        self.assertTrue(np.array_equal(pop.end_raw[0:pop_chromo], pop_copy.end_raw))
+        self.assertTrue(np.array_equal(pop.end_raw[pop_chromo:], pop2.end_raw))
 
-        self.assertEqual(pop.genes_per_chromo.shape,(pop_chromo+pop2_chromo,))# Genes per chromossome (Number of active campaigns per solution)
-        self.assertEqual((pop.genes_per_chromo[0:pop_chromo]).all(),(pop_copy.genes_per_chromo).all())
-        self.assertEqual((pop.genes_per_chromo[pop_chromo:]).all(),(pop2.genes_per_chromo).all())
+        self.assertEqual(
+            pop.backlogs.shape, (pop_chromo + pop2_chromo, num_metrics)
+        )  # Stock backlog_i
+        self.assertEqual((pop.backlogs[0:pop_chromo]).all(), (pop_copy.backlogs).all())
+        self.assertEqual((pop.backlogs[pop_chromo:]).all(), (pop2.backlogs).all())
 
-        self.assertEqual(pop.produced_month_product_individual.shape,(max_months,num_products,pop_chromo+pop2_chromo))# Genes per chromossome (Number of active campaigns per solution)
-        self.assertEqual((pop.produced_month_product_individual[0:pop_chromo]).all(),(pop_copy.produced_month_product_individual).all())
-        self.assertEqual((pop.produced_month_product_individual[pop_chromo:]).all(),(pop2.produced_month_product_individual).all())
-        
-        self.assertEqual(pop.fronts.shape,(pop_chromo+pop2_chromo,1))# fronts
-        self.assertEqual(pop.crowding_dist.shape,(pop_chromo+pop2_chromo,1))# crowding_dist
+        self.assertEqual(
+            pop.deficit.shape, (pop_chromo + pop2_chromo, num_metrics - 1)
+        )  # Stock Deficit_i
+        self.assertEqual((pop.deficit[0:pop_chromo]).all(), (pop_copy.deficit).all())
+        self.assertEqual((pop.deficit[pop_chromo:]).all(), (pop2.deficit).all())
+
+        self.assertEqual(
+            pop.objectives_raw.shape, (pop_chromo + pop2_chromo, num_objectives)
+        )  # Stock Deficit_i
+        self.assertEqual((pop.objectives_raw[0:pop_chromo]).all(), (pop_copy.objectives_raw).all())
+        self.assertEqual((pop.objectives_raw[pop_chromo:]).all(), (pop2.objectives_raw).all())
+
+        self.assertEqual(
+            pop.genes_per_chromo.shape, (pop_chromo + pop2_chromo,)
+        )  # Genes per chromossome (Number of active campaigns per solution)
+        self.assertEqual(
+            (pop.genes_per_chromo[0:pop_chromo]).all(), (pop_copy.genes_per_chromo).all()
+        )
+        self.assertEqual((pop.genes_per_chromo[pop_chromo:]).all(), (pop2.genes_per_chromo).all())
+
+        self.assertEqual(
+            pop.produced_month_product_individual.shape,
+            (max_months, num_products, pop_chromo + pop2_chromo),
+        )  # Genes per chromossome (Number of active campaigns per solution)
+        self.assertEqual(
+            (pop.produced_month_product_individual[0:pop_chromo]).all(),
+            (pop_copy.produced_month_product_individual).all(),
+        )
+        self.assertEqual(
+            (pop.produced_month_product_individual[pop_chromo:]).all(),
+            (pop2.produced_month_product_individual).all(),
+        )
+
+        self.assertEqual(pop.fronts.shape, (pop_chromo + pop2_chromo, 1))  # fronts
+        self.assertEqual(pop.crowding_dist.shape, (pop_chromo + pop2_chromo, 1))  # crowding_dist
 
     def tearDown(self):
         print("tearDown")
-
 
     @classmethod
     def tearDownClass(cls):
