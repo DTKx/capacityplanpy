@@ -128,7 +128,7 @@ def run_parallel(numExec, numGenerations, maxWorkers):
         )
         pop_main.name_variation = name_var
         file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-        export_obj(pop_main, output_data_path + file_name)
+        export_obj(pop_main, os.path.join(output_data_path,file_name))
         del pop_main  # 1)Is it a best practice delete an object after exporting and then load, export and del again?
 
         t0 = perf_counter()
@@ -153,7 +153,7 @@ def run_parallel(numExec, numGenerations, maxWorkers):
                 # print("In merge pop exec", pop_exec.fronts)
                 # print("Backlog In merge", pop_exec.backlogs[:, 6])
 
-                pop_main = load_obj(output_data_path + file_name)
+                pop_main = load_obj(os.path.join(output_data_path,file_name))
                 # print("In merge pop main", pop_main.fronts)
                 print("In merge num_chromossomes", pop_main.num_chromossomes)
                 pop_main = planning.Planning.merge_pop_with_offspring(pop_main, pop_exec)
@@ -161,11 +161,11 @@ def run_parallel(numExec, numGenerations, maxWorkers):
                 # print("Backlog Out merge", pop_main.backlogs[:, 6])
                 print("Out merge num_chromossomes", pop_main.num_chromossomes)
 
-                export_obj(pop_main, output_data_path + file_name)
+                export_obj(pop_main, os.path.join(output_data_path,file_name))
                 del pop_main
                 del pop_exec
 
-        pop_main = load_obj(output_data_path + file_name)
+        pop_main = load_obj(os.path.join(output_data_path,file_name))
         # Removes the first dummy one chromossome
         print("Final Num Chromossomes", pop_main.fronts.shape)
         planning.Planning.select_pop_by_index(pop_main, np.arange(1, pop_main.num_chromossomes))
@@ -210,7 +210,7 @@ def run_parallel(numExec, numGenerations, maxWorkers):
         print("Backlog Out after metrics_inversion_violations", pop_main.backlogs[:, 6])
 
         file_name = f"pop_{v_i[0]},{v_i[1]},{v_i[2]},{v_i[3]},{v_i[4]}.pkl"
-        export_obj(pop_main, output_data_path + file_name)
+        export_obj(pop_main, os.path.join(output_data_path,file_name))
 
         tf = perf_counter()
         delta_t = tf - t0

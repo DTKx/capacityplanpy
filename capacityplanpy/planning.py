@@ -58,7 +58,6 @@ class Planning:
 
     # Number of Monte Carlo executions Article ==1000
     num_monte = 1000
-    # input_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/input/"))
     input_path = os.path.abspath(os.path.join(os.getcwd(), "data/input/"))
     if os.path.exists(input_path) == False:
         raise Exception(f"Could not find the path {input_path}, please modify the path.")
