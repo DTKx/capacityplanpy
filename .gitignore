@@ -5,9 +5,11 @@ presentation/*
 results_analysis/data*
 compevol.code-workspace
 **/*.log #Ignore Log files
+*.log #Ignore Log files
 **/*.xlsx #Ignore (.xlsx) files
 **/*.pdf #Ignore pdf files
 **/*.vscode #Ignore vscode files
+*.vscode #Ignore vscode files
 
 # # From https://github.com/github/gitignore/blob/master/Python.gitignore
 # # Byte-compiled / optimized / DLL files

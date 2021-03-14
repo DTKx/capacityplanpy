@@ -18,7 +18,7 @@ import tracemalloc
 import logging
 import os
 from capacityplanpy.errors import CountError, InvalidValuesError
-import gc
+# import gc
 
 
 class Planning:
@@ -912,7 +912,7 @@ class Planning:
             objectives_raw_copy, fronts_copy, self.big_dummy
         )
         for i_gen in range(0, num_geracoes):
-            print("Generation ", i_gen)
+            # print("Generation ", i_gen)
 
             # 6)Selection for Crossover Tournament
             backlogs_copy = pop.backlogs[:, 6].copy()
@@ -988,5 +988,5 @@ class Planning:
             self.select_pop_by_index(pop, ix_reinsert_copy)
         t1 = perf_counter()
         print("Exec", num_exec, "Time", t1 - t0)
-        gc.collect()
+        # gc.collect()
         return pop
