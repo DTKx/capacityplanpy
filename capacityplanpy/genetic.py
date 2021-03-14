@@ -7,41 +7,6 @@ import logging
 import os
 from capacityplanpy.errors import CountError, InvalidValuesError
 
-class Helpers:
-    @jit(nopython=True, nogil=True)
-    def _is_in(array_2d_to_search, array_1d_search):
-        """Equivalent to np.isin
-
-        Args:
-            array_2d_to_search ([type]): [description]
-            array_1d_search ([type]): [description]
-
-        Returns:
-            [type]: [description]
-        """
-        return np.array([x in set(array_1d_search) for x in array_2d_to_search])
-
-    @jit(nopython=True, nogil=True)
-    def _find_idx_duplicates(array_duplicates):
-        """Returns indexes of first duplicate found
-
-        Args:
-            list_duplicates ([type]): [description]
-
-        Returns:
-            [type]: [description]
-        """
-        oc_set = set()
-        res = []
-        for val in array_duplicates:
-            if val not in oc_set:
-                oc_set.add(val)
-            else:
-                res.append(val)
-                break
-        return np.where(array_duplicates == val)[0], val
-
-
 class Crossovers:
     """Methods applied for Crossover of genes between selected parents."""
 

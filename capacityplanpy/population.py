@@ -1,11 +1,11 @@
 import copy
 import numpy as np
+
 # from pygmo.util import hypervolume
 
 
 class Population:
-    """Stores population attributes and methods
-    """
+    """Stores population attributes and methods"""
 
     # Metrics per backlog deficit
     # 0)Max total months and products, 1)Mean total months and products,
@@ -90,8 +90,7 @@ class Population:
         self.crowding_dist = np.empty(shape=(num_chromossomes, 1), dtype=int)
 
     def update_genes_per_chromo(self):
-        """ Updates genes per chromossome (Number of active campaigns per solution)
-        """
+        """Updates genes per chromossome (Number of active campaigns per solution)"""
         self.genes_per_chromo = np.sum(self.masks, axis=1, dtype=int)
 
     def update_new_population(self, new_products, new_batches, new_mask):
@@ -107,12 +106,12 @@ class Population:
 
         # Updates new Products
         if isinstance(self.products_raw[0][0], np.int32) == False:
-            raise ValueError("Not int")
+            raise ValueError("ValueError, invalid type not int.")
 
         self.products_raw = copy.deepcopy(new_products)
 
         if isinstance(self.products_raw[0][0], np.int32) == False:
-            raise ValueError("Not int")
+            raise ValueError("ValueError, invalid type not int.")
 
         # Updates Mask of active items with only one gene
         self.masks = copy.deepcopy(new_mask)
@@ -125,7 +124,7 @@ class Population:
             ix (int): Index of the solution to verify metrics
 
         Returns:
-            list: List with the metrics Total throughput [kg] Max total backlog [kg] Mean total backlog [kg] Median total backlog [kg] a Min total backlog [kg] P(total backlog ≤ 0 kg) 
+            list: List with the metrics Total throughput [kg] Max total backlog [kg] Mean total backlog [kg] Median total backlog [kg] a Min total backlog [kg] P(total backlog ≤ 0 kg)
                 Max total inventory deficit [kg] Mean total inventory deficit [kg] a Median total inventory deficit [kg] Min total inventory deficit [kg]
         """
         metrics = [num_exec, name_var, id_solution]
@@ -184,7 +183,7 @@ class Population:
         Returns:
             list: Array with metrics:
                 "Hypervolume"
-                Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]" 
+                Solution X "X Total throughput [kg]", "X Max total backlog [kg]", "X Mean total backlog [kg]", "X Median total backlog [kg]","X Min total backlog [kg]", "X P(total backlog ≤ 0 kg)","X Max total inventory deficit [kg]", "X Mean total inventory deficit [kg]", "X Median total inventory deficit [kg]", "X Min total inventory deficit [kg]"
                 Solution Y "Y Total throughput [kg]", "Y Max total backlog [kg]", "Y Mean total backlog [kg]", "Y Median total backlog [kg]","Y Min total backlog [kg]", "Y P(total backlog ≤ 0 kg)","Y Max total inventory deficit [kg]", "Y Mean total inventory deficit [kg]", "Y Median total inventory deficit [kg]", "Y Min total inventory deficit [kg]" Pareto Front
         """
         # Indexes
@@ -205,10 +204,9 @@ class Population:
         # except ValueError:
         #     hv_vol_norma = 0
         metrics_exec = [num_exec, name_var, hv_vol_norma]
-        # data_plot=[]
 
         # Reinverts again the throughput, that was modified for minimization
-        self.objectives_raw[:, 0] =self.objectives_raw[:, 0]*(-1.0)
+        self.objectives_raw[:, 0] = self.objectives_raw[:, 0] * (-1.0)
         # Metrics
         ix_best_min = np.argmin(self.objectives_raw[:, 0][ix_pareto])
         ix_best_max = np.argmax(self.objectives_raw[:, 0][ix_pareto])

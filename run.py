@@ -111,7 +111,6 @@ def run_parallel(numExec, numGenerations, maxWorkers):
     # Number of tour
     nt = [2]
     # Crossover Probability
-    # pcross = [0.11]
     pcross = [0.5]
     # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
     pmut = [(0.04, 0.61, 0.77, 0.47)]
@@ -163,15 +162,9 @@ def run_parallel(numExec, numGenerations, maxWorkers):
                 [v_i[3]] * numExec,
                 [v_i[4]] * numExec,
             ):
-                # print("In merge pop exec", pop_exec.fronts)
-                # print("Backlog In merge", pop_exec.backlogs[:, 6])
-
                 pop_main = load_obj(os.path.join(output_data_path, file_name))
-                # print("In merge pop main", pop_main.fronts)
                 print("In merge num_chromossomes", pop_main.num_chromossomes)
                 pop_main = planning.Planning.merge_pop_with_offspring(pop_main, pop_exec)
-                # print("Out merge pop main", pop_main.fronts)
-                # print("Backlog Out merge", pop_main.backlogs[:, 6])
                 print("Out merge num_chromossomes", pop_main.num_chromossomes)
 
                 export_obj(pop_main, os.path.join(output_data_path, file_name))
@@ -277,7 +270,6 @@ def run_cprofile(numExec, numGenerations, maxWorkers):
     # Number of tour
     n_tour = 2
     # Crossover Probability
-    # pcross = 0.11
     pcross = 0.5
     # Parameters for the mutation operator (pmutp,pposb,pnegb,pswap)
     pmut = (0.04, 0.61, 0.77, 0.47)
@@ -286,16 +278,6 @@ def run_cprofile(numExec, numGenerations, maxWorkers):
 
     pr = cProfile.Profile()
     pr.enable()
-
-    # pr.runctx(
-    #     "run_parallel(numExec,numGenerations,maxWorkers)", globals(), locals(),
-    # )
-
-    # pr.runctx(
-    #     "pop_exec=self.main(num_exec,num_chromossomes,num_geracoes,n_tour,pcross,pmut)",
-    #     globals(),
-    #     locals(),
-    # )
 
     pr.runctx(
         "for pop_exec in map(planning.Planning(num_genes,num_products,num_objectives,start_date,qc_max_months,num_months,num_fronts).main,n_exec_ite,[num_chromossomes] * numExec,[numGenerations] * numExec,[n_tour] * numExec,[pcross] * numExec,[pmut] * numExec):print()",
@@ -442,7 +424,6 @@ if __name__ == "__main__":
     numExec = 50  # Number of executions
     numGenerations = 1000  # Number of executions
     maxWorkers = 2  # Local parallelization Maximum number of threads
-    # run_parallel(numExec, numGenerations, maxWorkers)
+    run_parallel(numExec, numGenerations, maxWorkers)
     # run_cprofile(numExec,numGenerations,maxWorkers)
-    # from capacityplanpy import results_processing
     # process_incomplete_populations(numGenerations)
