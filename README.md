@@ -13,7 +13,6 @@ The optimized solutions of the pareto front can be visualized below:
 Moreover an example of a planification can be seen below:
 ![Example of a planification, with the number of batches to be produced.](/images/planningX.png)
 
-
 The current project focus on the reproduction of the [Article](https://www.sciencedirect.com/science/article/abs/pii/S0098135418312146?via%3Dihub):
 ```
 @article{JANKAUSKAS201935,
@@ -30,6 +29,7 @@ keywords = {Multi-objective, Uncertainty, Biopharmaceutical, Capacity planning, 
 abstract = {This paper presents a flexible genetic algorithm optimisation approach for multi-objective biopharmaceutical planning problems under uncertainty. The optimisation approach combines a continuous-time heuristic model of a biopharmaceutical manufacturing process, a variable-length multi-objective genetic algorithm, and Graphics Processing Unit (GPU)-accelerated Monte Carlo simulation. The proposed approach accounts for constraints and features such as rolling product sequence-dependent changeovers, multiple intermediate demand due dates, product QC/QA release times, and pressure to meet uncertain product demand on time. An industrially-relevant case study is used to illustrate the functionality of the approach. The case study focused on optimisation of conflicting objectives, production throughput, and product inventory levels, for a multi-product biopharmaceutical facility over a 3-year period with uncertain product demand. The advantages of the multi-objective GA with the embedded Monte Carlo simulation were demonstrated by comparison with a deterministic GA tested with Monte Carlo simulation post-optimisation.}
 }
 ```
+Obs. Project Underdevelopment.
 <!-- Motivation -->
 # Motivation
 ## Product Development Multiobjectives
